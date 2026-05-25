@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Paramètres — BudgetPAD{% endblock %}
+{% block content %}
+<h4 style="font-weight:600;color:#1B3A5C;" class="mb-1">Paramètres</h4>
+<p class="text-muted mb-4" style="font-size:14px;">Configuration de l'application</p>
+<div class="row g-3">
+    <div class="col-md-6"><div class="data-card"><h6>Alertes</h6><div class="mb-3"><label class="form-label">Seuil de consommation (%)</label><input type="number" class="form-control" value="80"></div><p class="text-muted" style="font-size:13px;">Une alerte est générée au-delà de ce taux.</p><button class="btn btn-pad">Enregistrer</button></div></div>
+    <div class="col-md-6"><div class="data-card"><h6>Mode démo</h6><p class="text-muted" style="font-size:13px;">Réinitialise toutes les données au jeu de seed initial.</p><form method="post">{% csrf_token %}<button type="submit" name="reset_seed" class="btn btn-outline-secondary"><i class="bi bi-arrow-counterclockwise"></i> Réinitialiser le seed</button></form></div></div>
+    <div class="col-md-6">
+        <div class="data-card">
+            <h6>RGPD — Mes données</h6>
+            <p class="text-muted" style="font-size:13px;">
+                Téléchargez l'intégralité de vos données personnelles enregistrées
+                par BudgetPAD au format JSON (article 20 — droit à la portabilité).
+            </p>
+            <a href="{% url 'rgpd_export' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-download"></i> Télécharger mes données (JSON)
+            </a>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="data-card">
+            <h6>Intégrité du journal</h6>
+            <p class="text-muted" style="font-size:13px;">
+                Chaque entrée du journal est scellée par une chaîne SHA-256. Toute
+                modification a posteriori est détectable via la commande
+                <code>python manage.py verify_audit_chain</code>.
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% load core_tags budget_filters %}
+{% block title %}Tâches budgétaires — BudgetPAD{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div><h4 style="font-weight:600;color:#1B3A5C;">Tâches budgétaires</h4><p class="text-muted mb-0" style="font-size:14px;">{{ taches|length }} tâches · Exercice {{ exercice.annee }}</p></div>
+    {% if request.user|has_role:"assistante_drh" %}
+    <button class="btn btn-pad" data-bs-toggle="modal" data-bs-target="#modalTache"><i class="bi bi-plus"></i> Nouvelle tâche</button>
+    {% endif %}
+</div>
+<div class="data-card">
+    <h6>Liste des tâches</h6>
+    <div class="table-responsive">
+    <table class="table table-hover mb-0">
+        <thead><tr><th>N°</th><th>Titre</th><th>Nature</th><th class="money">Initial</th><th class="money">+/−</th><th class="money">Ajusté</th><th class="money">Conso</th><th class="money">Solde</th><th>Taux</th><th>Prév.</th><th>Actions</th></tr></thead>
+        <tbody>
+        {% for t in taches %}
+        <tr class="tache-row" data-tache-id="{{ t.pk }}" style="cursor:pointer;" title="Cliquer pour voir les détails">
+            <td><strong>{{ t.numero }}</strong></td>
+            <td>{{ t.titre }}</td>
+            <td><small class="text-muted">{{ t.code_nature }}<br>{{ t.libelle_nature }}</small></td>
+            <td class="money">{{ t.montant_initial|fmt }}</td>
+            <td class="money">{% if t.transactions_plus > 0 or t.transactions_moins > 0 %}<span style="color:{% if t.transactions_plus > t.transactions_moins %}green{% else %}red{% endif %}">{{ t.transactions_display }}</span>{% else %}—{% endif %}</td>
+            <td class="money"><strong>{{ t.budget_ajuste|fmt }}</strong></td>
+            <td class="money">{{ t.consommation|fmt }}</td>
+            <td class="money">{{ t.solde|fmt }}</td>
+            <td><span class="taux-badge {{ t.taux_couleur }}">{{ t.taux_consommation }} %</span></td>
+            <td>{{ t.taux_previsionnel|default:"—" }} %</td>
+            <td onclick="event.stopPropagation();">
+                {% if request.user|has_role:"assistante_drh" %}
+                <form method="post" action="{% url 'tache_delete' t.pk %}" class="d-inline" onsubmit="return confirm('Supprimer cette tâche ?');">{% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Supprimer"><i class="bi bi-trash"></i></button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+
+<!-- Offcanvas détail tâche -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="tacheDetailOffcanvas" style="width:420px;">
+    <div class="offcanvas-header" style="border-bottom:1px solid #eee;">
+        <h6 class="offcanvas-title mb-0" style="color:#1B3A5C;">Détail de la tâche</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body" id="tacheDetailBody">
+        <div class="text-center text-muted py-5">
+            <div class="spinner-border spinner-border-sm" role="status"></div>
+            <p class="mt-2 mb-0" style="font-size:13px;">Chargement…</p>
+        </div>
+    </div>
+</div>
+
+<!-- Modal nouvelle tâche -->
+<div class="modal fade" id="modalTache" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Nouvelle tâche budgétaire</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <form method="post" action="{% url 'tache_create' %}">{% csrf_token %}
+    <div class="modal-body">
+        <div class="mb-3"><label class="form-label">Titre</label><input type="text" name="titre" class="form-control" placeholder="Ex : Maintenance véhicules" required></div>
+        <div class="row mb-3"><div class="col"><label class="form-label">Code nature</label><input type="text" name="code_nature" class="form-control" placeholder="60410"></div><div class="col"><label class="form-label">Libellé nature</label><input type="text" name="libelle_nature" class="form-control" placeholder="Fournitures"></div></div>
+        <div class="row mb-3"><div class="col"><label class="form-label">Montant initial (FCFA)</label><input type="number" name="montant_initial" class="form-control" value="0" required></div><div class="col"><label class="form-label">Taux prévisionnel (%)</label><input type="number" name="taux_previsionnel" class="form-control" value="50"></div></div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button><button type="submit" class="btn btn-pad">Créer</button></div>
+    </form>
+</div></div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var offcanvasEl = document.getElementById('tacheDetailOffcanvas');
+    var offcanvas = new bootstrap.Offcanvas(offcanvasEl);
+    var body = document.getElementById('tacheDetailBody');
+
+    document.querySelectorAll('.tache-row').forEach(function (row) {
+        row.addEventListener('click', function () {
+            var id = this.dataset.tacheId;
+            body.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm" role="status"></div><p class="mt-2 mb-0" style="font-size:13px;">Chargement…</p></div>';
+            offcanvas.show();
+            fetch('/taches/' + id + '/detail/', {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function (r) { return r.text(); })
+            .then(function (html) { body.innerHTML = html; })
+            .catch(function () { body.innerHTML = '<p class="text-danger text-center mt-4">Erreur de chargement.</p>'; });
+        });
+    });
+})();
+</script>
+{% endblock %}

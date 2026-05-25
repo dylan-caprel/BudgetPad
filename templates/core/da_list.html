@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% load core_tags %}
+{% block title %}Demandes d'achat — BudgetPAD{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div><h4 style="font-weight:600;color:#1B3A5C;">Demandes d'achat</h4><p class="text-muted mb-0" style="font-size:14px;">{{ page_obj.paginator.count }} demandes · DA → BC</p></div>
+    {% if request.user|has_role:"directeur_drh,assistante_drh" %}<button class="btn btn-pad" data-bs-toggle="modal" data-bs-target="#modalDA"><i class="bi bi-plus"></i> Nouvelle DA</button>{% endif %}
+</div>
+<div class="data-card">
+    <h6>Liste des demandes</h6>
+
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3">{{ filter.form.reference }}</div>
+        <div class="col-md-3">{{ filter.form.objet }}</div>
+        <div class="col-md-2">{{ filter.form.statut }}</div>
+        <div class="col-md-3">{{ filter.form.tache }}</div>
+        <div class="col-md-1"><button type="submit" class="btn btn-sm btn-pad w-100">Filtrer</button></div>
+    </form>
+
+    <table class="table table-hover mb-0">
+        <thead><tr><th>Référence</th><th>Objet</th><th>Tâche</th><th class="money">Montant estimé</th><th>Offres</th><th>Statut</th><th>Créée le</th><th>Actions</th></tr></thead>
+        <tbody>
+        {% for da in demandes %}
+        <tr class="da-row" data-da-id="{{ da.pk }}" style="cursor:pointer;" title="Cliquer pour voir les détails">
+            <td><strong>{{ da.reference }}</strong></td><td>{{ da.objet }}</td><td>{{ da.tache.numero }}</td>
+            <td class="money">{{ da.montant_estime|floatformat:0 }} FCFA</td>
+            <td>
+                {% with total=da.offres.count %}
+                {% if total == 0 %}
+                <span class="text-muted" style="font-size:12px;">—</span>
+                {% else %}
+                <span class="badge bg-secondary" style="font-size:11px;"
+                      title="{{ total }} prestataire(s) sollicité(s)">
+                    {{ total }} <i class="bi bi-people-fill"></i>
+                </span>
+                {% endif %}
+                {% endwith %}
+            </td>
+            <td><span class="badge bg-{{ da.statut_couleur }} badge-statut">{{ da.get_statut_display }}</span></td>
+            <td>{{ da.created_at|date:"d/m/Y" }}</td>
+            <td onclick="event.stopPropagation();">
+                {% if request.user|has_role:"dag" %}
+                  {% if da.statut == 'cree' %}
+                  <!-- Étape 1 : passer en étude -->
+                  <form method="post" action="{% url 'da_en_etude' da.pk %}" class="d-inline">{% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-link text-warning p-0" title="Mettre en étude">
+                      <i class="bi bi-search"></i>
+                    </button>
+                  </form>
+                  {% elif da.statut == 'en_etude' %}
+                  <!-- Étape 2 : Valider ou Refuser (seulement depuis en_étude) -->
+                  <form method="post" action="{% url 'da_valider' da.pk %}" class="d-inline">{% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-link text-success p-0" title="Valider">
+                      <i class="bi bi-check-lg"></i>
+                    </button>
+                  </form>
+                  <button type="button" class="btn btn-sm btn-link text-danger p-0" title="Refuser"
+                          data-bs-toggle="modal" data-bs-target="#modalRefus{{ da.pk }}">
+                    <i class="bi bi-x-lg"></i>
+                  </button>
+                  <div class="modal fade" id="modalRefus{{ da.pk }}" tabindex="-1">
+                    <div class="modal-dialog"><div class="modal-content">
+                      <form method="post" action="{% url 'da_refuser' da.pk %}">{% csrf_token %}
+                        <div class="modal-header"><h5 class="modal-title">Refuser {{ da.reference }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                        <div class="modal-body">
+                          <label class="form-label">Motif du refus <span class="text-danger">*</span></label>
+                          <textarea name="motif" class="form-control" rows="3" required placeholder="Expliquer le motif…"></textarea>
+                        </div>
+                        <div class="modal-footer">
+                          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                          <button type="submit" class="btn btn-danger">Confirmer le refus</button>
+                        </div>
+                      </form>
+                    </div></div>
+                  </div>
+                  {% endif %}
+                {% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-center text-muted py-3">Aucune demande trouvée</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    {% include "partials/_pagination.html" %}
+</div>
+
+<!-- Offcanvas détail DA -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="daDetailOffcanvas" style="width:420px;">
+    <div class="offcanvas-header" style="border-bottom:1px solid #eee;">
+        <h6 class="offcanvas-title mb-0" style="color:#1B3A5C;">Détail de la demande d'achat</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body" id="daDetailBody">
+        <div class="text-center text-muted py-5">
+            <div class="spinner-border spinner-border-sm" role="status"></div>
+            <p class="mt-2 mb-0" style="font-size:13px;">Chargement…</p>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalDA" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Nouvelle demande d'achat</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <form method="post" action="{% url 'da_create' %}">{% csrf_token %}
+    <div class="modal-body">
+        <div class="mb-3"><label class="form-label">Tâche budgétaire</label><select name="tache" class="form-select" required><option value="">Choisir...</option>{% for t in taches %}<option value="{{ t.pk }}">{{ t.numero }} — {{ t.titre }}</option>{% endfor %}</select></div>
+        <div class="mb-3"><label class="form-label">Objet</label><input type="text" name="objet" class="form-control" placeholder="Ex : Achat consommables" required></div>
+        <div class="mb-3"><label class="form-label">Montant estimé (FCFA)</label><input type="number" name="montant_estime" class="form-control" value="0" required></div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button><button type="submit" class="btn btn-pad">Créer</button></div>
+    </form>
+</div></div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var offcanvasEl = document.getElementById('daDetailOffcanvas');
+    var offcanvas = new bootstrap.Offcanvas(offcanvasEl);
+    var body = document.getElementById('daDetailBody');
+
+    document.querySelectorAll('.da-row').forEach(function (row) {
+        row.addEventListener('click', function () {
+            var id = this.dataset.daId;
+            body.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm" role="status"></div><p class="mt-2 mb-0" style="font-size:13px;">Chargement…</p></div>';
+            offcanvas.show();
+            fetch('/demandes-achat/' + id + '/detail/', {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function (r) { return r.text(); })
+            .then(function (html) { body.innerHTML = html; })
+            .catch(function () { body.innerHTML = '<p class="text-danger text-center mt-4">Erreur de chargement.</p>'; });
+        });
+    });
+})();
+</script>
+{% endblock %}

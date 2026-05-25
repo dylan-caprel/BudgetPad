@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(& \"C:\\\\Users\\\\User\\\\Desktop\\\\budgetpad\\\\env\\\\Scripts\\\\python.exe\" manage.py seed_data)",
+      "Bash(.\\\\env\\\\Scripts\\\\python.exe manage.py seed_data)"
+    ]
+  }
+}

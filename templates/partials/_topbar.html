@@ -1,0 +1,42 @@
+<div class="topbar">
+    <div class="d-flex align-items-center gap-3">
+        <!-- Recherche globale -->
+        <form method="get" action="{% url 'recherche' %}" class="m-0">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-white border-end-0" style="border-color:#dee2e6;">
+                    <i class="bi bi-search text-muted"></i>
+                </span>
+                <input type="text" name="q" class="form-control border-start-0"
+                       placeholder="Rechercher…" style="width:200px;border-color:#dee2e6;"
+                       value="{{ request.GET.q|default:'' }}"
+                       autocomplete="off">
+            </div>
+        </form>
+        {% if exercices_all|length > 1 %}
+        <form method="post" action="{% url 'exercice_switch' %}" class="d-flex align-items-center gap-1 m-0">
+            {% csrf_token %}
+            <small class="text-muted">Exercice :</small>
+            <select name="annee" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+                {% for ex in exercices_all %}
+                <option value="{{ ex.annee }}" {% if exercice_courant.pk == ex.pk %}selected{% endif %}>
+                    {{ ex.annee }}{% if ex.statut == 'actif' %} ★{% endif %}
+                </option>
+                {% endfor %}
+            </select>
+        </form>
+        {% endif %}
+    </div>
+    <div class="topbar-user">
+        {% include "partials/_notifications_dropdown.html" %}
+        <div class="topbar-avatar">{{ request.user.nom_complet|default:request.user.username|slice:":1"|upper }}</div>
+        <div>
+            <div style="font-size:14px;font-weight:500;">{{ request.user.nom_complet|default:request.user.username }}</div>
+            <div style="font-size:11px;color:#888;">{{ request.user.get_role_display_short }}</div>
+        </div>
+        <span class="role-badge">{{ request.user.get_role_display_short }}</span>
+        <form method="post" action="{% url 'logout' %}" class="d-inline m-0">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-link text-muted ms-2 p-0" title="Déconnexion"><i class="bi bi-box-arrow-right"></i></button>
+        </form>
+    </div>
+</div>

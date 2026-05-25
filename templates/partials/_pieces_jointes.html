@@ -1,0 +1,88 @@
+<!-- Partial pièces jointes — variables : pieces_jointes, type_entite, entite_id, can_upload -->
+<hr style="margin:10px 0;">
+<div class="mb-2">
+    <div class="text-muted mb-2" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;">
+        <i class="bi bi-paperclip me-1"></i>Pièces jointes
+        {% if pieces_jointes %}
+        <span class="badge bg-secondary ms-1" style="font-size:10px;">{{ pieces_jointes|length }}</span>
+        {% endif %}
+    </div>
+
+    <!-- Liste des fichiers existants -->
+    {% if pieces_jointes %}
+    <div class="list-group list-group-flush mb-2" style="border-radius:6px;overflow:hidden;border:1px solid #eee;">
+        {% for pj in pieces_jointes %}
+        <div class="list-group-item px-3 py-2 d-flex justify-content-between align-items-center" style="font-size:12px;">
+            <div class="d-flex align-items-center gap-2" style="min-width:0;">
+                <i class="{{ pj.icone }}" style="color:{{ pj.couleur_icone }};font-size:18px;flex-shrink:0;"></i>
+                <div style="min-width:0;">
+                    <a href="{{ pj.fichier.url }}" target="_blank"
+                       class="text-dark text-decoration-none fw-500 d-block text-truncate"
+                       title="{{ pj.nom_original }}" style="max-width:180px;">
+                        {{ pj.nom_original }}
+                    </a>
+                    <small class="text-muted">
+                        {% if pj.type_piece and pj.type_piece != 'autre' %}
+                        <span class="badge bg-light text-dark border me-1" style="font-size:10px;">{{ pj.get_type_piece_display }}</span>
+                        {% endif %}
+                        {{ pj.taille_lisible }}
+                        {% if pj.uploaded_by %}· {{ pj.uploaded_by.nom_complet|default:pj.uploaded_by.username }}{% endif %}
+                        · {{ pj.created_at|date:"d/m/Y" }}
+                    </small>
+                </div>
+            </div>
+            <div class="d-flex gap-1 flex-shrink-0">
+                <a href="{{ pj.fichier.url }}" target="_blank"
+                   class="btn btn-sm btn-outline-secondary" title="Ouvrir">
+                    <i class="bi bi-eye"></i>
+                </a>
+                <a href="{{ pj.fichier.url }}" download="{{ pj.nom_original }}"
+                   class="btn btn-sm btn-outline-primary" title="Télécharger">
+                    <i class="bi bi-download"></i>
+                </a>
+                {% if can_upload %}
+                <form method="post" action="{% url 'piece_jointe_delete' pj.pk %}"
+                      onsubmit="return confirm('Supprimer « {{ pj.nom_original }} » ?');" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Supprimer">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted mb-2" style="font-size:12px;">
+        <i class="bi bi-inbox me-1"></i>Aucune pièce jointe.
+    </p>
+    {% endif %}
+
+    <!-- Formulaire d'upload -->
+    {% if can_upload %}
+    <form method="post" action="{% url 'piece_jointe_upload' %}"
+          enctype="multipart/form-data"
+          class="d-flex gap-2 align-items-center flex-wrap">
+        {% csrf_token %}
+        <input type="hidden" name="type_entite" value="{{ type_entite }}">
+        <input type="hidden" name="entite_id"   value="{{ entite_id }}">
+        <select name="type_piece" class="form-select form-select-sm flex-shrink-0" style="font-size:12px;width:auto;">
+            <option value="devis">Devis</option>
+            <option value="facture_proforma">Facture proforma</option>
+            <option value="bon_commande">BC signé</option>
+            <option value="facture">Facture</option>
+            <option value="pv_reception">PV de réception</option>
+            <option value="autre" selected>Autre</option>
+        </select>
+        <input type="file" name="fichier" class="form-control form-control-sm" style="font-size:12px;flex:1;min-width:0;"
+               accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx">
+        <button type="submit" class="btn btn-sm btn-outline-secondary flex-shrink-0">
+            <i class="bi bi-upload me-1"></i>Joindre
+        </button>
+    </form>
+    <small class="text-muted d-block mt-1" style="font-size:11px;">
+        PDF, images, Word, Excel · 10 Mo max
+    </small>
+    {% endif %}
+</div>

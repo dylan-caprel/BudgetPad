@@ -1,0 +1,82 @@
+{% load budget_filters %}
+<div class="mb-3">
+    <h6 class="mb-1" style="font-size:16px;font-weight:700;color:#1B3A5C;">{{ tache.numero }}</h6>
+    <div style="font-size:14px;">{{ tache.titre }}</div>
+    {% if tache.code_nature %}
+    <small class="text-muted">{{ tache.code_nature }} — {{ tache.libelle_nature }}</small>
+    {% endif %}
+</div>
+
+<div class="row g-2 mb-3" style="font-size:13px;">
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">BUDGET INITIAL</div>
+        <div>{{ tache.montant_initial|fmt }}</div>
+        <div class="text-muted" style="font-size:10px;">{{ tache.montant_initial|fmt_exact }}</div>
+    </div>
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">VIREMENTS +/−</div>
+        <div>
+            {% if tache.transactions_plus > 0 %}<span class="text-success">+{{ tache.transactions_plus|fmt }}</span>{% endif %}
+            {% if tache.transactions_moins > 0 %}<span class="text-danger"> −{{ tache.transactions_moins|fmt }}</span>{% endif %}
+            {% if tache.transactions_plus == 0 and tache.transactions_moins == 0 %}—{% endif %}
+        </div>
+    </div>
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">BUDGET AJUSTÉ</div>
+        <div><strong>{{ tache.budget_ajuste|fmt }}</strong></div>
+        <div class="text-muted" style="font-size:10px;">{{ tache.budget_ajuste|fmt_exact }}</div>
+    </div>
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">TAUX PRÉVISIONNEL</div>
+        <div>{{ tache.taux_previsionnel|default:"—" }} %</div>
+    </div>
+</div>
+
+<hr style="margin:10px 0;">
+
+<div class="row g-2 mb-3" style="font-size:13px;">
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">CONSOMMATION</div>
+        <div>{{ tache.consommation|fmt }}</div>
+        <div class="text-muted" style="font-size:10px;">{{ tache.consommation|fmt_exact }}</div>
+    </div>
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">SOLDE DISPONIBLE</div>
+        <div style="color:#1A5632;font-weight:600;">{{ tache.solde|fmt }}</div>
+        <div class="text-muted" style="font-size:10px;">{{ tache.solde|fmt_exact }}</div>
+    </div>
+    <div class="col-12">
+        <div class="text-muted mb-1" style="font-size:11px;">TAUX DE CONSOMMATION</div>
+        <div class="d-flex align-items-center gap-2">
+            <div class="progress flex-grow-1" style="height:8px;">
+                <div class="progress-bar {% if tache.taux_consommation >= 90 %}bg-danger{% elif tache.taux_consommation >= 70 %}bg-warning{% else %}bg-success{% endif %}"
+                     style="width:{{ tache.taux_consommation|floatformat:0 }}%"></div>
+            </div>
+            <span class="taux-badge {{ tache.taux_couleur }}" style="white-space:nowrap;">{{ tache.taux_consommation }} %</span>
+        </div>
+    </div>
+</div>
+
+{% if bcs %}
+<hr style="margin:10px 0;">
+<div>
+    <div class="text-muted mb-2" style="font-size:11px;">BONS DE COMMANDE ({{ bcs|length }})</div>
+    {% for bc in bcs %}
+    <div class="d-flex justify-content-between align-items-center py-1" style="font-size:12px;border-bottom:1px solid #f5f5f5;">
+        <div>
+            <strong>{{ bc.numero }}</strong>
+            <span class="text-muted ms-1">{{ bc.prestataire.nom }}</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <div class="text-end">
+                <div class="money" style="font-size:12px;">{{ bc.montant_ttc|fmt }}</div>
+                <div class="text-muted" style="font-size:10px;">{{ bc.montant_ttc|fmt_exact }}</div>
+            </div>
+            <span class="badge bg-{{ bc.statut_couleur }}" style="font-size:10px;">{{ bc.get_statut_display }}</span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-muted text-center mt-3" style="font-size:13px;">Aucun bon de commande sur cette tâche.</p>
+{% endif %}

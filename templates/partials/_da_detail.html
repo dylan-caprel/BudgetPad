@@ -1,0 +1,229 @@
+{% load budget_filters %}
+
+<!-- En-tête DA -->
+<div class="mb-3 d-flex justify-content-between align-items-start">
+    <div>
+        <h6 class="mb-1" style="font-size:16px;font-weight:700;color:#1B3A5C;">{{ da.reference }}</h6>
+        <span class="badge bg-{{ da.statut_couleur }}">{{ da.get_statut_display }}</span>
+    </div>
+    <small class="text-muted">{{ da.created_at|date:"d/m/Y" }}</small>
+</div>
+
+<!-- Boutons d'action DA (selon statut) -->
+{% if can_manage %}
+<div class="d-flex gap-2 flex-wrap mb-3">
+    {% if da.statut == 'cree' %}
+    <form method="post" action="{% url 'da_en_etude' da.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm btn-outline-warning">
+            <i class="bi bi-search me-1"></i>Mettre en étude
+        </button>
+    </form>
+    {% endif %}
+    {% if da.statut == 'en_etude' %}
+    <form method="post" action="{% url 'da_valider' da.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm btn-outline-success"
+                onclick="return confirm('Valider {{ da.reference }} ?');">
+            <i class="bi bi-check-lg me-1"></i>Valider
+        </button>
+    </form>
+    <button type="button" class="btn btn-sm btn-outline-danger"
+            data-bs-toggle="collapse" data-bs-target="#formRefusDA{{ da.pk }}">
+        <i class="bi bi-x-lg me-1"></i>Refuser
+    </button>
+    <div class="collapse w-100" id="formRefusDA{{ da.pk }}">
+        <form method="post" action="{% url 'da_refuser' da.pk %}" class="mt-2">
+            {% csrf_token %}
+            <textarea name="motif" class="form-control form-control-sm mb-2" rows="2"
+                      placeholder="Motif du refus…" required style="font-size:12px;"></textarea>
+            <button type="submit" class="btn btn-sm btn-danger">Confirmer le refus</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Infos principales -->
+<div class="row g-2 mb-3" style="font-size:13px;">
+    <div class="col-12">
+        <div class="text-muted" style="font-size:11px;">OBJET</div>
+        <div>{{ da.objet }}</div>
+    </div>
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">TÂCHE</div>
+        <div><strong>{{ da.tache.numero }}</strong> — {{ da.tache.titre|truncatechars:30 }}</div>
+    </div>
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">MONTANT ESTIMÉ</div>
+        <div class="money">{{ da.montant_estime|fmt }}</div>
+        <div class="text-muted" style="font-size:10px;">{{ da.montant_estime|fmt_exact }}</div>
+    </div>
+    {% if da.created_by %}
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">CRÉÉE PAR</div>
+        <div>{{ da.created_by.nom_complet|default:da.created_by.username }}</div>
+    </div>
+    {% endif %}
+</div>
+
+{% if da.motif_refus %}
+<div class="alert alert-danger py-2 px-3 mb-3" style="font-size:12px;">
+    <strong>Motif du refus :</strong> {{ da.motif_refus }}
+</div>
+{% endif %}
+
+<!-- ============ SECTION OFFRES PRESTATAIRES ============ -->
+<hr style="margin:10px 0;">
+<div class="mb-3">
+
+    <!-- Compteur + alerte retard -->
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="text-muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;">
+            Offres prestataires
+        </div>
+        {% if nb_contactes > 0 %}
+        <span class="badge {% if nb_recues == nb_contactes %}bg-success{% elif nb_recues == 0 %}bg-secondary{% else %}bg-warning text-dark{% endif %}" style="font-size:11px;">
+            {{ nb_recues }} reçue{{ nb_recues|pluralize }} / {{ nb_contactes }} contacté{{ nb_contactes|pluralize }}
+        </span>
+        {% endif %}
+    </div>
+
+    <!-- Alerte retard global -->
+    {% if nb_en_retard > 0 %}
+    <div class="alert alert-warning py-2 px-3 mb-2 d-flex align-items-center gap-2" role="alert" style="font-size:12px;">
+        <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+        <span><strong>{{ nb_en_retard }} prestataire{{ nb_en_retard|pluralize }}</strong> n'a pas répondu depuis plus de 7 jours.</span>
+    </div>
+    {% endif %}
+
+    <!-- Liste des offres -->
+    {% if offres %}
+    <div class="list-group list-group-flush mb-3" style="border-radius:8px;overflow:hidden;border:1px solid #eee;">
+        {% for offre in offres %}
+        <div class="list-group-item px-3 py-2" style="font-size:12px;">
+            <div class="d-flex justify-content-between align-items-start">
+                <!-- Nom + badge statut -->
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-{{ offre.statut_icon }}" style="font-size:14px;
+                        color:{% if offre.statut == 'retenue' %}#1A5632{% elif offre.statut == 'recue' %}#0d6efd{% elif offre.statut == 'en_attente' %}#F39C12{% else %}#6c757d{% endif %};"></i>
+                    <div>
+                        <div style="font-weight:500;">{{ offre.prestataire.nom }}</div>
+                        <small class="text-muted">Sollicité le {{ offre.date_sollicitation|date:"d/m/Y" }}</small>
+                        {% if offre.date_reception %}
+                        <br><small class="text-muted">Reçu le {{ offre.date_reception|date:"d/m/Y" }}</small>
+                        {% endif %}
+                        {% if offre.est_en_retard %}
+                        <br><small class="text-warning fw-bold"><i class="bi bi-clock-history me-1"></i>En retard</small>
+                        {% endif %}
+                    </div>
+                </div>
+                <!-- Montant + badge -->
+                <div class="text-end">
+                    {% if offre.montant is not None %}
+                    <div class="money" style="font-size:13px;">{{ offre.montant|fmt }}</div>
+                    <div class="text-muted" style="font-size:10px;">{{ offre.montant|fmt_exact }}</div>
+                    {% else %}
+                    <span class="text-muted" style="font-size:11px;">Montant en attente</span>
+                    {% endif %}
+                    <br>
+                    <span class="badge bg-{{ offre.statut_couleur }}" style="font-size:10px;">
+                        {{ offre.get_statut_display }}
+                    </span>
+                </div>
+            </div>
+
+            <!-- Bouton "Saisir l'offre" si en attente + droits suffisants -->
+            {% if offre.statut == 'en_attente' and can_manage %}
+            <form method="post" action="{% url 'offre_saisir' offre.pk %}" class="mt-2 d-flex gap-2 align-items-center">
+                {% csrf_token %}
+                <input type="number" name="montant" class="form-control form-control-sm"
+                       placeholder="Montant FCFA" min="1" step="1" required
+                       style="max-width:150px;">
+                <button type="submit" class="btn btn-sm btn-outline-success" style="white-space:nowrap;">
+                    <i class="bi bi-pencil-check me-1"></i>Saisir l'offre
+                </button>
+            </form>
+            {% endif %}
+
+            <!-- Boutons Retenir / Refuser si offre reçue + droits suffisants -->
+            {% if offre.statut == 'recue' and can_manage %}
+            <div class="mt-2 d-flex gap-2 align-items-center flex-wrap">
+                <form method="post" action="{% url 'offre_retenir' offre.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-success"
+                            onclick="return confirm('Retenir l\'offre de {{ offre.prestataire.nom }} ? Les autres offres reçues seront automatiquement refusées.');"
+                            style="white-space:nowrap;">
+                        <i class="bi bi-trophy me-1"></i>Retenir
+                    </button>
+                </form>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        data-bs-toggle="collapse" data-bs-target="#formRefusOffre{{ offre.pk }}"
+                        style="white-space:nowrap;">
+                    <i class="bi bi-x-circle me-1"></i>Refuser
+                </button>
+            </div>
+            <div class="collapse" id="formRefusOffre{{ offre.pk }}">
+                <form method="post" action="{% url 'offre_refuser' offre.pk %}" class="mt-2">
+                    {% csrf_token %}
+                    <textarea name="motif" class="form-control form-control-sm mb-2" rows="2"
+                              placeholder="Motif du refus…" required style="font-size:12px;"></textarea>
+                    <button type="submit" class="btn btn-sm btn-danger">Confirmer le refus</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted text-center py-2 mb-2" style="font-size:12px;">
+        <i class="bi bi-inbox me-1"></i>Aucun prestataire sollicité pour l'instant.
+    </p>
+    {% endif %}
+
+    <!-- Formulaire : solliciter un nouveau prestataire -->
+    {% if can_manage and da.statut != 'refusee' and da.statut != 'bc_cree' %}
+    <div style="background:#f8f9fa;border-radius:8px;padding:12px;border:1px dashed #dee2e6;">
+        <div class="text-muted mb-2" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;">
+            <i class="bi bi-plus-circle me-1"></i>Solliciter un prestataire
+        </div>
+        <form method="post" action="{% url 'offre_solliciter' da.pk %}" class="d-flex gap-2 align-items-center">
+            {% csrf_token %}
+            {{ form_solliciter.prestataire }}
+            <button type="submit" class="btn btn-sm btn-pad" style="white-space:nowrap;flex-shrink:0;">
+                <i class="bi bi-send me-1"></i>Solliciter
+            </button>
+        </form>
+        {% if not form_solliciter.fields.prestataire.queryset.exists %}
+        <small class="text-muted mt-1 d-block">
+            <i class="bi bi-info-circle me-1"></i>Tous les prestataires disponibles ont déjà été contactés.
+        </small>
+        {% endif %}
+    </div>
+    {% endif %}
+
+</div>
+<!-- ============ FIN SECTION OFFRES ============ -->
+
+<!-- Bons de commande liés -->
+{% if da.bons_commande.all %}
+<hr style="margin:10px 0;">
+<div>
+    <div class="text-muted mb-2" style="font-size:11px;">BONS DE COMMANDE GÉNÉRÉS</div>
+    {% for bc in da.bons_commande.all %}
+    <div class="d-flex justify-content-between align-items-center py-1" style="font-size:12px;">
+        <strong>{{ bc.numero }}</strong>
+        <div class="d-flex align-items-center gap-2">
+            <div class="text-end">
+                <div class="money">{{ bc.montant_ttc|fmt }}</div>
+                <div class="text-muted" style="font-size:10px;">{{ bc.montant_ttc|fmt_exact }}</div>
+            </div>
+            <span class="badge bg-{{ bc.statut_couleur }}" style="font-size:10px;">{{ bc.get_statut_display }}</span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Pièces jointes -->
+{% include "partials/_pieces_jointes.html" with type_entite="da" entite_id=da.pk can_upload=can_manage %}

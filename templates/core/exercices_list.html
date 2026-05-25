@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% load core_tags budget_filters %}
+{% block title %}Exercices budgétaires — BudgetPAD{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h4 style="font-weight:600;color:#1B3A5C;">Exercices budgétaires</h4>
+        <p class="text-muted mb-0" style="font-size:14px;">{{ exercices|length }} exercice{{ exercices|length|pluralize }}</p>
+    </div>
+    {% if request.user.role == 'admin' %}
+    <button class="btn btn-pad" data-bs-toggle="modal" data-bs-target="#modalExercice">
+        <i class="bi bi-plus"></i> Nouvel exercice
+    </button>
+    {% endif %}
+</div>
+
+<div class="data-card">
+    <table class="table table-hover mb-0">
+        <thead>
+            <tr>
+                <th>Année</th>
+                <th>Période</th>
+                <th class="money">Budget global</th>
+                <th class="money">Consommation</th>
+                <th>Taux</th>
+                <th>Tâches</th>
+                <th>BCs</th>
+                <th>Statut</th>
+                {% if request.user.role == 'admin' %}<th>Actions</th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+        {% for ex in exercices %}
+        {% with s=stats|get_item:ex.pk %}
+        <tr>
+            <td><strong>{{ ex.annee }}</strong></td>
+            <td><small class="text-muted">{{ ex.date_debut|date:"d/m/Y" }} → {{ ex.date_fin|date:"d/m/Y" }}</small></td>
+            <td class="money">{{ s.budget|fmt }}</td>
+            <td class="money">{{ s.conso|fmt }}</td>
+            <td>
+                <span class="taux-badge {% if s.taux >= 90 %}danger{% elif s.taux >= 75 %}warning{% else %}ok{% endif %}">
+                    {{ s.taux }} %
+                </span>
+            </td>
+            <td>{{ s.nb_taches }}</td>
+            <td>{{ s.nb_bc }}</td>
+            <td>
+                {% if ex.statut == 'actif' %}
+                <span class="badge bg-success">Actif</span>
+                {% else %}
+                <span class="badge bg-secondary">Clôturé</span>
+                {% endif %}
+            </td>
+            {% if request.user.role == 'admin' %}
+            <td>
+                {% if ex.statut == 'actif' %}
+                <form method="post" action="{% url 'exercice_cloturer' ex.pk %}" class="d-inline"
+                      onsubmit="return confirm('Clôturer l\'exercice {{ ex.annee }} ? Cette action est irréversible.');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-warning">
+                        <i class="bi bi-lock"></i> Clôturer
+                    </button>
+                </form>
+                {% endif %}
+            </td>
+            {% endif %}
+        </tr>
+        {% endwith %}
+        {% empty %}
+        <tr><td colspan="9" class="text-center text-muted py-3">Aucun exercice.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if request.user.role == 'admin' %}
+<div class="modal fade" id="modalExercice" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nouvel exercice budgétaire</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'exercice_create' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Année</label>
+                        <input type="number" name="annee" class="form-control" placeholder="2026" required>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col">
+                            <label class="form-label">Date de début</label>
+                            <input type="date" name="date_debut" class="form-control" required>
+                        </div>
+                        <div class="col">
+                            <label class="form-label">Date de fin</label>
+                            <input type="date" name="date_fin" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Montant global (FCFA)</label>
+                        <input type="number" name="montant_global" class="form-control" placeholder="120000000" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-pad">Créer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

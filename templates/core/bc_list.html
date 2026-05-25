@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% load core_tags budget_filters %}
+{% block title %}Bons de commande — BudgetPAD{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div><h4 style="font-weight:600;color:#1B3A5C;">Bons de commande</h4><p class="text-muted mb-0" style="font-size:14px;">{{ page_obj.paginator.count }} BC · TVA 19,25 %</p></div>
+    {% if request.user|has_role:"dag" %}<button class="btn btn-pad" data-bs-toggle="modal" data-bs-target="#modalBC"><i class="bi bi-plus"></i> Créer un BC</button>{% endif %}
+</div>
+<div class="row g-3 mb-4">
+    <div class="col"><div class="kpi-card"><div class="kpi-label">Créé</div><div class="kpi-value">{{ bc_counts.cree }}</div></div></div>
+    <div class="col"><div class="kpi-card"><div class="kpi-label">Notifié</div><div class="kpi-value">{{ bc_counts.notifie }}</div></div></div>
+    <div class="col"><div class="kpi-card"><div class="kpi-label">En cours</div><div class="kpi-value">{{ bc_counts.en_cours }}</div></div></div>
+    <div class="col"><div class="kpi-card"><div class="kpi-label">Exécuté</div><div class="kpi-value">{{ bc_counts.execute }}</div></div></div>
+    <div class="col"><div class="kpi-card"><div class="kpi-label" style="color:#E74C3C;">Annulés</div><div class="kpi-value" style="color:#E74C3C;">{{ bc_counts.annule }}</div></div></div>
+</div>
+<div class="data-card">
+    <h6>Liste des bons de commande</h6>
+
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3">{{ filter.form.numero }}</div>
+        <div class="col-md-2">{{ filter.form.statut }}</div>
+        <div class="col-md-3">{{ filter.form.tache }}</div>
+        <div class="col-md-3">{{ filter.form.prestataire }}</div>
+        <div class="col-md-1"><button type="submit" class="btn btn-sm btn-pad w-100">Filtrer</button></div>
+    </form>
+
+    <table class="table table-hover mb-0">
+        <thead><tr><th>N°</th><th>Tâche</th><th>Prestataire</th><th>Émission</th><th>Notif.</th><th class="money">HT</th><th class="money">TTC</th><th>Statut</th><th>Actions</th></tr></thead>
+        <tbody>
+        {% for bc in bcs %}
+        <tr class="bc-row" data-bc-id="{{ bc.pk }}" style="cursor:pointer;" title="Cliquer pour voir les détails">
+            <td><strong>{{ bc.numero }}</strong></td><td>{{ bc.tache.numero }}</td><td>{{ bc.prestataire.nom }}</td>
+            <td>{{ bc.date_emission|date:"d/m/Y" }}</td><td>{{ bc.date_notification|date:"d/m/Y"|default:"—" }}</td>
+            <td class="money">{{ bc.montant_ht|fmt }}</td><td class="money">{{ bc.montant_ttc|fmt }}</td>
+            <td><span class="badge bg-{{ bc.statut_couleur }} badge-statut">{{ bc.get_statut_display }}</span></td>
+            <td class="bc-actions" onclick="event.stopPropagation();">
+                <a href="{% url 'bc_pdf' bc.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Télécharger le PDF"><i class="bi bi-file-earmark-pdf"></i></a>
+                {% if request.user|has_role:"dag" %}
+                  {% if bc.statut == 'cree' %}
+                    <form method="post" action="{% url 'bc_change_statut' bc.pk 'notifie' %}" class="d-inline"
+                          title="Requiert un bon de commande signé en pièce jointe">{% csrf_token %}
+                      <button type="submit" class="btn btn-sm btn-outline-info">→ Notifié</button>
+                    </form>
+                  {% endif %}
+                  {% if bc.statut == 'notifie' %}
+                    <form method="post" action="{% url 'bc_change_statut' bc.pk 'en_cours' %}" class="d-inline">{% csrf_token %}
+                      <button type="submit" class="btn btn-sm btn-outline-primary">→ En cours</button>
+                    </form>
+                  {% endif %}
+                  {% if bc.statut == 'en_cours' %}
+                    <form method="post" action="{% url 'bc_change_statut' bc.pk 'execute' %}" class="d-inline"
+                          onsubmit="return confirm('Marquer ce BC comme exécuté ? Cette action est définitive.');">{% csrf_token %}
+                      <button type="submit" class="btn btn-sm btn-outline-success">→ Exécuté</button>
+                    </form>
+                  {% endif %}
+                  {% if not bc.statut|in_csv:"execute,annule" %}
+                    <button type="button" class="btn btn-sm btn-outline-danger" title="Annuler"
+                            data-bs-toggle="modal" data-bs-target="#modalAnnulBC{{ bc.pk }}">✕</button>
+                    <div class="modal fade" id="modalAnnulBC{{ bc.pk }}" tabindex="-1">
+                      <div class="modal-dialog modal-sm"><div class="modal-content">
+                        <form method="post" action="{% url 'bc_change_statut' bc.pk 'annule' %}">{% csrf_token %}
+                          <div class="modal-header"><h6 class="modal-title">Annuler {{ bc.numero }}</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                          <div class="modal-body">
+                            <label class="form-label" style="font-size:13px;">Motif d'annulation <span class="text-danger">*</span></label>
+                            <textarea name="motif" class="form-control form-control-sm" rows="3" required placeholder="Expliquer le motif…"></textarea>
+                          </div>
+                          <div class="modal-footer py-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                            <button type="submit" class="btn btn-sm btn-danger">Confirmer</button>
+                          </div>
+                        </form>
+                      </div></div>
+                    </div>
+                  {% endif %}
+                {% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" class="text-center text-muted py-3">Aucun bon de commande trouvé</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    {% include "partials/_pagination.html" %}
+</div>
+
+<!-- Offcanvas détail BC -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="bcDetailOffcanvas" style="width:420px;">
+    <div class="offcanvas-header" style="border-bottom:1px solid #eee;">
+        <h6 class="offcanvas-title mb-0" style="color:#1B3A5C;">Détail du bon de commande</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body" id="bcDetailBody">
+        <div class="text-center text-muted py-5">
+            <div class="spinner-border spinner-border-sm" role="status"></div>
+            <p class="mt-2 mb-0" style="font-size:13px;">Chargement…</p>
+        </div>
+    </div>
+</div>
+
+<!-- Modal BC — sélection d'une DA validée -->
+<div class="modal fade" id="modalBC" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-cart-plus me-2"></i>Nouveau bon de commande</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    </div>
+    <form method="post" action="{% url 'bc_create' %}">{% csrf_token %}
+    <div class="modal-body">
+        {% if das_validees %}
+        <div class="mb-3">
+            <label class="form-label fw-500">Demande d'achat validée <span class="text-danger">*</span></label>
+            <select name="da_id" id="daSelectBC" class="form-select" required onchange="bcAutoFill(this)">
+                <option value="">— Choisir une DA validée —</option>
+                {% for da in das_validees %}
+                {% with offre=da.offres.all %}
+                {% for o in offre %}{% if o.statut == 'retenue' %}
+                <option value="{{ da.pk }}"
+                        data-prestataire="{{ o.prestataire.nom }}"
+                        data-montant="{{ o.montant|floatformat:0 }}"
+                        data-tache="{{ da.tache.numero }} — {{ da.tache.titre }}"
+                        data-objet="{{ da.objet }}">
+                    {{ da.reference }} — {{ da.objet|truncatechars:40 }}
+                </option>
+                {% endif %}{% endfor %}
+                {% endwith %}
+                {% endfor %}
+            </select>
+        </div>
+        <div id="bcPreview" class="d-none">
+            <div class="alert alert-info py-2 px-3 mb-3" style="font-size:12px;">
+                <div class="mb-1"><strong>Tâche :</strong> <span id="bcPrevTache">—</span></div>
+                <div class="mb-1"><strong>Prestataire :</strong> <span id="bcPrevPrestataire">—</span></div>
+                <div><strong>Montant HT :</strong> <span id="bcPrevMontant">—</span> FCFA</div>
+            </div>
+            <p class="text-muted mb-0" style="font-size:11px;">
+                <i class="bi bi-info-circle me-1"></i>
+                Le prestataire et le montant sont automatiquement repris de l'offre retenue.
+            </p>
+        </div>
+        {% else %}
+        <div class="alert alert-warning mb-0" style="font-size:13px;">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Aucune demande d'achat validée avec offre retenue n'est disponible.
+            <br><small class="text-muted mt-1 d-block">
+                Une DA doit être <strong>validée</strong> et avoir <strong>1 offre retenue</strong> avant de pouvoir créer un BC.
+            </small>
+        </div>
+        {% endif %}
+    </div>
+    <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+        {% if das_validees %}
+        <button type="submit" class="btn btn-pad">Créer le BC</button>
+        {% endif %}
+    </div>
+    </form>
+</div></div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var offcanvasEl = document.getElementById('bcDetailOffcanvas');
+    var offcanvas = new bootstrap.Offcanvas(offcanvasEl);
+    var body = document.getElementById('bcDetailBody');
+
+    document.querySelectorAll('.bc-row').forEach(function (row) {
+        row.addEventListener('click', function () {
+            var id = this.dataset.bcId;
+            body.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm" role="status"></div><p class="mt-2 mb-0" style="font-size:13px;">Chargement…</p></div>';
+            offcanvas.show();
+            fetch('/bons-commande/' + id + '/detail/', {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function (r) { return r.text(); })
+            .then(function (html) { body.innerHTML = html; })
+            .catch(function () { body.innerHTML = '<p class="text-danger text-center mt-4">Erreur de chargement.</p>'; });
+        });
+    });
+})();
+
+function bcAutoFill(select) {
+    var opt = select.options[select.selectedIndex];
+    var preview = document.getElementById('bcPreview');
+    if (!opt.value) { preview.classList.add('d-none'); return; }
+    document.getElementById('bcPrevTache').textContent      = opt.dataset.tache      || '—';
+    document.getElementById('bcPrevPrestataire').textContent = opt.dataset.prestataire || '—';
+    document.getElementById('bcPrevMontant').textContent    = parseInt(opt.dataset.montant || 0).toLocaleString('fr-FR');
+    preview.classList.remove('d-none');
+}
+</script>
+{% endblock %}

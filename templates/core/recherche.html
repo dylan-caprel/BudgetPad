@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% load budget_filters %}
+{% block title %}Recherche — BudgetPAD{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h4 style="font-weight:600;color:#1B3A5C;">
+            <i class="bi bi-search me-2"></i>Recherche globale
+        </h4>
+        {% if q %}
+        <p class="text-muted mb-0" style="font-size:14px;">
+            {% if total > 0 %}
+                <strong>{{ total }}</strong> résultat{{ total|pluralize }} pour « <em>{{ q }}</em> »
+            {% elif trop_court %}
+                Saisir au moins 2 caractères.
+            {% else %}
+                Aucun résultat pour « <em>{{ q }}</em> »
+            {% endif %}
+        </p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Barre de recherche principale -->
+<form method="get" action="{% url 'recherche' %}" class="mb-4">
+    <div class="input-group input-group-lg" style="max-width:600px;">
+        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+        <input type="text" name="q" class="form-control" placeholder="Tâche, BC, DA, prestataire…"
+               value="{{ q }}" autofocus>
+        <button type="submit" class="btn btn-pad">Rechercher</button>
+        {% if q %}
+        <a href="{% url 'recherche' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x-lg"></i>
+        </a>
+        {% endif %}
+    </div>
+</form>
+
+{% if q and not trop_court %}
+
+{% if total == 0 %}
+<div class="text-center py-5">
+    <i class="bi bi-search" style="font-size:48px;color:#dee2e6;"></i>
+    <p class="text-muted mt-3 mb-0">Aucun résultat pour <strong>« {{ q }} »</strong></p>
+    <small class="text-muted">Essayez avec un numéro, un titre, un nom de prestataire…</small>
+</div>
+{% else %}
+
+<div class="row g-4">
+
+    <!-- Tâches -->
+    {% if resultats.taches %}
+    <div class="col-12">
+        <div class="data-card">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <i class="bi bi-list-check" style="color:#1A5632;font-size:18px;"></i>
+                <h6 class="mb-0">Tâches budgétaires
+                    <span class="badge bg-secondary ms-1" style="font-size:11px;">{{ resultats.taches|length }}</span>
+                </h6>
+            </div>
+            <div class="list-group list-group-flush">
+            {% for t in resultats.taches %}
+            <a href="{% url 'taches_list' %}?q={{ q }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2" style="font-size:13px;">
+                <div>
+                    <span class="badge bg-light text-dark border me-2" style="font-size:11px;">{{ t.numero }}</span>
+                    <strong>{{ t.titre }}</strong>
+                    {% if t.libelle_nature %}<small class="text-muted ms-2">{{ t.libelle_nature }}</small>{% endif %}
+                </div>
+                <div class="text-end">
+                    <div class="money" style="font-size:12px;">{{ t.budget_ajuste|fmt }}</div>
+                    <small class="text-muted">Budget</small>
+                </div>
+            </a>
+            {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Bons de commande -->
+    {% if resultats.bcs %}
+    <div class="col-md-6">
+        <div class="data-card">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <i class="bi bi-cart-check" style="color:#1B3A5C;font-size:18px;"></i>
+                <h6 class="mb-0">Bons de commande
+                    <span class="badge bg-secondary ms-1" style="font-size:11px;">{{ resultats.bcs|length }}</span>
+                </h6>
+            </div>
+            <div class="list-group list-group-flush">
+            {% for bc in resultats.bcs %}
+            <a href="{% url 'bc_list' %}" class="list-group-item list-group-item-action py-2" style="font-size:13px;">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <strong>{{ bc.numero }}</strong>
+                        <span class="badge bg-{{ bc.statut_couleur }} ms-1" style="font-size:10px;">{{ bc.get_statut_display }}</span>
+                        <div class="text-muted" style="font-size:11px;">{{ bc.prestataire.nom }}</div>
+                    </div>
+                    <div class="money text-end" style="font-size:12px;">{{ bc.montant_ttc|fmt }}</div>
+                </div>
+            </a>
+            {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Demandes d'achat -->
+    {% if resultats.das %}
+    <div class="col-md-6">
+        <div class="data-card">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <i class="bi bi-file-earmark-text" style="color:#F39C12;font-size:18px;"></i>
+                <h6 class="mb-0">Demandes d'achat
+                    <span class="badge bg-secondary ms-1" style="font-size:11px;">{{ resultats.das|length }}</span>
+                </h6>
+            </div>
+            <div class="list-group list-group-flush">
+            {% for da in resultats.das %}
+            <a href="{% url 'da_list' %}" class="list-group-item list-group-item-action py-2" style="font-size:13px;">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <strong>{{ da.reference }}</strong>
+                        <span class="badge bg-{{ da.statut_couleur }} ms-1" style="font-size:10px;">{{ da.get_statut_display }}</span>
+                        <div class="text-muted" style="font-size:11px;">{{ da.objet|truncatechars:50 }}</div>
+                    </div>
+                    <div class="money text-end" style="font-size:12px;">{{ da.montant_estime|fmt }}</div>
+                </div>
+            </a>
+            {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Prestataires -->
+    {% if resultats.prestataires %}
+    <div class="col-md-6">
+        <div class="data-card">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <i class="bi bi-people" style="color:#6c757d;font-size:18px;"></i>
+                <h6 class="mb-0">Prestataires
+                    <span class="badge bg-secondary ms-1" style="font-size:11px;">{{ resultats.prestataires|length }}</span>
+                </h6>
+            </div>
+            <div class="list-group list-group-flush">
+            {% for p in resultats.prestataires %}
+            <a href="{% url 'prestataires_list' %}" class="list-group-item list-group-item-action py-2 d-flex justify-content-between" style="font-size:13px;">
+                <div>
+                    <span class="badge bg-light text-dark border me-1" style="font-size:11px;">{{ p.code }}</span>
+                    <strong>{{ p.nom }}</strong>
+                    {% if p.telephone %}<small class="text-muted ms-2"><i class="bi bi-telephone"></i> {{ p.telephone }}</small>{% endif %}
+                </div>
+                <i class="bi bi-chevron-right text-muted"></i>
+            </a>
+            {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Virements -->
+    {% if resultats.virements %}
+    <div class="col-md-6">
+        <div class="data-card">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <i class="bi bi-arrow-left-right" style="color:#0d6efd;font-size:18px;"></i>
+                <h6 class="mb-0">Transferts
+                    <span class="badge bg-secondary ms-1" style="font-size:11px;">{{ resultats.virements|length }}</span>
+                </h6>
+            </div>
+            <div class="list-group list-group-flush">
+            {% for v in resultats.virements %}
+            <a href="{% url 'virements_list' %}" class="list-group-item list-group-item-action py-2" style="font-size:13px;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="text-muted" style="font-size:11px;">{{ v.tache_source.numero }}</span>
+                        <i class="bi bi-arrow-right mx-1 text-muted"></i>
+                        <span class="text-muted" style="font-size:11px;">{{ v.tache_dest.numero }}</span>
+                        {% if v.motif %}<div class="text-muted" style="font-size:11px;">{{ v.motif|truncatechars:50 }}</div>{% endif %}
+                    </div>
+                    <div class="money" style="font-size:12px;">{{ v.montant|fmt }}</div>
+                </div>
+            </a>
+            {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endif %}
+{% endif %}
+
+{% endblock %}

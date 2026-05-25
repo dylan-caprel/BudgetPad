@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% load budget_filters %}
+{% block title %}Bilans — BudgetPAD{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h4 style="font-weight:600;color:#1B3A5C;">Bilans périodiques</h4>
+        <p class="text-muted mb-0" style="font-size:14px;">Synthèse budgétaire &amp; engagements</p>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <select class="form-select form-select-sm" style="width:auto;"
+                onchange="window.location.href='?periode=' + this.value">
+            <option value="annuel"      {% if periode == 'annuel' %}selected{% endif %}>Annuel</option>
+            <option value="trimestriel" {% if periode == 'trimestriel' %}selected{% endif %}>Trimestriel</option>
+            <option value="mensuel"     {% if periode == 'mensuel' %}selected{% endif %}>Mensuel</option>
+        </select>
+        <a href="{% url 'bilan_csv_export' %}{% if request.GET.periode %}?periode={{ request.GET.periode }}{% endif %}"
+           class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-file-earmark-excel"></i> CSV
+        </a>
+        <a href="{% url 'bilan_pdf_export' %}{% if request.GET.periode %}?periode={{ request.GET.periode }}{% endif %}"
+           class="btn btn-sm btn-outline-danger">
+            <i class="bi bi-file-earmark-pdf"></i> PDF
+        </a>
+        <button class="btn btn-sm btn-outline-secondary" onclick="window.print()">
+            <i class="bi bi-printer"></i> Imprimer
+        </button>
+    </div>
+</div>
+
+{% if not exercice %}
+<div class="alert alert-warning">Aucun exercice budgétaire actif.</div>
+{% else %}
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="kpi-card">
+            <div class="kpi-label">Budget global</div>
+            <div class="kpi-value">{{ budget_total|fmt }}</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="kpi-card">
+            <div class="kpi-label">Consommation</div>
+            <div class="kpi-value">{{ consommation|fmt }}</div>
+            <div class="kpi-sub">{{ taux }} %</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="kpi-card">
+            <div class="kpi-label">Solde</div>
+            <div class="kpi-value" style="color:#1A5632;">{{ solde|fmt }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="data-card">
+            <h6>Top tâches par taux</h6>
+            {% if taches %}
+            <div id="bilanBarWrap" style="position:relative;height:250px;">
+                <canvas id="bilanBar"></canvas>
+            </div>
+            {% else %}
+            <p class="text-muted text-center mt-3" style="font-size:14px;">Aucune donnée disponible.</p>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="data-card">
+            <h6>BC par statut</h6>
+            {% with total_bc=bc_statuts.cree|add:bc_statuts.notifie|add:bc_statuts.en_cours|add:bc_statuts.execute|add:bc_statuts.annule %}
+            {% if total_bc > 0 %}
+            <div style="position:relative;height:260px;">
+                <canvas id="bilanDonut"></canvas>
+            </div>
+            {% else %}
+            <p class="text-muted text-center mt-3" style="font-size:14px;">Aucun bon de commande sur cette période.</p>
+            {% endif %}
+            {% endwith %}
+        </div>
+    </div>
+</div>
+
+<div class="data-card">
+    <h6>Détail par tâche</h6>
+    <table class="table table-hover mb-0">
+        <thead>
+            <tr>
+                <th>N°</th><th>Titre</th><th>Nature</th>
+                <th class="money">Budget</th><th class="money">Conso</th>
+                <th class="money">Solde</th><th>Taux</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for t in taches %}
+        <tr>
+            <td>{{ t.numero }}</td>
+            <td>{{ t.titre }}</td>
+            <td><small class="text-muted">{{ t.libelle_nature|default:t.code_nature }}</small></td>
+            <td class="money">{{ t.budget_ajuste|fmt }}</td>
+            <td class="money">{{ t.consommation|fmt }}</td>
+            <td class="money">{{ t.solde|fmt }}</td>
+            <td><span class="taux-badge {{ t.taux_couleur }}">{{ t.taux_consommation }} %</span></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-muted py-3">Aucune tâche.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if exercice %}
+{{ chart_labels|json_script:"chart-labels-data" }}
+{{ chart_data|json_script:"chart-data-data" }}
+{{ chart_colors|json_script:"chart-colors-data" }}
+{{ bc_donut|json_script:"bc-donut-data" }}
+
+<script>
+(function () {
+    var labels   = JSON.parse(document.getElementById('chart-labels-data').textContent);
+    var data     = JSON.parse(document.getElementById('chart-data-data').textContent);
+    var colors   = JSON.parse(document.getElementById('chart-colors-data').textContent);
+    var bcDonut  = JSON.parse(document.getElementById('bc-donut-data').textContent);
+    // Plugin seuil inline (pas de dépendance externe)
+    var seuilPlugin = {
+        id: 'seuilLine',
+        afterDraw: function(chart) {
+            var ctx = chart.ctx, ca = chart.chartArea, sx = chart.scales.x;
+            if (!sx) return;
+            var x = sx.getPixelForValue(80);
+            ctx.save();
+            ctx.strokeStyle = '#E74C3C'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);
+            ctx.beginPath(); ctx.moveTo(x, ca.top); ctx.lineTo(x, ca.bottom); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#E74C3C'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
+            ctx.fillText('Seuil 80 %', x + 4, ca.top + 12);
+            ctx.restore();
+        }
+    };
+
+    // Bar chart tâches — hauteur dynamique selon le nombre de tâches
+    var barWrap = document.getElementById('bilanBarWrap');
+    if (barWrap && labels.length > 0) {
+        barWrap.style.height = Math.max(200, labels.length * 38) + 'px';
+    }
+    var barEl = document.getElementById('bilanBar');
+    if (barEl && labels.length > 0) {
+        new Chart(barEl, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: colors,
+                    borderRadius: 4,
+                    maxBarThickness: 26
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        max: 100,
+                        ticks: { callback: function(v) { return v + ' %'; } }
+                    },
+                    y: { grid: { display: false } }
+                },
+                plugins: { legend: { display: false } }
+            },
+            plugins: [seuilPlugin]
+        });
+    }
+
+    // Donut BC par statut (données structurées depuis le serveur)
+    var donutEl = document.getElementById('bilanDonut');
+    if (donutEl && bcDonut.length > 0) {
+        var total = bcDonut.reduce(function(s, d) { return s + d.value; }, 0);
+        new Chart(donutEl, {
+            type: 'doughnut',
+            data: {
+                labels: bcDonut.map(function(d) { return d.label; }),
+                datasets: [{
+                    data: bcDonut.map(function(d) { return d.value; }),
+                    backgroundColor: bcDonut.map(function(d) { return d.color; })
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            generateLabels: function(chart) {
+                                return bcDonut.map(function(d, i) {
+                                    var pct = total > 0 ? Math.round(d.value / total * 100) : 0;
+                                    return {
+                                        text: d.label + ' · ' + d.value + ' (' + pct + ' %)',
+                                        fillStyle: d.color,
+                                        strokeStyle: d.color,
+                                        index: i
+                                    };
+                                });
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                var pct = total > 0 ? Math.round(ctx.parsed / total * 100) : 0;
+                                return ctx.label + ' : ' + ctx.parsed + ' (' + pct + ' %)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+})();
+</script>
+{% endif %}
+{% endblock %}

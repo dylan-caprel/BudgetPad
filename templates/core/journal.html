@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Journal — BudgetPAD{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div><h4 style="font-weight:600;color:#1B3A5C;">Journal d'activité</h4><p class="text-muted mb-0" style="font-size:14px;">{{ page_obj.paginator.count }} entrées · historique immuable</p></div>
+</div>
+<div class="data-card">
+    <form method="get" class="row g-2 mb-3 align-items-end">
+        <div class="col-md-3">{{ filter.form.type_action }}</div>
+        <div class="col-md-4">{{ filter.form.description }}</div>
+        <div class="col-md-2"><button type="submit" class="btn btn-sm btn-pad w-100">Filtrer</button></div>
+    </form>
+
+    {% for entry in entries %}
+    <div class="journal-item">
+        <span class="journal-badge">{{ entry.type_action }}</span>
+        <div><strong>{{ entry.description }}</strong><br><small class="text-muted">par <strong>{{ entry.utilisateur.get_role_display_short }}</strong> · {{ entry.created_at|date:"d/m/Y H:i" }}</small></div>
+    </div>
+    {% empty %}<p class="text-center text-muted">Aucune activité enregistrée</p>{% endfor %}
+
+    {% include "partials/_pagination.html" %}
+</div>
+{% endblock %}

@@ -1,0 +1,30 @@
+<div class="dropdown">
+    <a href="#" class="text-muted position-relative" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-bell" style="font-size:18px;"></i>
+        {% if notif_count %}
+        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:9px;">{{ notif_count }}</span>
+        {% endif %}
+    </a>
+    <ul class="dropdown-menu dropdown-menu-end shadow" style="min-width:320px;max-height:400px;overflow-y:auto;">
+        <li class="dropdown-header d-flex justify-content-between align-items-center">
+            <strong>Notifications</strong>
+            {% if notif_count %}
+            <form method="post" action="{% url 'notifications_marquer_lues' %}" class="m-0">{% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-link p-0" style="font-size:12px;">Tout marquer lu</button>
+            </form>
+            {% endif %}
+        </li>
+        <li><hr class="dropdown-divider"></li>
+        {% for n in notif_recent %}
+        <li class="px-3 py-2 {% if not n.lu %}bg-light{% endif %}" style="font-size:13px;">
+            <div class="d-flex justify-content-between">
+                <strong>{{ n.titre }}</strong>
+                <small class="text-muted">{{ n.created_at|date:"d/m H:i" }}</small>
+            </div>
+            <div class="text-muted">{{ n.message|truncatechars:80 }}</div>
+        </li>
+        {% empty %}
+        <li class="px-3 py-2 text-center text-muted" style="font-size:13px;">Aucune notification</li>
+        {% endfor %}
+    </ul>
+</div>

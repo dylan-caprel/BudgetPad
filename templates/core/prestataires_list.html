@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% load core_tags %}
+{% block title %}Prestataires — BudgetPAD{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div><h4 style="font-weight:600;color:#1B3A5C;">Prestataires</h4><p class="text-muted mb-0" style="font-size:14px;">{{ page_obj.paginator.count }} fournisseurs référencés</p></div>
+    {% if request.user|has_role:"dag" %}<button class="btn btn-pad" data-bs-toggle="modal" data-bs-target="#modalPrest"><i class="bi bi-plus"></i> Nouveau</button>{% endif %}
+</div>
+<div class="data-card">
+    <h6>Annuaire fournisseurs</h6>
+
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-4">{{ filter.form.nom }}</div>
+        <div class="col-md-1"><button type="submit" class="btn btn-sm btn-pad w-100">Filtrer</button></div>
+    </form>
+
+    <table class="table table-hover mb-0">
+        <thead><tr><th>Code</th><th>Nom</th><th>Adresse</th><th>Téléphone</th><th>Email</th><th>Actions</th></tr></thead>
+        <tbody>
+        {% for p in prestataires %}
+        <tr class="prest-row" data-prest-id="{{ p.pk }}" style="cursor:pointer;" title="Cliquer pour voir les détails">
+            <td>{{ p.code }}</td><td>{{ p.nom }}</td><td>{{ p.adresse }}</td><td>{{ p.telephone }}</td><td>{{ p.email }}</td>
+            <td onclick="event.stopPropagation();">
+                {% if request.user|has_role:"dag" %}
+                <form method="post" action="{% url 'prestataire_delete' p.pk %}" class="d-inline" onsubmit="return confirm('Supprimer ce prestataire ?');">{% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-trash"></i></button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-3">Aucun prestataire</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    {% include "partials/_pagination.html" %}
+</div>
+
+<!-- Offcanvas détail prestataire -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="prestDetailOffcanvas" style="width:420px;">
+    <div class="offcanvas-header" style="border-bottom:1px solid #eee;">
+        <h6 class="offcanvas-title mb-0" style="color:#1B3A5C;">Détail du prestataire</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body" id="prestDetailBody">
+        <div class="text-center text-muted py-5">
+            <div class="spinner-border spinner-border-sm" role="status"></div>
+            <p class="mt-2 mb-0" style="font-size:13px;">Chargement…</p>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalPrest" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Nouveau prestataire</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <form method="post" action="{% url 'prestataire_create' %}">{% csrf_token %}
+    <div class="modal-body">
+        <div class="mb-3"><label class="form-label">Nom</label><input type="text" name="nom" class="form-control" required></div>
+        <div class="mb-3"><label class="form-label">Adresse</label><input type="text" name="adresse" class="form-control"></div>
+        <div class="row mb-3"><div class="col"><label class="form-label">Téléphone</label><input type="text" name="telephone" class="form-control"></div><div class="col"><label class="form-label">Email</label><input type="email" name="email" class="form-control"></div></div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button><button type="submit" class="btn btn-pad">Ajouter</button></div>
+    </form>
+</div></div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var offcanvasEl = document.getElementById('prestDetailOffcanvas');
+    var offcanvas = new bootstrap.Offcanvas(offcanvasEl);
+    var body = document.getElementById('prestDetailBody');
+
+    document.querySelectorAll('.prest-row').forEach(function (row) {
+        row.addEventListener('click', function () {
+            var id = this.dataset.prestId;
+            body.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm" role="status"></div><p class="mt-2 mb-0" style="font-size:13px;">Chargement…</p></div>';
+            offcanvas.show();
+            fetch('/prestataires/' + id + '/detail/', {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function (r) { return r.text(); })
+            .then(function (html) { body.innerHTML = html; })
+            .catch(function () { body.innerHTML = '<p class="text-danger text-center mt-4">Erreur de chargement.</p>'; });
+        });
+    });
+})();
+</script>
+{% endblock %}

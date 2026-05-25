@@ -1,0 +1,119 @@
+{% load budget_filters %}
+<div class="mb-3 d-flex justify-content-between align-items-start">
+    <div>
+        <h6 class="mb-1" style="font-size:16px;font-weight:700;color:#1B3A5C;">{{ bc.numero }}</h6>
+        <span class="badge bg-{{ bc.statut_couleur }}">{{ bc.get_statut_display }}</span>
+    </div>
+    <a href="{% url 'bc_pdf' bc.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-file-earmark-pdf"></i> PDF
+    </a>
+</div>
+
+<div class="row g-2 mb-3" style="font-size:13px;">
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">TÂCHE</div>
+        <div><strong>{{ bc.tache.numero }}</strong> — {{ bc.tache.titre }}</div>
+    </div>
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">PRESTATAIRE</div>
+        <div>{{ bc.prestataire.nom }}</div>
+    </div>
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">DATE ÉMISSION</div>
+        <div>{{ bc.date_emission|date:"d/m/Y" }}</div>
+    </div>
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">DATE NOTIFICATION</div>
+        <div>{{ bc.date_notification|date:"d/m/Y"|default:"—" }}</div>
+    </div>
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">EXERCICE</div>
+        <div>{{ bc.exercice.annee }}</div>
+    </div>
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">DIRECTION</div>
+        <div>{{ bc.direction }}</div>
+    </div>
+</div>
+
+<hr style="margin:10px 0;">
+
+<div class="mb-3" style="font-size:13px;">
+    <div class="text-muted mb-1" style="font-size:11px;">MONTANTS</div>
+    <div class="d-flex justify-content-between align-items-end">
+        <span>Montant HT</span>
+        <div class="text-end">
+            <div class="money">{{ bc.montant_ht|fmt }}</div>
+            <div class="text-muted" style="font-size:10px;">{{ bc.montant_ht|fmt_exact }}</div>
+        </div>
+    </div>
+    <div class="d-flex justify-content-between align-items-end">
+        <span>TVA ({{ bc.taux_tva }} %)</span>
+        <div class="text-end">
+            <div class="money">{{ bc.montant_tva|fmt }}</div>
+            <div class="text-muted" style="font-size:10px;">{{ bc.montant_tva|fmt_exact }}</div>
+        </div>
+    </div>
+    <div class="d-flex justify-content-between align-items-end fw-bold mt-1">
+        <span>Total TTC</span>
+        <div class="text-end">
+            <div class="money" style="color:#1B3A5C;">{{ bc.montant_ttc|fmt }}</div>
+            <div class="text-muted" style="font-size:10px;font-weight:normal;">{{ bc.montant_ttc|fmt_exact }}</div>
+        </div>
+    </div>
+</div>
+
+{% if bc.lignes.all %}
+<hr style="margin:10px 0;">
+<div class="mb-3">
+    <div class="text-muted mb-2" style="font-size:11px;">LIGNES DE COMMANDE</div>
+    <table class="table table-sm mb-0" style="font-size:12px;">
+        <thead><tr><th>Désignation</th><th class="text-end">Qté</th><th class="text-end">PU HT</th><th class="text-end">Total HT</th></tr></thead>
+        <tbody>
+        {% for ligne in bc.lignes.all %}
+        <tr>
+            <td>{{ ligne.designation }}</td>
+            <td class="text-end">{{ ligne.quantite }}</td>
+            <td class="text-end">
+                <div>{{ ligne.prix_unitaire_ht|fmt }}</div>
+                <div class="text-muted" style="font-size:10px;">{{ ligne.prix_unitaire_ht|fmt_exact }}</div>
+            </td>
+            <td class="text-end">
+                <div>{{ ligne.montant_ht|fmt }}</div>
+                <div class="text-muted" style="font-size:10px;">{{ ligne.montant_ht|fmt_exact }}</div>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% if historiques %}
+<hr style="margin:10px 0;">
+<div>
+    <div class="text-muted mb-2" style="font-size:11px;">HISTORIQUE</div>
+    {% for h in historiques %}
+    <div class="d-flex align-items-start gap-2 mb-2" style="font-size:12px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:#1B3A5C;margin-top:4px;flex-shrink:0;"></div>
+        <div>
+            <span class="text-muted">{{ h.created_at|date:"d/m/Y H:i" }}</span> —
+            <strong>{{ h.ancien_statut }}</strong> → <strong>{{ h.nouveau_statut }}</strong>
+            {% if h.utilisateur %}<span class="text-muted"> · {{ h.utilisateur.nom_complet|default:h.utilisateur.username }}</span>{% endif %}
+            {% if h.commentaire %}<br><span class="text-muted">{{ h.commentaire }}</span>{% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if bc.motif_annulation %}
+<hr style="margin:10px 0;">
+<div style="font-size:13px;">
+    <div class="text-muted mb-1" style="font-size:11px;">MOTIF D'ANNULATION</div>
+    <div class="text-danger">{{ bc.motif_annulation }}</div>
+</div>
+{% endif %}
+
+<!-- Pièces jointes -->
+{% include "partials/_pieces_jointes.html" with type_entite="bc" entite_id=bc.pk can_upload=True %}

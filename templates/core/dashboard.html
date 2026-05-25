@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% load budget_filters %}
+{% block title %}Tableau de bord — BudgetPAD{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h4 style="font-weight:600;color:#1B3A5C;">Tableau de bord</h4>
+        <p class="text-muted mb-0" style="font-size:14px;">Exercice {{ exercice.annee }} · Vue synthétique du suivi budgétaire et des engagements</p>
+    </div>
+    <select class="form-select form-select-sm" style="width:auto;"
+            onchange="window.location.href='?periode=' + this.value">
+        <option value="annuel"      {% if periode == 'annuel' %}selected{% endif %}>Cette année</option>
+        <option value="trimestriel" {% if periode == 'trimestriel' %}selected{% endif %}>Ce trimestre</option>
+        <option value="mensuel"     {% if periode == 'mensuel' %}selected{% endif %}>Ce mois</option>
+    </select>
+</div>
+
+{% if not exercice %}
+<div class="alert alert-warning">Aucun exercice budgétaire actif. Créez-en un dans l'administration.</div>
+{% else %}
+
+<!-- KPI CARDS -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="kpi-card primary">
+            <div class="kpi-label">BUDGET TOTAL</div>
+            <div class="kpi-value">{{ budget_total|fmt }}</div>
+            <div class="kpi-sub">Dotation {{ exercice.annee }} + virements</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="kpi-card">
+            <div class="kpi-label">TOTAL ENGAGÉ</div>
+            <div class="kpi-value">{{ total_engage|fmt }}</div>
+            <div class="kpi-sub" style="color:#F39C12;">{{ taux_global }} % du budget</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="kpi-card">
+            <div class="kpi-label">SOLDE DISPONIBLE</div>
+            <div class="kpi-value" style="color:#1A5632;">{{ solde|fmt }}</div>
+            <div class="kpi-sub">Reste {{ taux_disponible }} %</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="kpi-card">
+            <div class="kpi-label">BC ACTIFS</div>
+            <div class="kpi-value">{{ bc_actifs }}</div>
+            <div class="kpi-sub">{{ nb_bc_total }} BC au total</div>
+        </div>
+    </div>
+</div>
+
+<!-- CHARTS -->
+<div class="row g-3 mb-4">
+    <div class="col-md-5">
+        <div class="data-card" style="height:100%;">
+            <h6>Consommation budgétaire</h6>
+            <div style="position:relative;height:260px;max-width:260px;margin:0 auto;">
+                <canvas id="donutChart"></canvas>
+            </div>
+            <div class="mt-3" style="font-size:13px;">
+                <div class="d-flex justify-content-between"><span><span style="color:#1A5632;">●</span> Consommé</span><span>{{ total_engage|fmt }}</span></div>
+                <div class="d-flex justify-content-between"><span><span style="color:#E0E0E0;">●</span> Disponible</span><span>{{ solde|fmt }}</span></div>
+                <hr style="margin:6px 0;"><div class="d-flex justify-content-between fw-bold"><span>Total</span><span>{{ budget_total|fmt }}</span></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-7">
+        <div class="data-card" style="height:100%;">
+            <h6>Top 5 tâches par taux de consommation</h6>
+            {% if bc_actifs == 0 and nb_bc_total == 0 %}
+            <p class="text-muted text-center mt-4" style="font-size:14px;">Aucun bon de commande sur cette période.</p>
+            {% else %}
+            <div style="position:relative;height:220px;">
+                <canvas id="barChart"></canvas>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- RECENT + ALERTS -->
+<div class="row g-3">
+    <div class="col-md-8">
+        <div class="data-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0">Activité récente</h6>
+                <a href="{% url 'bc_list' %}" class="text-muted" style="font-size:13px;">Tout voir →</a>
+            </div>
+            <table class="table table-hover mb-0">
+                <thead><tr><th>N°</th><th>Tâche</th><th>Prestataire</th><th>Montant TTC</th><th>Statut</th></tr></thead>
+                <tbody>
+                {% for bc in derniers_bc %}
+                <tr>
+                    <td>{{ bc.numero }}</td>
+                    <td><small class="text-muted">{{ bc.tache.numero }}</small><br>{{ bc.tache.titre|truncatechars:30 }}</td>
+                    <td>{{ bc.prestataire.nom }}</td>
+                    <td class="money">{{ bc.montant_ttc|fmt }}</td>
+                    <td><span class="badge bg-{{ bc.statut_couleur }} badge-statut">{{ bc.get_statut_display }}</span></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="text-center text-muted">Aucun bon de commande sur cette période</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="data-card">
+            <h6><i class="bi bi-exclamation-triangle text-warning"></i> Alertes</h6>
+            {% for alerte in alertes %}
+            <div class="alert-item {% if alerte.seuil_atteint >= 90 %}danger{% endif %}">
+                <strong>{{ alerte.tache.numero }}</strong> {{ alerte.message }}<br>
+                <small class="text-muted">Solde : {{ alerte.tache.solde|floatformat:0 }} FCFA</small>
+                <a href="{% url 'taches_list' %}" class="d-block mt-1" style="font-size:12px;">Voir la tâche →</a>
+            </div>
+            {% empty %}
+            <p class="text-muted text-center" style="font-size:14px;">Aucune alerte active</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if exercice %}
+{{ top_labels|json_script:"top-labels-data" }}
+{{ top_data|json_script:"top-data-data" }}
+{{ top_colors|json_script:"top-colors-data" }}
+{{ donut_data|json_script:"donut-data-data" }}
+{{ taux_global|json_script:"taux-global-data" }}
+
+<script>
+(function () {
+    var topLabels  = JSON.parse(document.getElementById('top-labels-data').textContent);
+    var topData    = JSON.parse(document.getElementById('top-data-data').textContent);
+    var topColors  = JSON.parse(document.getElementById('top-colors-data').textContent);
+    var donutData  = JSON.parse(document.getElementById('donut-data-data').textContent);
+    var taux       = JSON.parse(document.getElementById('taux-global-data').textContent);
+    // --- Donut Chart ---
+    new Chart(document.getElementById('donutChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Consommé', 'Disponible'],
+            datasets: [{
+                data: donutData,
+                backgroundColor: ['#1A5632', '#E8E8E8'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '70%',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            return ctx.parsed.toLocaleString('fr-FR') + ' FCFA';
+                        }
+                    }
+                }
+            }
+        },
+        plugins: [{
+            id: 'centerText',
+            beforeDraw: function(chart) {
+                var w = chart.width, h = chart.height, ctx = chart.ctx;
+                ctx.save();
+                ctx.font = '600 14px Segoe UI'; ctx.fillStyle = '#888'; ctx.textAlign = 'center';
+                ctx.fillText('Taux global', w / 2, h / 2 - 10);
+                ctx.font = '700 28px Segoe UI'; ctx.fillStyle = '#1A5632';
+                ctx.fillText(taux + ' %', w / 2, h / 2 + 20);
+                ctx.restore();
+            }
+        }]
+    });
+
+    // --- Bar Chart (inline seuil — pas de plugin externe requis) ---
+    var seuilPlugin = {
+        id: 'seuilLine',
+        afterDraw: function(chart) {
+            var ctx = chart.ctx, ca = chart.chartArea, sx = chart.scales.x;
+            if (!sx) return;
+            var x = sx.getPixelForValue(80);
+            ctx.save();
+            ctx.strokeStyle = '#E74C3C'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);
+            ctx.beginPath(); ctx.moveTo(x, ca.top); ctx.lineTo(x, ca.bottom); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#E74C3C'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
+            ctx.fillText('Seuil 80 %', x + 4, ca.top + 12);
+            ctx.restore();
+        }
+    };
+
+    if (topLabels.length > 0) {
+        new Chart(document.getElementById('barChart'), {
+            type: 'bar',
+            data: {
+                labels: topLabels,
+                datasets: [{
+                    data: topData,
+                    backgroundColor: topColors,
+                    borderRadius: 4,
+                    barThickness: 30
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        max: 100,
+                        grid: { color: '#f0f0f0' },
+                        ticks: { callback: function(v) { return v + ' %'; } }
+                    },
+                    y: { grid: { display: false } }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) { return ctx.parsed.x.toFixed(1) + ' %'; }
+                        }
+                    }
+                }
+            },
+            plugins: [seuilPlugin]
+        });
+    }
+})();
+</script>
+{% endif %}
+{% endblock %}
