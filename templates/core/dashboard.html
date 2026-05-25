@@ -7,12 +7,11 @@
         <h4 style="font-weight:600;color:#1B3A5C;">Tableau de bord</h4>
         <p class="text-muted mb-0" style="font-size:14px;">Exercice {{ exercice.annee }} · Vue synthétique du suivi budgétaire et des engagements</p>
     </div>
-    <select class="form-select form-select-sm" style="width:auto;"
-            onchange="window.location.href='?periode=' + this.value">
-        <option value="annuel"      {% if periode == 'annuel' %}selected{% endif %}>Cette année</option>
-        <option value="trimestriel" {% if periode == 'trimestriel' %}selected{% endif %}>Ce trimestre</option>
-        <option value="mensuel"     {% if periode == 'mensuel' %}selected{% endif %}>Ce mois</option>
-    </select>
+    <div class="period-pills">
+        <a href="?periode=annuel"      class="period-pill {% if periode == 'annuel' %}active{% endif %}">Cette année</a>
+        <a href="?periode=trimestriel" class="period-pill {% if periode == 'trimestriel' %}active{% endif %}">Ce trimestre</a>
+        <a href="?periode=mensuel"     class="period-pill {% if periode == 'mensuel' %}active{% endif %}">Ce mois</a>
+    </div>
 </div>
 
 {% if not exercice %}
@@ -22,28 +21,32 @@
 <!-- KPI CARDS -->
 <div class="row g-3 mb-4">
     <div class="col-md-3">
-        <div class="kpi-card primary">
+        <div class="kpi-card primary" style="padding-right:70px;">
+            <div style="position:absolute;right:16px;top:50%;transform:translateY(-50%);opacity:.15;font-size:48px;"><i class="bi bi-wallet2"></i></div>
             <div class="kpi-label">BUDGET TOTAL</div>
             <div class="kpi-value">{{ budget_total|fmt }}</div>
             <div class="kpi-sub">Dotation {{ exercice.annee }} + virements</div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="kpi-card">
+        <div class="kpi-card" style="padding-right:70px;">
+            <div style="position:absolute;right:16px;top:50%;transform:translateY(-50%);opacity:.06;font-size:48px;"><i class="bi bi-graph-up-arrow"></i></div>
             <div class="kpi-label">TOTAL ENGAGÉ</div>
             <div class="kpi-value">{{ total_engage|fmt }}</div>
-            <div class="kpi-sub" style="color:#F39C12;">{{ taux_global }} % du budget</div>
+            <div class="kpi-sub" style="color:#F39C12;font-weight:600;">{{ taux_global }} % du budget</div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="kpi-card">
+        <div class="kpi-card" style="padding-right:70px;">
+            <div style="position:absolute;right:16px;top:50%;transform:translateY(-50%);opacity:.06;font-size:48px;"><i class="bi bi-piggy-bank"></i></div>
             <div class="kpi-label">SOLDE DISPONIBLE</div>
             <div class="kpi-value" style="color:#1A5632;">{{ solde|fmt }}</div>
             <div class="kpi-sub">Reste {{ taux_disponible }} %</div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="kpi-card">
+        <div class="kpi-card" style="padding-right:70px;">
+            <div style="position:absolute;right:16px;top:50%;transform:translateY(-50%);opacity:.06;font-size:48px;"><i class="bi bi-cart-check"></i></div>
             <div class="kpi-label">BC ACTIFS</div>
             <div class="kpi-value">{{ bc_actifs }}</div>
             <div class="kpi-sub">{{ nb_bc_total }} BC au total</div>

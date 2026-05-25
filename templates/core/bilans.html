@@ -7,13 +7,12 @@
         <h4 style="font-weight:600;color:#1B3A5C;">Bilans périodiques</h4>
         <p class="text-muted mb-0" style="font-size:14px;">Synthèse budgétaire &amp; engagements</p>
     </div>
-    <div class="d-flex gap-2 align-items-center">
-        <select class="form-select form-select-sm" style="width:auto;"
-                onchange="window.location.href='?periode=' + this.value">
-            <option value="annuel"      {% if periode == 'annuel' %}selected{% endif %}>Annuel</option>
-            <option value="trimestriel" {% if periode == 'trimestriel' %}selected{% endif %}>Trimestriel</option>
-            <option value="mensuel"     {% if periode == 'mensuel' %}selected{% endif %}>Mensuel</option>
-        </select>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+        <div class="period-pills">
+            <a href="?periode=annuel"      class="period-pill {% if periode == 'annuel' %}active{% endif %}">Annuel</a>
+            <a href="?periode=trimestriel" class="period-pill {% if periode == 'trimestriel' %}active{% endif %}">Trimestriel</a>
+            <a href="?periode=mensuel"     class="period-pill {% if periode == 'mensuel' %}active{% endif %}">Mensuel</a>
+        </div>
         <a href="{% url 'bilan_csv_export' %}{% if request.GET.periode %}?periode={{ request.GET.periode }}{% endif %}"
            class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-file-earmark-excel"></i> CSV
@@ -22,7 +21,7 @@
            class="btn btn-sm btn-outline-danger">
             <i class="bi bi-file-earmark-pdf"></i> PDF
         </a>
-        <button class="btn btn-sm btn-outline-secondary" onclick="window.print()">
+        <button class="btn btn-sm btn-outline-secondary no-print" onclick="window.print()">
             <i class="bi bi-printer"></i> Imprimer
         </button>
     </div>
@@ -34,22 +33,27 @@
 
 <div class="row g-3 mb-4">
     <div class="col-md-4">
-        <div class="kpi-card">
-            <div class="kpi-label">Budget global</div>
+        <div class="kpi-card primary" style="padding-right:70px;">
+            <div style="position:absolute;right:16px;top:50%;transform:translateY(-50%);opacity:.15;font-size:48px;"><i class="bi bi-wallet2"></i></div>
+            <div class="kpi-label">BUDGET GLOBAL</div>
             <div class="kpi-value">{{ budget_total|fmt }}</div>
+            <div class="kpi-sub">Exercice en cours</div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="kpi-card">
-            <div class="kpi-label">Consommation</div>
+        <div class="kpi-card" style="padding-right:70px;">
+            <div style="position:absolute;right:16px;top:50%;transform:translateY(-50%);opacity:.06;font-size:48px;"><i class="bi bi-graph-up-arrow"></i></div>
+            <div class="kpi-label">CONSOMMATION</div>
             <div class="kpi-value">{{ consommation|fmt }}</div>
-            <div class="kpi-sub">{{ taux }} %</div>
+            <div class="kpi-sub" style="color:#F39C12;font-weight:600;">{{ taux }} % du budget</div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="kpi-card">
-            <div class="kpi-label">Solde</div>
+        <div class="kpi-card" style="padding-right:70px;">
+            <div style="position:absolute;right:16px;top:50%;transform:translateY(-50%);opacity:.06;font-size:48px;"><i class="bi bi-piggy-bank"></i></div>
+            <div class="kpi-label">SOLDE RESTANT</div>
             <div class="kpi-value" style="color:#1A5632;">{{ solde|fmt }}</div>
+            <div class="kpi-sub">Disponible</div>
         </div>
     </div>
 </div>

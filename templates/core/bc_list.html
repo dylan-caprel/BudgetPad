@@ -3,15 +3,52 @@
 {% block title %}Bons de commande — BudgetPAD{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-start mb-4">
-    <div><h4 style="font-weight:600;color:#1B3A5C;">Bons de commande</h4><p class="text-muted mb-0" style="font-size:14px;">{{ page_obj.paginator.count }} BC · TVA 19,25 %</p></div>
-    {% if request.user|has_role:"dag" %}<button class="btn btn-pad" data-bs-toggle="modal" data-bs-target="#modalBC"><i class="bi bi-plus"></i> Créer un BC</button>{% endif %}
+    <div>
+        <h4 style="font-weight:600;color:#1B3A5C;">Bons de commande</h4>
+        <p class="text-muted mb-0" style="font-size:14px;">{{ page_obj.paginator.count }} BC &middot; TVA 19,25 %</p>
+    </div>
+    {% if request.user|has_role:"dag" %}
+    <button class="btn btn-pad" data-bs-toggle="modal" data-bs-target="#modalBC">
+        <i class="bi bi-plus-lg me-1"></i>Créer un BC
+    </button>
+    {% endif %}
 </div>
 <div class="row g-3 mb-4">
-    <div class="col"><div class="kpi-card"><div class="kpi-label">Créé</div><div class="kpi-value">{{ bc_counts.cree }}</div></div></div>
-    <div class="col"><div class="kpi-card"><div class="kpi-label">Notifié</div><div class="kpi-value">{{ bc_counts.notifie }}</div></div></div>
-    <div class="col"><div class="kpi-card"><div class="kpi-label">En cours</div><div class="kpi-value">{{ bc_counts.en_cours }}</div></div></div>
-    <div class="col"><div class="kpi-card"><div class="kpi-label">Exécuté</div><div class="kpi-value">{{ bc_counts.execute }}</div></div></div>
-    <div class="col"><div class="kpi-card"><div class="kpi-label" style="color:#E74C3C;">Annulés</div><div class="kpi-value" style="color:#E74C3C;">{{ bc_counts.annule }}</div></div></div>
+    <div class="col">
+        <div class="kpi-card">
+            <div class="kpi-label">Créé</div>
+            <div class="kpi-value">{{ bc_counts.cree }}</div>
+            <div class="kpi-sub"><i class="bi bi-file-plus text-secondary"></i></div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="kpi-card">
+            <div class="kpi-label">Notifié</div>
+            <div class="kpi-value" style="color:#0d6efd;">{{ bc_counts.notifie }}</div>
+            <div class="kpi-sub"><i class="bi bi-bell text-primary"></i></div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="kpi-card">
+            <div class="kpi-label">En cours</div>
+            <div class="kpi-value" style="color:#F39C12;">{{ bc_counts.en_cours }}</div>
+            <div class="kpi-sub"><i class="bi bi-hourglass-split text-warning"></i></div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="kpi-card">
+            <div class="kpi-label">Exécuté</div>
+            <div class="kpi-value" style="color:#1A5632;">{{ bc_counts.execute }}</div>
+            <div class="kpi-sub"><i class="bi bi-check-circle text-success"></i></div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="kpi-card" style="--kpi-accent:#E74C3C;">
+            <div class="kpi-label" style="color:#E74C3C;">Annulés</div>
+            <div class="kpi-value" style="color:#E74C3C;">{{ bc_counts.annule }}</div>
+            <div class="kpi-sub"><i class="bi bi-x-circle text-danger"></i></div>
+        </div>
+    </div>
 </div>
 <div class="data-card">
     <h6>Liste des bons de commande</h6>
@@ -76,7 +113,15 @@
             </td>
         </tr>
         {% empty %}
-        <tr><td colspan="9" class="text-center text-muted py-3">Aucun bon de commande trouvé</td></tr>
+        <tr>
+            <td colspan="9">
+                <div class="empty-state">
+                    <i class="bi bi-cart-check"></i>
+                    <p class="empty-title">Aucun bon de commande trouvé</p>
+                    <p class="empty-sub">Aucun BC ne correspond à vos critères de filtre.</p>
+                </div>
+            </td>
+        </tr>
         {% endfor %}
         </tbody>
     </table>

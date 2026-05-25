@@ -2,21 +2,50 @@
 {% block title %}Journal — BudgetPAD{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-start mb-4">
-    <div><h4 style="font-weight:600;color:#1B3A5C;">Journal d'activité</h4><p class="text-muted mb-0" style="font-size:14px;">{{ page_obj.paginator.count }} entrées · historique immuable</p></div>
+    <div>
+        <h4 style="font-weight:600;color:#1B3A5C;">Journal d'activité</h4>
+        <p class="text-muted mb-0" style="font-size:14px;">
+            <i class="bi bi-shield-lock me-1 text-success"></i>
+            {{ page_obj.paginator.count }} entrées &middot; historique immuable signé SHA-256
+        </p>
+    </div>
 </div>
+
 <div class="data-card">
-    <form method="get" class="row g-2 mb-3 align-items-end">
+    <h6><i class="bi bi-funnel"></i>Filtres</h6>
+    <form method="get" class="row g-2 mb-4 align-items-end">
         <div class="col-md-3">{{ filter.form.type_action }}</div>
         <div class="col-md-4">{{ filter.form.description }}</div>
-        <div class="col-md-2"><button type="submit" class="btn btn-sm btn-pad w-100">Filtrer</button></div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-sm btn-pad w-100">
+                <i class="bi bi-search me-1"></i>Filtrer
+            </button>
+        </div>
     </form>
 
-    {% for entry in entries %}
-    <div class="journal-item">
-        <span class="journal-badge">{{ entry.type_action }}</span>
-        <div><strong>{{ entry.description }}</strong><br><small class="text-muted">par <strong>{{ entry.utilisateur.get_role_display_short }}</strong> · {{ entry.created_at|date:"d/m/Y H:i" }}</small></div>
+    {% if entries %}
+    <div class="journal-timeline">
+        {% for entry in entries %}
+        <div class="journal-item">
+            <span class="journal-badge">{{ entry.type_action }}</span>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:13.5px;font-weight:500;color:#1a2332;">{{ entry.description }}</div>
+                <div style="margin-top:3px;font-size:12px;color:#9199a8;">
+                    <i class="bi bi-person me-1"></i><strong>{{ entry.utilisateur.get_role_display_short }}</strong>
+                    &nbsp;&middot;&nbsp;
+                    <i class="bi bi-calendar3 me-1"></i>{{ entry.created_at|date:"d/m/Y à H:i" }}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
     </div>
-    {% empty %}<p class="text-center text-muted">Aucune activité enregistrée</p>{% endfor %}
+    {% else %}
+    <div class="empty-state">
+        <i class="bi bi-clock-history"></i>
+        <p class="empty-title">Aucune activité enregistrée</p>
+        <p class="empty-sub">Les actions effectuées sur la plateforme apparaîtront ici.</p>
+    </div>
+    {% endif %}
 
     {% include "partials/_pagination.html" %}
 </div>

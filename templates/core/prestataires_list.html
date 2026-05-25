@@ -29,7 +29,15 @@
             </td>
         </tr>
         {% empty %}
-        <tr><td colspan="6" class="text-center text-muted py-3">Aucun prestataire</td></tr>
+        <tr>
+            <td colspan="6">
+                <div class="empty-state">
+                    <i class="bi bi-people"></i>
+                    <p class="empty-title">Aucun prestataire référencé</p>
+                    <p class="empty-sub">Ajoutez des fournisseurs pour pouvoir créer des demandes d'achat.</p>
+                </div>
+            </td>
+        </tr>
         {% endfor %}
         </tbody>
     </table>

@@ -34,6 +34,16 @@
                 {% endif %}
             </td>
         </tr>
+        {% empty %}
+        <tr>
+            <td colspan="11">
+                <div class="empty-state">
+                    <i class="bi bi-list-check"></i>
+                    <p class="empty-title">Aucune tâche budgétaire</p>
+                    <p class="empty-sub">Les tâches de l'exercice {{ exercice.annee }} apparaîtront ici.</p>
+                </div>
+            </td>
+        </tr>
         {% endfor %}
         </tbody>
     </table>

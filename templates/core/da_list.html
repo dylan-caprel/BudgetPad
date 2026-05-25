@@ -3,8 +3,15 @@
 {% block title %}Demandes d'achat — BudgetPAD{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-start mb-4">
-    <div><h4 style="font-weight:600;color:#1B3A5C;">Demandes d'achat</h4><p class="text-muted mb-0" style="font-size:14px;">{{ page_obj.paginator.count }} demandes · DA → BC</p></div>
-    {% if request.user|has_role:"directeur_drh,assistante_drh" %}<button class="btn btn-pad" data-bs-toggle="modal" data-bs-target="#modalDA"><i class="bi bi-plus"></i> Nouvelle DA</button>{% endif %}
+    <div>
+        <h4 style="font-weight:600;color:#1B3A5C;">Demandes d'achat</h4>
+        <p class="text-muted mb-0" style="font-size:14px;">{{ page_obj.paginator.count }} demandes &middot; DA &rarr; BC</p>
+    </div>
+    {% if request.user|has_role:"directeur_drh,assistante_drh" %}
+    <button class="btn btn-pad" data-bs-toggle="modal" data-bs-target="#modalDA">
+        <i class="bi bi-plus-lg me-1"></i>Nouvelle DA
+    </button>
+    {% endif %}
 </div>
 <div class="data-card">
     <h6>Liste des demandes</h6>
@@ -78,7 +85,15 @@
             </td>
         </tr>
         {% empty %}
-        <tr><td colspan="8" class="text-center text-muted py-3">Aucune demande trouvée</td></tr>
+        <tr>
+            <td colspan="8">
+                <div class="empty-state">
+                    <i class="bi bi-file-earmark-text"></i>
+                    <p class="empty-title">Aucune demande trouvée</p>
+                    <p class="empty-sub">Aucune demande d'achat ne correspond à vos critères de filtre.</p>
+                </div>
+            </td>
+        </tr>
         {% endfor %}
         </tbody>
     </table>

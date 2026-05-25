@@ -124,6 +124,16 @@
                 </div>
             </div>
         </div>
+        {% empty %}
+        <tr>
+            <td colspan="5">
+                <div class="empty-state">
+                    <i class="bi bi-person-gear"></i>
+                    <p class="empty-title">Aucun utilisateur</p>
+                    <p class="empty-sub">Créez des comptes pour permettre l'accès à la plateforme.</p>
+                </div>
+            </td>
+        </tr>
         {% endfor %}
         </tbody>
     </table>

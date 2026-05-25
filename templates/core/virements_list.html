@@ -15,14 +15,22 @@
         <tr class="virement-row" data-virement-id="{{ v.pk }}" style="cursor:pointer;" title="Cliquer pour voir les détails">
             <td>{{ v.created_at|date:"d/m/Y H:i" }}</td>
             <td>{{ v.tache_source }}</td>
-            <td>→</td>
+            <td><i class="bi bi-arrow-right text-muted"></i></td>
             <td>{{ v.tache_dest }}</td>
             <td class="money">{{ v.montant|fmt }}</td>
             <td>{{ v.motif|truncatechars:40 }}</td>
             <td>{{ v.created_by.get_role_display_short }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="7" class="text-center text-muted">Aucun transfert enregistré</td></tr>
+        <tr>
+            <td colspan="7">
+                <div class="empty-state">
+                    <i class="bi bi-arrow-left-right"></i>
+                    <p class="empty-title">Aucun transfert enregistré</p>
+                    <p class="empty-sub">Les virements inter-tâches apparaîtront ici.</p>
+                </div>
+            </td>
+        </tr>
         {% endfor %}
         </tbody>
     </table>
