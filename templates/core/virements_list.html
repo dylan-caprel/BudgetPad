@@ -3,20 +3,26 @@
 {% block title %}Transferts — BudgetPAD{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-start mb-4">
-    <div><h4 style="font-weight:600;color:#1B3A5C;">Transferts inter-tâches</h4><p class="text-muted mb-0" style="font-size:14px;">Réallocation de fonds entre tâches budgétaires</p></div>
+    <div><h4 style="font-weight:600;color:#1B3A5C;">Transferts budgétaires</h4><p class="text-muted mb-0" style="font-size:14px;">Réallocation de fonds entre lignes budgétaires</p></div>
     {% if request.user|has_role:"assistante_drh" %}<button class="btn btn-pad" data-bs-toggle="modal" data-bs-target="#modalVirement"><i class="bi bi-plus"></i> Nouveau transfert</button>{% endif %}
 </div>
 <div class="data-card">
     <h6>Historique des virements</h6>
     <table class="table table-hover mb-0">
-        <thead><tr><th>Date</th><th>Source</th><th></th><th>Destination</th><th class="money">Montant</th><th>Motif</th><th>Auteur</th></tr></thead>
+        <thead><tr><th>Date</th><th>Ligne source</th><th></th><th>Ligne destination</th><th class="money">Montant</th><th>Motif</th><th>Auteur</th></tr></thead>
         <tbody>
         {% for v in virements %}
         <tr class="virement-row" data-virement-id="{{ v.pk }}" style="cursor:pointer;" title="Cliquer pour voir les détails">
             <td>{{ v.created_at|date:"d/m/Y H:i" }}</td>
-            <td>{{ v.tache_source }}</td>
+            <td>
+                <strong>{{ v.ligne_source.code_nature }}</strong><br>
+                <small class="text-muted">{{ v.ligne_source.tache.numero }}</small>
+            </td>
             <td><i class="bi bi-arrow-right text-muted"></i></td>
-            <td>{{ v.tache_dest }}</td>
+            <td>
+                <strong>{{ v.ligne_destination.code_nature }}</strong><br>
+                <small class="text-muted">{{ v.ligne_destination.tache.numero }}</small>
+            </td>
             <td class="money">{{ v.montant|fmt }}</td>
             <td>{{ v.motif|truncatechars:40 }}</td>
             <td>{{ v.created_by.get_role_display_short }}</td>
@@ -27,7 +33,7 @@
                 <div class="empty-state">
                     <i class="bi bi-arrow-left-right"></i>
                     <p class="empty-title">Aucun transfert enregistré</p>
-                    <p class="empty-sub">Les virements inter-tâches apparaîtront ici.</p>
+                    <p class="empty-sub">Les virements entre lignes budgétaires apparaîtront ici.</p>
                 </div>
             </td>
         </tr>
@@ -37,27 +43,41 @@
     {% include "partials/_pagination.html" %}
 </div>
 
-<!-- Offcanvas détail virement -->
-<div class="offcanvas offcanvas-end" tabindex="-1" id="virementDetailOffcanvas" style="width:420px;">
-    <div class="offcanvas-header" style="border-bottom:1px solid #eee;">
-        <h6 class="offcanvas-title mb-0" style="color:#1B3A5C;">Détail du transfert</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
-    </div>
-    <div class="offcanvas-body" id="virementDetailBody">
-        <div class="text-center text-muted py-5">
-            <div class="spinner-border spinner-border-sm" role="status"></div>
-            <p class="mt-2 mb-0" style="font-size:13px;">Chargement…</p>
-        </div>
-    </div>
-</div>
+<!-- Offcanvas Virement : markup déplacé vers base.html via _offcanvas_targets.html -->
 
 <div class="modal fade" id="modalVirement" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
-    <div class="modal-header"><h5 class="modal-title">Nouveau transfert inter-tâches</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-header"><h5 class="modal-title">Nouveau transfert budgétaire</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <form method="post" action="{% url 'virement_create' %}">{% csrf_token %}
     <div class="modal-body">
-        <div class="mb-3"><label class="form-label">Tâche source</label><select name="tache_source" class="form-select" required><option value="">Choisir...</option>{% for t in taches %}<option value="{{ t.pk }}">{{ t.numero }} — {{ t.titre }} (solde : {{ t.solde|floatformat:0 }})</option>{% endfor %}</select></div>
-        <div class="mb-3"><label class="form-label">Tâche destination</label><select name="tache_dest" class="form-select" required><option value="">Choisir...</option>{% for t in taches %}<option value="{{ t.pk }}">{{ t.numero }} — {{ t.titre }} (solde : {{ t.solde|floatformat:0 }})</option>{% endfor %}</select></div>
-        <div class="mb-3"><label class="form-label">Montant (FCFA)</label><input type="number" name="montant" class="form-control" value="0" required></div>
+        <div class="mb-3">
+            <label class="form-label">Ligne source</label>
+            <select name="ligne_source" class="form-select" required>
+                <option value="">Choisir une ligne...</option>
+                {% regroup lignes by tache as lignes_par_tache %}
+                {% for groupe in lignes_par_tache %}
+                <optgroup label="Tâche {{ groupe.grouper.numero }} — {{ groupe.grouper.titre|truncatechars:40 }}">
+                    {% for l in groupe.list %}
+                    <option value="{{ l.pk }}">{{ l.code_nature }} — {{ l.libelle_nature }}</option>
+                    {% endfor %}
+                </optgroup>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Ligne destination</label>
+            <select name="ligne_destination" class="form-select" required>
+                <option value="">Choisir une ligne...</option>
+                {% regroup lignes by tache as lignes_par_tache %}
+                {% for groupe in lignes_par_tache %}
+                <optgroup label="Tâche {{ groupe.grouper.numero }} — {{ groupe.grouper.titre|truncatechars:40 }}">
+                    {% for l in groupe.list %}
+                    <option value="{{ l.pk }}">{{ l.code_nature }} — {{ l.libelle_nature }}</option>
+                    {% endfor %}
+                </optgroup>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="mb-3"><label class="form-label">Montant (FCFA)</label><input type="number" name="montant" class="form-control" value="0" min="1" required></div>
         <div class="mb-3"><label class="form-label">Motif (obligatoire)</label><textarea name="motif" class="form-control" rows="3" placeholder="Justification du transfert..." required></textarea></div>
     </div>
     <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button><button type="submit" class="btn btn-pad">Valider le transfert</button></div>
@@ -67,24 +87,10 @@
 
 {% block extra_js %}
 <script>
-(function () {
-    var offcanvasEl = document.getElementById('virementDetailOffcanvas');
-    var offcanvas = new bootstrap.Offcanvas(offcanvasEl);
-    var body = document.getElementById('virementDetailBody');
-
-    document.querySelectorAll('.virement-row').forEach(function (row) {
-        row.addEventListener('click', function () {
-            var id = this.dataset.virementId;
-            body.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm" role="status"></div><p class="mt-2 mb-0" style="font-size:13px;">Chargement…</p></div>';
-            offcanvas.show();
-            fetch('/virements/' + id + '/detail/', {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            })
-            .then(function (r) { return r.text(); })
-            .then(function (html) { body.innerHTML = html; })
-            .catch(function () { body.innerHTML = '<p class="text-danger text-center mt-4">Erreur de chargement.</p>'; });
-        });
+document.querySelectorAll('.virement-row').forEach(function (row) {
+    row.addEventListener('click', function () {
+        window.openVirementOffcanvas(this.dataset.virementId);
     });
-})();
+});
 </script>
 {% endblock %}

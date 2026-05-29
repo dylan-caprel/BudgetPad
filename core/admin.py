@@ -1,9 +1,10 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import (
-    Utilisateur, ExerciceBudgetaire, Tache, VirementBudgetaire,
-    Prestataire, DemandeAchat, Offre, BonCommande, LigneBC,
-    HistoriqueStatut, JournalActivite, Notification, Alerte
+    Utilisateur, ExerciceBudgetaire, Tache, LigneBudgetaire,
+    VirementBudgetaire, Prestataire, DemandeAchat, Offre, BonCommande,
+    LigneBC, ImputationBC, ProlongationBC, HistoriqueStatut,
+    JournalActivite, Notification, Alerte,
 )
 
 
@@ -23,13 +24,19 @@ class ExerciceAdmin(admin.ModelAdmin):
 
 @admin.register(Tache)
 class TacheAdmin(admin.ModelAdmin):
-    list_display = ['numero', 'titre', 'montant_initial', 'code_nature']
-    list_filter = ['exercice']
+    list_display = ['numero', 'titre', 'exercice', 'actif']
+    list_filter = ['exercice', 'actif']
+
+
+@admin.register(LigneBudgetaire)
+class LigneBudgetaireAdmin(admin.ModelAdmin):
+    list_display = ['tache', 'code_nature', 'libelle_nature', 'montant_initial', 'actif']
+    list_filter = ['tache__exercice', 'actif']
 
 
 @admin.register(VirementBudgetaire)
 class VirementAdmin(admin.ModelAdmin):
-    list_display = ['tache_source', 'tache_dest', 'montant', 'created_by', 'created_at']
+    list_display = ['ligne_source', 'ligne_destination', 'montant', 'created_by', 'created_at']
 
 
 @admin.register(Prestataire)

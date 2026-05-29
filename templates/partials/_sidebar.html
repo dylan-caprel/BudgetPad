@@ -19,8 +19,11 @@
         <li><a href="{% url 'da_list' %}" class="{% if 'da_' in request.resolver_match.url_name %}active{% endif %}">
             <i class="bi bi-file-earmark-text"></i> Demandes d'achat
         </a></li>
-        <li><a href="{% url 'bc_list' %}" class="{% if 'bc_' in request.resolver_match.url_name %}active{% endif %}">
+        <li><a href="{% url 'bc_list' %}" class="{% if 'bc_' in request.resolver_match.url_name and request.resolver_match.url_name != 'journal_bc' %}active{% endif %}">
             <i class="bi bi-cart-check"></i> Bons de commande
+        </a></li>
+        <li><a href="{% url 'journal_bc' %}" class="{% if request.resolver_match.url_name == 'journal_bc' %}active{% endif %}">
+            <i class="bi bi-journal-text"></i> Détail des engagements
         </a></li>
         <li><a href="{% url 'prestataires_list' %}" class="{% if 'prestataire' in request.resolver_match.url_name %}active{% endif %}">
             <i class="bi bi-people"></i> Prestataires
@@ -38,7 +41,7 @@
 
     {% if request.user.role == 'admin' %}
     <div class="sidebar-section">Administration</div>
-    <ul class="sidebar-nav" style="flex:0;">
+    <ul class="sidebar-nav">
         <li><a href="{% url 'parametres' %}" class="{% if request.resolver_match.url_name == 'parametres' %}active{% endif %}">
             <i class="bi bi-gear"></i> Paramètres
         </a></li>
@@ -49,18 +52,6 @@
     {% endif %}
 
     <div class="sidebar-footer">
-        <div style="display:flex;align-items:center;gap:10px;">
-            <div style="width:32px;height:32px;border-radius:9px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;">
-                {{ request.user.nom_complet|default:request.user.username|slice:":1"|upper }}
-            </div>
-            <div style="min-width:0;">
-                <div style="font-size:12px;color:rgba(255,255,255,.75);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                    {{ request.user.nom_complet|default:request.user.username }}
-                </div>
-                <div style="font-size:10px;color:rgba(255,255,255,.38);margin-top:1px;">
-                    Exercice {{ exercice_courant.annee|default:"—" }}
-                </div>
-            </div>
-        </div>
+        Port Autonome de Douala<br>Exercice {{ exercice_courant.annee|default:"—" }}
     </div>
 </div>

@@ -95,10 +95,21 @@
                 <thead><tr><th>N°</th><th>Tâche</th><th>Prestataire</th><th>Montant TTC</th><th>Statut</th></tr></thead>
                 <tbody>
                 {% for bc in derniers_bc %}
-                <tr>
-                    <td>{{ bc.numero }}</td>
-                    <td><small class="text-muted">{{ bc.tache.numero }}</small><br>{{ bc.tache.titre|truncatechars:30 }}</td>
-                    <td>{{ bc.prestataire.nom }}</td>
+                <tr class="bc-activite-row" style="cursor:pointer;"
+                    onclick="window.openBCOffcanvas({{ bc.pk }})"
+                    title="Voir le détail du BC">
+                    <td><strong style="color:#1B3A5C;">{{ bc.numero }}</strong></td>
+                    <td>
+                        <small class="text-muted clickable-tache" style="cursor:pointer;text-decoration:underline dotted;"
+                               onclick="event.stopPropagation(); window.openTacheOffcanvas({{ bc.tache.pk }})"
+                               title="Voir le détail de la tâche">{{ bc.tache.numero }}</small><br>
+                        {{ bc.tache.titre|truncatechars:30 }}
+                    </td>
+                    <td>
+                        <span class="clickable-prestataire" style="cursor:pointer;text-decoration:underline dotted;"
+                              onclick="event.stopPropagation(); window.openPrestataireOffcanvas({{ bc.prestataire.pk }})"
+                              title="Voir le détail du prestataire">{{ bc.prestataire.nom }}</span>
+                    </td>
                     <td class="money">{{ bc.montant_ttc|fmt }}</td>
                     <td><span class="badge bg-{{ bc.statut_couleur }} badge-statut">{{ bc.get_statut_display }}</span></td>
                 </tr>
@@ -112,14 +123,57 @@
     <div class="col-md-4">
         <div class="data-card">
             <h6><i class="bi bi-exclamation-triangle text-warning"></i> Alertes</h6>
+
+            {% if bc_en_retard %}
+            <div class="mb-3">
+                <div class="text-danger fw-bold mb-1" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;">
+                    <i class="bi bi-alarm"></i> BC en retard ({{ bc_en_retard|length }})
+                </div>
+                {% for bc in bc_en_retard %}
+                <div class="alert-item danger alert-clickable" style="margin-bottom:6px;cursor:pointer;"
+                     onclick="window.openBCOffcanvas({{ bc.pk }})"
+                     title="Voir le détail du BC">
+                    <strong>{{ bc.numero }}</strong> — {{ bc.tache.titre|truncatechars:28 }}
+                    <i class="bi bi-chevron-right float-end text-muted" style="font-size:11px;"></i>
+                    <br>
+                    <small class="text-danger">Échéance dépassée : {{ bc.date_echeance|date:"d/m/Y" }}</small>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if bc_echeance_proche %}
+            <div class="mb-3">
+                <div class="text-warning fw-bold mb-1" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;">
+                    <i class="bi bi-clock"></i> Échéance proche ({{ bc_echeance_proche|length }})
+                </div>
+                {% for bc in bc_echeance_proche %}
+                <div class="alert-item alert-clickable" style="margin-bottom:6px;border-left:3px solid #F39C12;cursor:pointer;"
+                     onclick="window.openBCOffcanvas({{ bc.pk }})"
+                     title="Voir le détail du BC">
+                    <strong>{{ bc.numero }}</strong> — {{ bc.tache.titre|truncatechars:28 }}
+                    <i class="bi bi-chevron-right float-end text-muted" style="font-size:11px;"></i>
+                    <br>
+                    <small class="text-warning" style="color:#e67e22!important;">Échéance : {{ bc.date_echeance|date:"d/m/Y" }} ({{ bc.jours_restants }} j)</small>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
             {% for alerte in alertes %}
-            <div class="alert-item {% if alerte.seuil_atteint >= 90 %}danger{% endif %}">
-                <strong>{{ alerte.tache.numero }}</strong> {{ alerte.message }}<br>
+            <div class="alert-item alert-clickable {% if alerte.seuil_atteint >= 90 %}danger{% endif %}"
+                 style="cursor:pointer;"
+                 onclick="window.openTacheOffcanvas({{ alerte.tache.pk }})"
+                 title="Voir le détail de la tâche">
+                <strong>{{ alerte.tache.numero }}</strong> {{ alerte.message }}
+                <i class="bi bi-chevron-right float-end text-muted" style="font-size:11px;"></i>
+                <br>
                 <small class="text-muted">Solde : {{ alerte.tache.solde|floatformat:0 }} FCFA</small>
-                <a href="{% url 'taches_list' %}" class="d-block mt-1" style="font-size:12px;">Voir la tâche →</a>
             </div>
             {% empty %}
+            {% if not bc_en_retard and not bc_echeance_proche %}
             <p class="text-muted text-center" style="font-size:14px;">Aucune alerte active</p>
+            {% endif %}
             {% endfor %}
         </div>
     </div>

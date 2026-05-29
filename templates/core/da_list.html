@@ -101,19 +101,7 @@
     {% include "partials/_pagination.html" %}
 </div>
 
-<!-- Offcanvas détail DA -->
-<div class="offcanvas offcanvas-end" tabindex="-1" id="daDetailOffcanvas" style="width:420px;">
-    <div class="offcanvas-header" style="border-bottom:1px solid #eee;">
-        <h6 class="offcanvas-title mb-0" style="color:#1B3A5C;">Détail de la demande d'achat</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
-    </div>
-    <div class="offcanvas-body" id="daDetailBody">
-        <div class="text-center text-muted py-5">
-            <div class="spinner-border spinner-border-sm" role="status"></div>
-            <p class="mt-2 mb-0" style="font-size:13px;">Chargement…</p>
-        </div>
-    </div>
-</div>
+<!-- Offcanvas DA : markup déplacé vers base.html via _offcanvas_targets.html -->
 
 <div class="modal fade" id="modalDA" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
     <div class="modal-header"><h5 class="modal-title">Nouvelle demande d'achat</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
@@ -130,24 +118,10 @@
 
 {% block extra_js %}
 <script>
-(function () {
-    var offcanvasEl = document.getElementById('daDetailOffcanvas');
-    var offcanvas = new bootstrap.Offcanvas(offcanvasEl);
-    var body = document.getElementById('daDetailBody');
-
-    document.querySelectorAll('.da-row').forEach(function (row) {
-        row.addEventListener('click', function () {
-            var id = this.dataset.daId;
-            body.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm" role="status"></div><p class="mt-2 mb-0" style="font-size:13px;">Chargement…</p></div>';
-            offcanvas.show();
-            fetch('/demandes-achat/' + id + '/detail/', {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            })
-            .then(function (r) { return r.text(); })
-            .then(function (html) { body.innerHTML = html; })
-            .catch(function () { body.innerHTML = '<p class="text-danger text-center mt-4">Erreur de chargement.</p>'; });
-        });
+document.querySelectorAll('.da-row').forEach(function (row) {
+    row.addEventListener('click', function () {
+        window.openDAOffcanvas(this.dataset.daId);
     });
-})();
+});
 </script>
 {% endblock %}

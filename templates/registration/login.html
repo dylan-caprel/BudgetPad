@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+{% load static %}
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
@@ -132,23 +133,45 @@
         }
         .feature-pill i { color: #7FD4A0; font-size: 13px; }
 
-        /* ── RIGHT PANEL ── */
+        /* ── RIGHT PANEL — vue aérienne d'un porte-container ── */
         .login-right {
             flex: 2;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: #EEF2F7;
             padding: 40px 36px;
+            position: relative;
+            overflow: hidden;
+            background:
+                /* Voile dégradé sombre pour assurer la lisibilité du formulaire */
+                linear-gradient(135deg, rgba(15,40,75,.55) 0%, rgba(20,70,110,.35) 50%, rgba(0,20,40,.45) 100%),
+                url("{% static 'img/port_douala.jpg' %}") center/cover no-repeat;
+            background-attachment: scroll;
         }
+        /* Halo vitré derrière la carte de login pour le contraste */
+        .login-right::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 70% 50%, rgba(255,255,255,.18), transparent 65%);
+            pointer-events: none;
+        }
+
         .login-card {
             width: 100%;
             max-width: 400px;
-            background: #fff;
+            background: rgba(255,255,255,.97);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,.6);
             border-radius: 20px;
             padding: 36px 32px;
-            box-shadow: 0 8px 40px rgba(0,0,0,.10);
+            box-shadow:
+                0 12px 48px rgba(0,0,0,.25),
+                0 4px 16px rgba(0,0,0,.15);
             animation: fadeUp .5s cubic-bezier(.4,0,.2,1) both;
+            position: relative;
+            z-index: 2;
         }
         .login-card .login-logo {
             display: flex;

@@ -1,74 +1,67 @@
-"""Service métier pour les Virements Budgétaires"""
+"""Service métier pour les Virements Budgétaires (entre lignes budgétaires)."""
 
 from decimal import Decimal
 from django.db import transaction
-from django.db.models import F
-from ..models import Tache, VirementBudgetaire, JournalActivite
+from ..models import LigneBudgetaire, VirementBudgetaire, JournalActivite
 
 
 class VirementService:
-    """Logique métier pour Virements"""
-    
+
     @staticmethod
     @transaction.atomic
-    def creer_virement(tache_source: Tache, tache_dest: Tache,
-                       montant: Decimal, motif: str, 
-                       utilisateur) -> VirementBudgetaire:
+    def creer_virement(
+        ligne_source: LigneBudgetaire,
+        ligne_destination: LigneBudgetaire,
+        montant: Decimal,
+        motif: str,
+        utilisateur,
+        exercice=None,
+    ) -> VirementBudgetaire:
         """
-        Crée un virement avec atomicité garantie.
-        
-        Args:
-            tache_source: Tâche source (argent sort)
-            tache_dest: Tâche destination (argent entre)
-            montant: Montant en FCFA
-            motif: Raison du virement
-            utilisateur: Utilisateur qui crée le virement
-        
-        Returns:
-            Instance VirementBudgetaire créée
-        
+        Crée un virement budgétaire entre deux lignes budgétaires.
+
         Raises:
-            ValueError: Si validation échoue
+            ValueError: si la validation échoue (lignes identiques, montant nul, solde insuffisant).
         """
-        # Validations métier
-        if tache_source == tache_dest:
-            raise ValueError("Source et destination doivent être différentes")
-        
+        if ligne_source.pk == ligne_destination.pk:
+            raise ValueError("La ligne source et destination doivent être différentes.")
+
         if montant <= 0:
-            raise ValueError("Montant doit être positif")
-        
-        # Lock pessimiste pour éviter race condition
-        source_locked = Tache.objects.select_for_update().get(pk=tache_source.pk)
-        
-        if montant > source_locked.solde:
+            raise ValueError("Le montant doit être positif.")
+
+        # Calcul du solde de la ligne source (avec lock pessimiste)
+        ligne_locked = (
+            LigneBudgetaire.objects.with_aggregates().select_for_update().get(pk=ligne_source.pk)
+        )
+        solde_source = getattr(ligne_locked, 'solde', None)
+        if solde_source is not None and montant > solde_source:
             raise ValueError(
-                f"Solde insuffisant: {source_locked.solde:,.0f} FCFA disponible"
+                f"Solde insuffisant sur la ligne source {ligne_source.code_nature} : "
+                f"{solde_source:,.0f} FCFA disponible."
             )
-        
-        # Mise à jour atomique avec F()
-        Tache.objects.filter(pk=tache_source.pk).update(
-            transactions_moins=F('transactions_moins') + montant
-        )
-        Tache.objects.filter(pk=tache_dest.pk).update(
-            transactions_plus=F('transactions_plus') + montant
-        )
-        
-        # Créer le virement
+
+        # Déterminer l'exercice
+        if exercice is None:
+            exercice = ligne_source.tache.exercice
+
         virement = VirementBudgetaire.objects.create(
-            tache_source=tache_source,
-            tache_dest=tache_dest,
+            exercice=exercice,
+            ligne_source=ligne_source,
+            ligne_destination=ligne_destination,
             montant=montant,
             motif=motif,
-            created_by=utilisateur
+            created_by=utilisateur,
         )
-        
-        # Journal
+
         JournalActivite.objects.create(
             type_action='Virement',
-            description=f"{tache_source.numero} → {tache_dest.numero}: {montant:,.0f} FCFA",
+            description=(
+                f"Virement {ligne_source.code_nature} → {ligne_destination.code_nature} : "
+                f"{montant:,.0f} FCFA — {motif[:80]}"
+            ),
             entite_type='virement',
-            entite_id=virement.id,
-            utilisateur=utilisateur
+            entite_id=virement.pk,
+            utilisateur=utilisateur,
         )
-        
+
         return virement

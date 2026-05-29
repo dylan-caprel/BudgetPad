@@ -17,9 +17,10 @@ TAUX_COLORS = {
 }
 
 # ===== RÔLES & PERMISSIONS =====
+# Note : 'dag' supprimé — l'outil est utilisé UNIQUEMENT par la DRH.
 ROLES_LECTEUR_ONLY = ['lecteur']
-ROLES_EDITEUR = ['directeur_drh', 'assistante_drh', 'dag', 'admin']
-ROLES_VALIDEUR = ['dag', 'admin']
+ROLES_EDITEUR = ['directeur_drh', 'assistante_drh', 'chef_service', 'admin']
+ROLES_VALIDEUR = ['directeur_drh', 'admin']
 ROLES_ADMIN = ['admin']
 
 # ===== STATUTS AVEC METADATA =====

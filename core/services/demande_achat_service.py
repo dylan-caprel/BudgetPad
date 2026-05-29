@@ -47,9 +47,9 @@ class DemandeAchatService:
             utilisateur=utilisateur,
         )
 
-        # Notifier les valideurs (DAG + admins)
+        # Notifier les valideurs (Directeur DRH + admins)
         NotificationService.notifier_roles(
-            roles=['dag', 'admin'],
+            roles=['directeur_drh', 'admin'],
             type_notif='da_a_valider',
             titre=f"Nouvelle DA a valider : {reference}",
             message=f"{objet} ({montant_estime:,.0f} FCFA) - tache {tache.numero}",

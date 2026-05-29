@@ -175,9 +175,9 @@
             <a href="{% url 'virements_list' %}" class="list-group-item list-group-item-action py-2" style="font-size:13px;">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <span class="text-muted" style="font-size:11px;">{{ v.tache_source.numero }}</span>
+                        <span class="text-muted" style="font-size:11px;">{{ v.ligne_source.code_nature }}</span>
                         <i class="bi bi-arrow-right mx-1 text-muted"></i>
-                        <span class="text-muted" style="font-size:11px;">{{ v.tache_dest.numero }}</span>
+                        <span class="text-muted" style="font-size:11px;">{{ v.ligne_destination.code_nature }}</span>
                         {% if v.motif %}<div class="text-muted" style="font-size:11px;">{{ v.motif|truncatechars:50 }}</div>{% endif %}
                     </div>
                     <div class="money" style="font-size:12px;">{{ v.montant|fmt }}</div>

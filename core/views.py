@@ -17,11 +17,16 @@ from django.views.decorators.http import require_POST
 from functools import wraps
 from decimal import Decimal
 from .models import (
-    Utilisateur, ExerciceBudgetaire, Tache, VirementBudgetaire,
-    Prestataire, DemandeAchat, Offre, BonCommande, LigneBC,
-    JournalActivite, Notification, Alerte, HistoriqueStatut, PieceJointe,
+    Utilisateur, ExerciceBudgetaire, Tache, LigneBudgetaire,
+    VirementBudgetaire, Prestataire, DemandeAchat, Offre, BonCommande,
+    LigneBC, ImputationBC, ProlongationBC, JournalActivite, Notification,
+    Alerte, HistoriqueStatut, PieceJointe,
 )
-from .forms import VirementForm, PrestataireForm, TacheForm, DemandeAchatForm, BonCommandeForm, OffreSolliciterForm, OffreSaisirForm, OffreRefuserForm
+from .forms import (
+    VirementForm, PrestataireForm, TacheForm, LigneBudgetaireForm,
+    DemandeAchatForm, BonCommandeForm, ProlongationBCForm,
+    OffreSolliciterForm, OffreSaisirForm, OffreRefuserForm,
+)
 from .filters import BonCommandeFilter, DemandeAchatFilter, JournalFilter, PrestataireFilter
 from .services import (
     BonCommandeService, DemandeAchatService, NotificationService,
@@ -155,18 +160,30 @@ def password_change_forced_view(request):
 # ============ DASHBOARD ============
 
 def _get_periode_filter(request, bcs_qs):
-    """Filtre un queryset de BC selon le paramètre GET 'periode'."""
+    """
+    Filtre un queryset de BC selon le paramètre GET 'periode'.
+    Utilise date_emission (date métier) plutôt que created_at (date SQL).
+    """
+    from datetime import date as _date, timedelta as _td
     periode = request.GET.get('periode', 'annuel')
+    today = _date.today()
+
     if periode == 'mensuel':
-        now = timezone.now()
-        bcs_qs = bcs_qs.filter(created_at__year=now.year, created_at__month=now.month)
+        start = _date(today.year, today.month, 1)
+        if today.month == 12:
+            end = _date(today.year, 12, 31)
+        else:
+            end = _date(today.year, today.month + 1, 1) - _td(days=1)
+        bcs_qs = bcs_qs.filter(date_emission__gte=start, date_emission__lte=end)
     elif periode == 'trimestriel':
-        now = timezone.now()
-        quarter_start_month = ((now.month - 1) // 3) * 3 + 1
-        bcs_qs = bcs_qs.filter(
-            created_at__year=now.year,
-            created_at__month__gte=quarter_start_month,
-        )
+        quarter = ((today.month - 1) // 3) + 1
+        start_month = (quarter - 1) * 3 + 1
+        start = _date(today.year, start_month, 1)
+        if quarter == 4:
+            end = _date(today.year, 12, 31)
+        else:
+            end = _date(today.year, quarter * 3 + 1, 1) - _td(days=1)
+        bcs_qs = bcs_qs.filter(date_emission__gte=start, date_emission__lte=end)
     return bcs_qs, periode
 
 
@@ -193,6 +210,12 @@ def dashboard_view(request):
 
     derniers_bc = bcs.select_related('tache', 'prestataire').order_by('-created_at')[:5]
     alertes = Alerte.objects.filter(lu=False).order_by('-created_at')[:5]
+
+    from datetime import date as _date, timedelta as _td
+    _today = _date.today()
+    _bcs_actifs_echeance = bcs_base.exclude(statut__in=['annule', 'execute']).filter(date_echeance__isnull=False).select_related('tache', 'prestataire')
+    bc_en_retard = list(_bcs_actifs_echeance.filter(date_echeance__lt=_today)[:5])
+    bc_echeance_proche = list(_bcs_actifs_echeance.filter(date_echeance__gte=_today, date_echeance__lte=_today + _td(days=7))[:5])
 
     bc_counts = bcs.aggregate(
         cree=Count('id', filter=Q(statut='cree')),
@@ -221,6 +244,8 @@ def dashboard_view(request):
         'derniers_bc': derniers_bc,
         'alertes': alertes,
         'bc_counts': bc_counts,
+        'bc_en_retard': bc_en_retard,
+        'bc_echeance_proche': bc_echeance_proche,
     }
     return render(request, 'core/dashboard.html', context)
 
@@ -229,9 +254,15 @@ def dashboard_view(request):
 
 @login_required
 def taches_list(request):
+    from django.db.models import Prefetch
     exercice = _exercice_courant(request)
     if exercice:
-        taches = Tache.objects.filter(exercice=exercice).with_aggregates()
+        lignes_annotees = LigneBudgetaire.objects.with_aggregates()
+        taches = (
+            Tache.objects.filter(exercice=exercice)
+            .with_aggregates()
+            .prefetch_related(Prefetch('lignes', queryset=lignes_annotees))
+        )
     else:
         taches = Tache.objects.none()
     return render(request, 'core/taches_list.html', {'exercice': exercice, 'taches': taches})
@@ -270,11 +301,15 @@ def tache_create(request):
 @require_POST
 def tache_delete(request, pk):
     tache = get_object_or_404(Tache, pk=pk)
+    lignes = tache.lignes.all()
+    has_virements = any(
+        l.virements_sortants.exists() or l.virements_entrants.exists()
+        for l in lignes
+    )
     has_linked = (
         tache.bons_commande.exists()
         or tache.demandes_achat.exists()
-        or tache.virements_sortants.exists()
-        or tache.virements_entrants.exists()
+        or has_virements
     )
     if has_linked:
         messages.error(request, "Impossible de supprimer une tâche avec des BC, DA ou virements associés.")
@@ -290,18 +325,24 @@ def tache_delete(request, pk):
 @login_required
 def virements_list(request):
     exercice = _exercice_courant(request)
-    qs = VirementBudgetaire.objects.select_related('tache_source', 'tache_dest', 'created_by').all()
+    qs = VirementBudgetaire.objects.select_related(
+        'ligne_source', 'ligne_destination',
+        'ligne_source__tache', 'ligne_destination__tache',
+        'created_by',
+    ).all()
+    if exercice:
+        qs = qs.filter(exercice=exercice)
     page_obj, querystring = _paginate(request, qs)
-    # Pré-annote pour éviter N+1 sur .solde dans le modal
-    taches = (
-        Tache.objects.filter(exercice=exercice).with_aggregates().order_by('numero')
+    lignes = (
+        LigneBudgetaire.objects.filter(tache__exercice=exercice, actif=True)
+        .select_related('tache').order_by('tache__numero', 'code_nature')
         if exercice else []
     )
     return render(request, 'core/virements_list.html', {
         'virements': page_obj.object_list,
         'page_obj': page_obj,
         'querystring': querystring,
-        'taches': taches,
+        'lignes': lignes,
         'exercice': exercice,
     })
 
@@ -314,11 +355,12 @@ def virement_create(request):
     if form.is_valid():
         try:
             virement = VirementService.creer_virement(
-                tache_source=form.cleaned_data['tache_source'],
-                tache_dest=form.cleaned_data['tache_dest'],
+                ligne_source=form.cleaned_data['ligne_source'],
+                ligne_destination=form.cleaned_data['ligne_destination'],
                 montant=form.cleaned_data['montant'],
                 motif=form.cleaned_data['motif'],
-                utilisateur=request.user
+                utilisateur=request.user,
+                exercice=exercice,
             )
             messages.success(request, f"Virement de {virement.montant:,.0f} FCFA effectué avec succès.")
         except ValueError as e:
@@ -327,15 +369,18 @@ def virement_create(request):
         for field, errors in form.errors.items():
             for error in errors:
                 messages.error(request, f"{field}: {error}")
-
     return redirect('virements_list')
 
 
 @login_required
 def virement_detail(request, pk):
     v = get_object_or_404(
-        VirementBudgetaire.objects.select_related('tache_source', 'tache_dest', 'created_by'),
-        pk=pk
+        VirementBudgetaire.objects.select_related(
+            'ligne_source', 'ligne_destination',
+            'ligne_source__tache', 'ligne_destination__tache',
+            'created_by',
+        ),
+        pk=pk,
     )
     return render(request, 'partials/_virement_detail.html', {'v': v})
 
@@ -354,7 +399,7 @@ def prestataires_list(request):
     })
 
 @login_required
-@role_required('admin', 'dag')
+@role_required('admin', 'assistante_drh')
 @require_POST
 def prestataire_create(request):
     form = PrestataireForm(request.POST)
@@ -371,7 +416,7 @@ def prestataire_create(request):
     return redirect('prestataires_list')
 
 @login_required
-@role_required('admin', 'dag')
+@role_required('admin', 'assistante_drh')
 @require_POST
 def prestataire_delete(request, pk):
     prest = get_object_or_404(Prestataire, pk=pk)
@@ -414,7 +459,7 @@ def da_list(request):
     })
 
 @login_required
-@role_required('admin', 'directeur_drh', 'assistante_drh')
+@role_required('admin', 'directeur_drh', 'chef_service', 'assistante_drh')
 @require_POST
 def da_create(request):
     form = DemandeAchatForm(request.POST)
@@ -436,11 +481,11 @@ def da_create(request):
     return redirect('da_list')
 
 @login_required
-@role_required('dag')
+@role_required('directeur_drh')
 @require_POST
 @transaction.atomic
 def da_en_etude(request, pk):
-    """Passe une DA de « créée » à « en étude » (instruction DAG)."""
+    """Passe une DA de « créée » à « en étude » (instruction Directeur DRH)."""
     da = get_object_or_404(DemandeAchat, pk=pk)
     peut, msg = da.peut_transiter_vers('en_etude')
     if not peut:
@@ -461,7 +506,7 @@ def da_en_etude(request, pk):
 
 
 @login_required
-@role_required('dag')
+@role_required('directeur_drh')
 @require_POST
 @transaction.atomic
 def da_valider(request, pk):
@@ -485,7 +530,7 @@ def da_valider(request, pk):
             utilisateur=da.created_by,
             type_notif='da_validee',
             titre=f"{da.reference} validée",
-            message=f"Votre demande « {da.objet} » a été validée par le DAG.",
+            message=f"Votre demande « {da.objet} » a été validée par le Directeur DRH.",
             entite_type='da', entite_id=da.id,
         )
     app_logger.info("DA validée : %s par %s", da.reference, request.user.username)
@@ -494,7 +539,7 @@ def da_valider(request, pk):
 
 
 @login_required
-@role_required('dag')
+@role_required('directeur_drh')
 @require_POST
 @transaction.atomic
 def da_refuser(request, pk):
@@ -557,13 +602,13 @@ def da_detail(request, pk):
         'nb_recues': nb_recues,
         'nb_en_retard': nb_en_retard,
         'form_solliciter': form_solliciter,
-        'can_manage': request.user.role in ('admin', 'dag'),
+        'can_manage': request.user.role in ('admin', 'directeur_drh'),
         'pieces_jointes': pieces_jointes,
     })
 
 
 @login_required
-@role_required('admin', 'dag')
+@role_required('admin', 'assistante_drh')
 @require_POST
 def offre_solliciter(request, da_pk):
     """Sollicite un prestataire pour une DA — crée une offre en_attente sans montant."""
@@ -589,7 +634,7 @@ def offre_solliciter(request, da_pk):
 
 
 @login_required
-@role_required('admin', 'dag')
+@role_required('admin', 'assistante_drh')
 @require_POST
 def offre_saisir(request, pk):
     """Enregistre le montant d'une offre reçue et passe son statut à 'recue'."""
@@ -620,7 +665,7 @@ def offre_saisir(request, pk):
 
 
 @login_required
-@role_required('admin', 'dag', 'directeur_drh')
+@role_required('admin', 'directeur_drh')
 @require_POST
 @transaction.atomic
 def offre_retenir(request, pk):
@@ -658,7 +703,7 @@ def offre_retenir(request, pk):
 
 
 @login_required
-@role_required('admin', 'dag', 'directeur_drh')
+@role_required('admin', 'directeur_drh')
 @require_POST
 @transaction.atomic
 def offre_refuser(request, pk):
@@ -739,7 +784,7 @@ def bc_list(request):
     })
 
 @login_required
-@role_required('dag')
+@role_required('directeur_drh')
 @require_POST
 @transaction.atomic
 def bc_create(request):
@@ -801,7 +846,7 @@ def bc_pdf(request, pk):
 
 
 @login_required
-@role_required('dag')
+@role_required('directeur_drh')
 @require_POST
 def bc_change_statut(request, pk, nouveau_statut):
     bc = get_object_or_404(BonCommande, pk=pk)
@@ -830,21 +875,100 @@ def bc_detail(request, pk):
     """Retourne le fragment HTML de détail d'un BC (pour l'offcanvas)."""
     bc = get_object_or_404(
         BonCommande.objects.select_related('tache', 'prestataire', 'exercice', 'demande')
-                           .prefetch_related('lignes'),
-        pk=pk
+                           .prefetch_related('lignes', 'imputations__ligne_budgetaire__tache',
+                                             'prolongations__created_by'),
+        pk=pk,
     )
     historiques    = HistoriqueStatut.objects.filter(
-        type_entite='BC', entite_id=pk
+        type_entite='BC', entite_id=pk,
     ).select_related('utilisateur').order_by('-created_at')
     pieces_jointes = PieceJointe.objects.filter(type_entite='bc', entite_id=pk).select_related('uploaded_by')
+    can_prolong = (
+        request.user.role in ('admin', 'directeur_drh')
+        and bc.statut in ('notifie', 'en_cours')
+        and bc.date_echeance is not None
+    )
     return render(request, 'partials/_bc_detail.html', {
         'bc': bc,
         'historiques': historiques,
         'pieces_jointes': pieces_jointes,
+        'can_prolong': can_prolong,
+        'form_prolong': ProlongationBCForm(),
     })
 
 
 # ============ BILANS ============
+
+def _resolve_bilan_periode(request, exercice):
+    """
+    Récupère la période sélectionnée pour les bilans.
+
+    Si l'utilisateur choisit Trimestriel/Mensuel/Personnalisé sans préciser de
+    valeur (trimestre/mois/dates), on utilise un défaut sensé pour ne PAS
+    retomber sur Annuel — sinon la sélection serait silencieusement annulée.
+    """
+    from datetime import date, datetime, timedelta
+    filtre_type = request.GET.get('type_periode', 'annuel')
+    filtre_trimestre = request.GET.get('trimestre')
+    filtre_mois = request.GET.get('mois')
+    filtre_date_debut = request.GET.get('date_debut')
+    filtre_date_fin = request.GET.get('date_fin')
+
+    annee = exercice.annee
+    today = date.today()
+    date_debut = None
+    date_fin = None
+
+    if filtre_type == 'trimestriel':
+        # Défaut : trimestre courant si on est dans l'exercice, sinon T1
+        if not filtre_trimestre:
+            filtre_trimestre = str(((today.month - 1) // 3) + 1) if today.year == annee else '1'
+        try:
+            t = int(filtre_trimestre)
+            if t in (1, 2, 3, 4):
+                date_debut = date(annee, (t - 1) * 3 + 1, 1)
+                date_fin = date(annee, 12, 31) if t == 4 else date(annee, t * 3 + 1, 1) - timedelta(days=1)
+        except ValueError:
+            pass
+    elif filtre_type == 'mensuel':
+        # Défaut : mois courant si on est dans l'exercice, sinon Janvier
+        if not filtre_mois:
+            filtre_mois = str(today.month) if today.year == annee else '1'
+        try:
+            m = int(filtre_mois)
+            if 1 <= m <= 12:
+                date_debut = date(annee, m, 1)
+                date_fin = date(annee, 12, 31) if m == 12 else date(annee, m + 1, 1) - timedelta(days=1)
+        except ValueError:
+            pass
+    elif filtre_type == 'personnalise':
+        # Défaut : période complète de l'exercice
+        if not filtre_date_debut:
+            d_default = exercice.date_debut or date(annee, 1, 1)
+            filtre_date_debut = d_default.strftime('%Y-%m-%d')
+        if not filtre_date_fin:
+            f_default = exercice.date_fin or date(annee, 12, 31)
+            filtre_date_fin = f_default.strftime('%Y-%m-%d')
+        try:
+            date_debut = datetime.strptime(filtre_date_debut, '%Y-%m-%d').date()
+            date_fin = datetime.strptime(filtre_date_fin, '%Y-%m-%d').date()
+        except ValueError:
+            date_debut = date_fin = None
+
+    # Repli sur Annuel uniquement si tous les autres modes ont échoué (valeurs invalides)
+    if date_debut is None or date_fin is None:
+        filtre_type = 'annuel'
+        date_debut = exercice.date_debut or date(annee, 1, 1)
+        date_fin = exercice.date_fin or date(annee, 12, 31)
+
+    return {
+        'type': filtre_type,
+        'trimestre': filtre_trimestre,
+        'mois': filtre_mois,
+        'date_debut': date_debut,
+        'date_fin': date_fin,
+    }
+
 
 @login_required
 def bilans_view(request):
@@ -852,18 +976,25 @@ def bilans_view(request):
     if not exercice:
         return render(request, 'core/bilans.html', {'exercice': None})
 
+    periode = _resolve_bilan_periode(request, exercice)
+    date_debut = periode['date_debut']
+    date_fin = periode['date_fin']
+
     taches = Tache.objects.filter(exercice=exercice).with_aggregates()
     bcs_base = BonCommande.objects.filter(exercice=exercice)
-    bcs, periode = _get_periode_filter(request, bcs_base)
+    # Filtrage par date d'émission selon la période choisie
+    bcs = bcs_base.filter(date_emission__gte=date_debut, date_emission__lte=date_fin)
 
     budget_total = exercice.montant_global
     consommation = bcs.exclude(statut='annule').aggregate(t=Sum('montant_ttc'))['t'] or 0
     solde = budget_total - consommation
     taux = round((float(consommation) / float(budget_total)) * 100, 1) if budget_total > 0 else 0
 
+    # Top 10 tâches par taux de consommation
     taches_sorted = sorted(taches, key=lambda t: float(t.taux_consommation), reverse=True)
-    chart_labels = [t.numero for t in taches_sorted]
-    chart_data = [float(t.taux_consommation) for t in taches_sorted]
+    top10 = taches_sorted[:10]
+    chart_labels = [f"{t.numero} — {t.titre[:35]}" for t in top10]
+    chart_data = [float(t.taux_consommation) for t in top10]
     chart_colors = ['#E74C3C' if d >= 90 else '#F39C12' if d >= 70 else '#1A5632' for d in chart_data]
 
     bc_statuts = bcs.aggregate(
@@ -887,6 +1018,25 @@ def bilans_view(request):
         if bc_statuts[key] > 0
     ]
 
+    # Donut budgétaire global
+    budget_donut = [
+        {'label': 'Consommé', 'value': float(consommation), 'color': '#E74C3C'},
+        {'label': 'Disponible', 'value': max(0.0, float(solde)), 'color': '#1A5632'},
+    ]
+
+    # Détail des engagements par BC (pour la section "Imputations" en bas)
+    bcs_avec_imputations = (
+        bcs.select_related('tache', 'prestataire')
+        .prefetch_related('imputations__ligne_budgetaire')
+        .order_by('-date_emission')
+    )
+
+    mois_choices = [
+        (1, 'Janvier'), (2, 'Février'), (3, 'Mars'), (4, 'Avril'),
+        (5, 'Mai'), (6, 'Juin'), (7, 'Juillet'), (8, 'Août'),
+        (9, 'Septembre'), (10, 'Octobre'), (11, 'Novembre'), (12, 'Décembre'),
+    ]
+
     context = {
         'exercice': exercice,
         'periode': periode,
@@ -900,55 +1050,94 @@ def bilans_view(request):
         'chart_colors': chart_colors,
         'bc_statuts': bc_statuts,
         'bc_donut': bc_donut,
+        'budget_donut': budget_donut,
+        'bcs_avec_imputations': bcs_avec_imputations,
+        'mois_choices': mois_choices,
     }
     return render(request, 'core/bilans.html', context)
 
 
 @login_required
 def bilan_csv_export(request):
-    """Export CSV du bilan par tâche pour l'exercice courant."""
+    """Export CSV du bilan ligne par ligne, format Excel-FR."""
     exercice = _exercice_courant(request)
     if not exercice:
         messages.error(request, "Aucun exercice sélectionné.")
         return redirect('bilans')
 
-    taches = Tache.objects.filter(exercice=exercice).with_aggregates()
-
-    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
     response['Content-Disposition'] = (
-        f'attachment; filename="bilan_{exercice.annee}.csv"'
+        f'attachment; filename="Suivi_Taches_DRH_{exercice.annee}.csv"'
     )
+    # BOM pour Excel
+    response.write('﻿')
     writer = csv.writer(response, delimiter=';')
-    writer.writerow(['N° Tâche', 'Titre', 'Nature', 'Budget ajusté (FCFA)',
-                     'Consommation (FCFA)', 'Solde (FCFA)', 'Taux (%)'])
-    for t in taches:
-        writer.writerow([
-            t.numero, t.titre, t.libelle_nature or t.code_nature,
-            float(t.budget_ajuste), float(t.consommation),
-            float(t.solde), float(t.taux_consommation),
-        ])
+    writer.writerow([
+        'N° Tâche', 'Titre tâche',
+        'Code nature', 'Libellé nature',
+        'Budget initial', 'Transfert +', 'Transfert -',
+        'Budget ajusté', 'Consommation', 'Solde', 'Taux (%)',
+    ])
+
+    taches = Tache.objects.filter(exercice=exercice, actif=True).order_by('numero')
+    for tache in taches:
+        lignes = LigneBudgetaire.objects.filter(
+            tache=tache, actif=True
+        ).with_aggregates().order_by('code_nature')
+        for ligne in lignes:
+            tp = getattr(ligne, 'transfert_plus', 0) or 0
+            tm = getattr(ligne, 'transfert_moins', 0) or 0
+            ba = getattr(ligne, 'budget_ajuste', ligne.montant_initial) or 0
+            co = getattr(ligne, 'consommation', 0) or 0
+            so = getattr(ligne, 'solde', ba - co) or 0
+            tx = getattr(ligne, 'taux_consommation', 0) or 0
+            writer.writerow([
+                tache.numero, tache.titre,
+                ligne.code_nature, ligne.libelle_nature,
+                f"{float(ligne.montant_initial):.0f}",
+                f"{float(tp):.0f}",
+                f"{float(tm):.0f}",
+                f"{float(ba):.0f}",
+                f"{float(co):.0f}",
+                f"{float(so):.0f}",
+                f"{float(tx):.1f}",
+            ])
     app_logger.info("Export CSV bilan %s par %s", exercice.annee, request.user.username)
     return response
 
 
 @login_required
 def bilan_pdf_export(request):
-    """Génère et télécharge le rapport PDF du bilan budgétaire."""
+    """Génère et télécharge le rapport PDF du bilan budgétaire — format PAD."""
     from .services.pdf_service import generer_pdf_bilan
     exercice = _exercice_courant(request)
     if not exercice:
         messages.error(request, "Aucun exercice sélectionné.")
         return redirect('bilans')
 
-    taches       = list(Tache.objects.filter(exercice=exercice).with_aggregates())
-    bcs_base     = BonCommande.objects.filter(exercice=exercice)
-    bcs, periode = _get_periode_filter(request, bcs_base)
+    periode = _resolve_bilan_periode(request, exercice)
+    date_debut = periode['date_debut']
+    date_fin = periode['date_fin']
 
+    taches = list(
+        Tache.objects.filter(exercice=exercice, actif=True)
+        .with_aggregates().order_by('numero')
+    )
+
+    # Pré-charger les lignes annotées pour chaque tâche
+    lignes_par_tache = {}
+    for t in taches:
+        lignes_par_tache[t.pk] = list(
+            LigneBudgetaire.objects.filter(tache=t, actif=True).with_aggregates().order_by('code_nature')
+        )
+
+    bcs = BonCommande.objects.filter(
+        exercice=exercice, date_emission__gte=date_debut, date_emission__lte=date_fin,
+    )
     budget_total = exercice.montant_global
     consommation = bcs.exclude(statut='annule').aggregate(t=Sum('montant_ttc'))['t'] or 0
-    solde        = budget_total - consommation
-    taux         = round((float(consommation) / float(budget_total)) * 100, 1) if budget_total > 0 else 0
-    taches_sorted = sorted(taches, key=lambda t: float(t.taux_consommation), reverse=True)
+    solde = budget_total - consommation
+    taux = round((float(consommation) / float(budget_total)) * 100, 1) if budget_total > 0 else 0
 
     bc_statuts = bcs.aggregate(
         cree=Count('id', filter=Q(statut='cree')),
@@ -960,19 +1149,22 @@ def bilan_pdf_export(request):
 
     pdf_bytes = generer_pdf_bilan(
         exercice=exercice,
-        taches=taches_sorted,
+        taches=taches,
         consommation=consommation,
         budget_total=budget_total,
         solde=solde,
         taux=taux,
         bc_statuts=bc_statuts,
-        periode=periode,
+        periode=periode['type'],
+        date_debut=date_debut,
+        date_fin=date_fin,
+        lignes_par_tache=lignes_par_tache,
     )
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
     response['Content-Disposition'] = (
-        f'attachment; filename="bilan_{exercice.annee}_{periode}.pdf"'
+        f'attachment; filename="Suivi_Taches_DRH_{exercice.annee}_{periode["type"]}.pdf"'
     )
-    app_logger.info("Export PDF bilan %s (%s) par %s", exercice.annee, periode, request.user.username)
+    app_logger.info("Export PDF bilan %s (%s) par %s", exercice.annee, periode['type'], request.user.username)
     return response
 
 
@@ -1057,7 +1249,7 @@ def recherche_view(request):
     if len(q) >= 2:
         resultats = {
             'taches': Tache.objects.filter(
-                Q(numero__icontains=q) | Q(titre__icontains=q) | Q(libelle_nature__icontains=q)
+                Q(numero__icontains=q) | Q(titre__icontains=q)
             ).order_by('numero')[:8],
             'bcs': BonCommande.objects.select_related('tache', 'prestataire').filter(
                 Q(numero__icontains=q) | Q(prestataire__nom__icontains=q) | Q(tache__titre__icontains=q)
@@ -1068,8 +1260,12 @@ def recherche_view(request):
             'prestataires': Prestataire.objects.filter(
                 Q(nom__icontains=q) | Q(code__icontains=q) | Q(email__icontains=q)
             ).order_by('nom')[:8],
-            'virements': VirementBudgetaire.objects.select_related('tache_source', 'tache_dest').filter(
-                Q(tache_source__numero__icontains=q) | Q(tache_dest__numero__icontains=q)
+            'virements': VirementBudgetaire.objects.select_related(
+                'ligne_source', 'ligne_destination',
+                'ligne_source__tache', 'ligne_destination__tache',
+            ).filter(
+                Q(ligne_source__code_nature__icontains=q)
+                | Q(ligne_destination__code_nature__icontains=q)
                 | Q(motif__icontains=q)
             ).order_by('-created_at')[:6],
         }
@@ -1240,13 +1436,15 @@ def rgpd_export_view(request):
         ],
         'virements_crees': [
             {
-                'tache_source': v.tache_source.numero,
-                'tache_dest': v.tache_dest.numero,
+                'ligne_source': v.ligne_source.code_nature,
+                'ligne_destination': v.ligne_destination.code_nature,
                 'montant': float(v.montant),
                 'motif': v.motif,
                 'created_at': v.created_at.isoformat(),
             }
-            for v in VirementBudgetaire.objects.filter(created_by=user).select_related('tache_source', 'tache_dest')
+            for v in VirementBudgetaire.objects.filter(created_by=user).select_related(
+                'ligne_source', 'ligne_destination',
+            )
         ],
         'journal_actions': [
             {
@@ -1373,6 +1571,91 @@ def exercice_cloturer(request, pk):
     return redirect('exercices_list')
 
 
+@login_required
+@role_required('admin')
+@require_POST
+@transaction.atomic
+def exercice_reconduire(request, pk):
+    """
+    Reconduit un exercice : crée un nouvel exercice (année+1) avec les MÊMES tâches
+    et lignes budgétaires copiées, mais avec montants à 0.
+    L'utilisateur ajuste ensuite les budgets via les modals d'édition.
+    """
+    from datetime import date as _date
+    from decimal import Decimal as _D
+    src = get_object_or_404(ExerciceBudgetaire, pk=pk)
+    nouvelle_annee = src.annee + 1
+
+    if ExerciceBudgetaire.objects.filter(annee=nouvelle_annee).exists():
+        messages.error(request, f"L'exercice {nouvelle_annee} existe déjà.")
+        return redirect('exercices_list')
+
+    nouveau = ExerciceBudgetaire.objects.create(
+        annee=nouvelle_annee,
+        date_debut=_date(nouvelle_annee, 1, 1),
+        date_fin=_date(nouvelle_annee, 12, 31),
+        montant_global=_D('0'),
+        statut='actif',
+    )
+
+    # Copie des tâches actives
+    nb_taches = nb_lignes = 0
+    for tache_src in Tache.objects.filter(exercice=src, actif=True).order_by('numero'):
+        tache_new = Tache.objects.create(
+            exercice=nouveau,
+            numero=tache_src.numero,
+            titre=tache_src.titre,
+            actif=True,
+        )
+        nb_taches += 1
+        # Copie des lignes budgétaires avec montant à 0
+        for ligne_src in LigneBudgetaire.objects.filter(tache=tache_src, actif=True).order_by('code_nature'):
+            LigneBudgetaire.objects.create(
+                tache=tache_new,
+                code_nature=ligne_src.code_nature,
+                libelle_nature=ligne_src.libelle_nature,
+                montant_initial=_D('0'),
+                actif=True,
+            )
+            nb_lignes += 1
+
+    log_action(
+        request.user, 'Exercice.reconduire',
+        f"Reconduction {src.annee} → {nouvelle_annee} ({nb_taches} tâches, {nb_lignes} lignes)",
+        'exercice', nouveau.pk,
+    )
+    messages.success(
+        request,
+        f"Exercice {nouvelle_annee} reconduit : {nb_taches} tâches et {nb_lignes} lignes "
+        f"copiées (montants à 0 — à ajuster)."
+    )
+    return redirect('exercices_list')
+
+
+@login_required
+@role_required('admin')
+def exercice_template_excel(request):
+    """Stub : template Excel pour import de budgets (à venir)."""
+    messages.info(
+        request,
+        "L'import Excel sera disponible prochainement. "
+        "Pour l'instant, utilisez la reconduction d'exercice ou le seed de données."
+    )
+    return redirect('exercices_list')
+
+
+@login_required
+@role_required('admin')
+def exercice_import_excel(request):
+    """Stub : import Excel des budgets (à venir, requires openpyxl)."""
+    messages.info(
+        request,
+        "L'import Excel sera disponible prochainement (nécessite openpyxl). "
+        "Pour l'instant, utilisez la reconduction d'exercice ou le seed de données."
+    )
+    return redirect('exercices_list')
+
+
 # ============ EXERCICE SWITCH ============
 
 @login_required
@@ -1426,3 +1709,133 @@ def parametres_view(request):
         messages.success(request, "Données de démonstration réinitialisées.")
         return redirect('parametres')
     return render(request, 'core/parametres.html')
+
+
+# ============ PROLONGATION BC ============
+
+@login_required
+@role_required('directeur_drh')
+@require_POST
+@transaction.atomic
+def bc_prolong(request, pk):
+    """Prolonge l'échéance d'un BC (crée un enregistrement ProlongationBC)."""
+    bc = get_object_or_404(BonCommande, pk=pk)
+    if bc.statut not in ('notifie', 'en_cours'):
+        messages.error(request, "Seul un BC notifié ou en cours peut être prolongé.")
+        return redirect('bc_list')
+    if not bc.date_echeance:
+        messages.error(request, "Ce BC n'a pas de date d'échéance à prolonger.")
+        return redirect('bc_list')
+    form = ProlongationBCForm(request.POST)
+    if form.is_valid():
+        prolong = form.save(commit=False)
+        prolong.bon_commande = bc
+        prolong.ancienne_echeance = bc.date_echeance
+        prolong.created_by = request.user
+        prolong.save()
+        log_action(
+            request.user, 'BC.prolong',
+            f"Prolongation {bc.numero} : {prolong.ancienne_echeance} → {prolong.nouvelle_echeance} "
+            f"({prolong.duree_prolongation_jours} j) — {prolong.motif}",
+            'bc', bc.pk,
+        )
+        messages.success(
+            request,
+            f"Échéance prolongée : {prolong.ancienne_echeance} → {prolong.nouvelle_echeance}.",
+        )
+    else:
+        for field, errs in form.errors.items():
+            for e in errs:
+                messages.error(request, f"{field}: {e}")
+    return redirect('bc_list')
+
+
+# ============ LIGNES BUDGÉTAIRES ============
+
+@login_required
+@role_required('admin', 'assistante_drh')
+@require_POST
+def ligne_budgetaire_create(request, tache_pk):
+    tache = get_object_or_404(Tache, pk=tache_pk)
+    form = LigneBudgetaireForm(request.POST)
+    if form.is_valid():
+        ligne = form.save(commit=False)
+        ligne.tache = tache
+        ligne.save()
+        log_action(
+            request.user, 'Tache.edit',
+            f"Ajout ligne {ligne.code_nature} à la tâche {tache.numero}",
+            'tache', tache.pk,
+        )
+        messages.success(request, f"Ligne {ligne.code_nature} ajoutée à la tâche {tache.numero}.")
+    else:
+        for field, errs in form.errors.items():
+            for e in errs:
+                messages.error(request, f"{field}: {e}")
+    return redirect('taches_list')
+
+
+@login_required
+@role_required('admin', 'assistante_drh')
+@require_POST
+def ligne_budgetaire_edit(request, pk):
+    ligne = get_object_or_404(LigneBudgetaire, pk=pk)
+    montant_raw = request.POST.get('montant_initial', '').strip()
+    try:
+        from decimal import Decimal as D
+        ligne.montant_initial = D(montant_raw)
+        ligne.save(update_fields=['montant_initial'])
+        messages.success(request, f"Ligne {ligne.code_nature} mise à jour.")
+    except Exception:
+        messages.error(request, "Montant invalide.")
+    return redirect('taches_list')
+
+
+@login_required
+def ligne_detail(request, pk):
+    """Fragment HTML — détail d'une ligne budgétaire (pour l'offcanvas)."""
+    ligne = get_object_or_404(
+        LigneBudgetaire.objects.with_aggregates().select_related('tache'), pk=pk
+    )
+    imputations = (
+        ImputationBC.objects.filter(ligne_budgetaire=ligne)
+        .select_related('bon_commande', 'bon_commande__prestataire')
+        .order_by('-bon_commande__date_emission')
+    )
+    virements_entrants = (
+        VirementBudgetaire.objects.filter(ligne_destination=ligne)
+        .select_related('ligne_source', 'ligne_source__tache', 'created_by')
+        .order_by('-created_at')
+    )
+    virements_sortants = (
+        VirementBudgetaire.objects.filter(ligne_source=ligne)
+        .select_related('ligne_destination', 'ligne_destination__tache', 'created_by')
+        .order_by('-created_at')
+    )
+    return render(request, 'partials/_ligne_detail.html', {
+        'ligne': ligne,
+        'imputations': imputations,
+        'virements_entrants': virements_entrants,
+        'virements_sortants': virements_sortants,
+    })
+
+
+# ============ JOURNAL DE PROGRAMMATION PAR BC ============
+
+@login_required
+def journal_bc_view(request):
+    """Journal des imputations budgétaires par BC."""
+    exercice = _exercice_courant(request)
+    bcs = (
+        BonCommande.objects
+        .filter(exercice=exercice)
+        .prefetch_related('imputations__ligne_budgetaire__tache')
+        .select_related('tache', 'prestataire')
+        .exclude(statut='annule')
+        .order_by('-date_emission', '-created_at')
+        if exercice else BonCommande.objects.none()
+    )
+    return render(request, 'core/journal_bc.html', {
+        'bcs': bcs,
+        'exercice': exercice,
+    })

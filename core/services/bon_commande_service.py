@@ -1,10 +1,13 @@
-"""Service metier pour les Bons de Commande."""
+"""Service metier pour les Bons de Commande (modèle Tache/LigneBudgetaire/ImputationBC)."""
 
 from decimal import Decimal
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Sum, Q
-from ..models import BonCommande, ExerciceBudgetaire, HistoriqueStatut, JournalActivite, Prestataire, Tache
+from ..models import (
+    BonCommande, ExerciceBudgetaire, HistoriqueStatut, JournalActivite,
+    Prestataire, Tache, LigneBudgetaire, ImputationBC,
+)
 from ..constants import TVA_RATE
 from .sequence_service import SequenceService
 
@@ -31,13 +34,21 @@ class BonCommandeService:
     @transaction.atomic
     def creer(tache: Tache, prestataire: Prestataire, montant_ht: Decimal,
               utilisateur, exercice: ExerciceBudgetaire = None,
-              demande=None, taux_tva: Decimal = TVA_RATE) -> BonCommande:
+              demande=None, taux_tva: Decimal = TVA_RATE,
+              imputations: list = None) -> BonCommande:
         """
         Cree un BC en garantissant l'integrite budgetaire :
         - lock pessimiste sur la tache (select_for_update)
-        - verification du solde sous lock
+        - calcul du solde depuis les LIGNES budgétaires (nouvelle structure)
+        - verification du solde sous lock (R1)
         - numerotation atomique
-        - journal d'activite
+        - creation d'ImputationBC (defaut: 1 imputation sur la ligne avec le plus gros solde)
+        - journal d'activite (R4)
+
+        Args:
+            imputations: liste optionnelle de (ligne_budgetaire, montant) pour répartir
+                        manuellement. Si None, impute automatiquement sur la ligne ayant
+                        le plus gros solde.
         """
         if exercice is None:
             exercice = ExerciceBudgetaire.get_actif()
@@ -53,24 +64,43 @@ class BonCommandeService:
         # Lock pessimiste sur la tache pour eviter les depassements concurrents
         tache_locked = Tache.objects.select_for_update().get(pk=tache.pk)
 
-        # Recalcul du solde sous lock (la propriete .solde fait une agregation)
-        budget_ajuste = (
-            tache_locked.montant_initial
-            + tache_locked.transactions_plus
-            - tache_locked.transactions_moins
+        # Récupère les lignes actives annotées (budget_ajuste, consommation, solde par ligne)
+        lignes_annotees = list(
+            LigneBudgetaire.objects.filter(tache=tache_locked, actif=True)
+            .with_aggregates().order_by('-solde', 'code_nature')
         )
-        consommation = (
-            BonCommande.objects.filter(tache=tache_locked)
-            .exclude(statut='annule')
-            .aggregate(s=Sum('montant_ttc'))['s']
-        ) or Decimal('0')
-        solde = budget_ajuste - consommation
-
-        if montant_ttc > solde:
+        if not lignes_annotees:
             raise ValueError(
-                f"Montant TTC ({montant_ttc:,.0f} FCFA) superieur au solde "
-                f"disponible ({solde:,.0f} FCFA) de la tache {tache_locked.numero}."
+                f"La tâche {tache_locked.numero} n'a aucune ligne budgétaire active. "
+                f"Créez d'abord au moins une ligne avant d'imputer un BC."
             )
+
+        # Solde global = somme des soldes des lignes actives
+        solde_tache = sum((l.solde or Decimal('0')) for l in lignes_annotees)
+        if montant_ttc > solde_tache:
+            raise ValueError(
+                f"Montant TTC ({montant_ttc:,.0f} FCFA) supérieur au solde "
+                f"disponible ({solde_tache:,.0f} FCFA) de la tâche {tache_locked.numero}."
+            )
+
+        # Validation des imputations explicites si fournies
+        if imputations:
+            total_imp = sum(Decimal(str(m)) for _, m in imputations)
+            if total_imp != montant_ttc:
+                raise ValueError(
+                    f"Somme des imputations ({total_imp:,.0f}) ≠ montant TTC ({montant_ttc:,.0f})."
+                )
+            # Vérifie le solde de chaque ligne
+            soldes_par_pk = {l.pk: (l.solde or Decimal('0')) for l in lignes_annotees}
+            for ligne, montant_imp in imputations:
+                disponible = soldes_par_pk.get(ligne.pk)
+                if disponible is None:
+                    raise ValueError(f"Ligne {ligne.code_nature} introuvable ou inactive.")
+                if Decimal(str(montant_imp)) > disponible:
+                    raise ValueError(
+                        f"Imputation sur {ligne.code_nature} ({montant_imp:,.0f}) "
+                        f"supérieure au solde disponible ({disponible:,.0f})."
+                    )
 
         numero = SequenceService.next_bc_numero(exercice.annee)
 
@@ -88,6 +118,28 @@ class BonCommandeService:
             statut='cree',
         )
 
+        # Crée les imputations
+        if imputations:
+            for ligne, montant_imp in imputations:
+                ImputationBC.objects.create(
+                    bon_commande=bc, ligne_budgetaire=ligne,
+                    montant=Decimal(str(montant_imp)),
+                )
+        else:
+            # Auto : impute le montant restant sur les lignes par ordre décroissant de solde
+            restant = montant_ttc
+            for ligne in lignes_annotees:
+                if restant <= 0:
+                    break
+                ligne_solde = ligne.solde or Decimal('0')
+                if ligne_solde <= 0:
+                    continue
+                montant_imp = min(restant, ligne_solde)
+                ImputationBC.objects.create(
+                    bon_commande=bc, ligne_budgetaire=ligne, montant=montant_imp,
+                )
+                restant -= montant_imp
+
         # Si rattache a une DA, marquer celle-ci comme 'bc_cree'
         if demande is not None and demande.statut != 'bc_cree':
             demande.statut = 'bc_cree'
@@ -95,7 +147,7 @@ class BonCommandeService:
 
         JournalActivite.objects.create(
             type_action='BC.create',
-            description=f"Creation du BC {numero}",
+            description=f"Création du BC {numero} ({montant_ttc:,.0f} FCFA)",
             entite_type='bc',
             entite_id=bc.id,
             utilisateur=utilisateur,

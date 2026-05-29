@@ -129,19 +129,7 @@
     {% include "partials/_pagination.html" %}
 </div>
 
-<!-- Offcanvas détail BC -->
-<div class="offcanvas offcanvas-end" tabindex="-1" id="bcDetailOffcanvas" style="width:420px;">
-    <div class="offcanvas-header" style="border-bottom:1px solid #eee;">
-        <h6 class="offcanvas-title mb-0" style="color:#1B3A5C;">Détail du bon de commande</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
-    </div>
-    <div class="offcanvas-body" id="bcDetailBody">
-        <div class="text-center text-muted py-5">
-            <div class="spinner-border spinner-border-sm" role="status"></div>
-            <p class="mt-2 mb-0" style="font-size:13px;">Chargement…</p>
-        </div>
-    </div>
-</div>
+<!-- Offcanvas BC : markup déplacé vers base.html via _offcanvas_targets.html -->
 
 <!-- Modal BC — sélection d'une DA validée -->
 <div class="modal fade" id="modalBC" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
@@ -204,25 +192,11 @@
 
 {% block extra_js %}
 <script>
-(function () {
-    var offcanvasEl = document.getElementById('bcDetailOffcanvas');
-    var offcanvas = new bootstrap.Offcanvas(offcanvasEl);
-    var body = document.getElementById('bcDetailBody');
-
-    document.querySelectorAll('.bc-row').forEach(function (row) {
-        row.addEventListener('click', function () {
-            var id = this.dataset.bcId;
-            body.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm" role="status"></div><p class="mt-2 mb-0" style="font-size:13px;">Chargement…</p></div>';
-            offcanvas.show();
-            fetch('/bons-commande/' + id + '/detail/', {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            })
-            .then(function (r) { return r.text(); })
-            .then(function (html) { body.innerHTML = html; })
-            .catch(function () { body.innerHTML = '<p class="text-danger text-center mt-4">Erreur de chargement.</p>'; });
-        });
+document.querySelectorAll('.bc-row').forEach(function (row) {
+    row.addEventListener('click', function () {
+        window.openBCOffcanvas(this.dataset.bcId);
     });
-})();
+});
 
 function bcAutoFill(select) {
     var opt = select.options[select.selectedIndex];

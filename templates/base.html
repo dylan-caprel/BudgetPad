@@ -23,8 +23,66 @@
         </div>
     </div>
 
+    {% include "partials/_offcanvas_targets.html" %}
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Global offcanvas chaining helper (BC ↔ DA ↔ Prestataire ↔ Ligne) -->
+    <script>
+    (function () {
+        // Loads a fragment into an offcanvas and shows it.
+        // If another offcanvas is already shown, closes it first then opens the new one.
+        window.openOffcanvas = function (offcanvasId, bodyId, fetchUrl) {
+            var current = document.querySelector('.offcanvas.show');
+            var openNext = function () {
+                var el = document.getElementById(offcanvasId);
+                var body = document.getElementById(bodyId);
+                if (!el || !body) { return; }
+                body.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border spinner-border-sm" role="status"></div><p class="mt-2 mb-0" style="font-size:13px;">Chargement…</p></div>';
+                var offcanvas = bootstrap.Offcanvas.getInstance(el) || new bootstrap.Offcanvas(el);
+                offcanvas.show();
+                fetch(fetchUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(function (r) { return r.text(); })
+                    .then(function (html) { body.innerHTML = html; })
+                    .catch(function () { body.innerHTML = '<p class="text-danger text-center mt-4">Erreur de chargement.</p>'; });
+            };
+            if (current && current.id !== offcanvasId) {
+                var cInst = bootstrap.Offcanvas.getInstance(current);
+                if (cInst) {
+                    current.addEventListener('hidden.bs.offcanvas', openNext, { once: true });
+                    cInst.hide();
+                } else {
+                    openNext();
+                }
+            } else {
+                openNext();
+            }
+        };
+
+        // Shortcuts for each entity type. The target offcanvas must exist on the current page,
+        // OR be present in any list page that includes the offcanvas markup.
+        window.openBCOffcanvas = function (bcId) {
+            window.openOffcanvas('bcDetailOffcanvas', 'bcDetailBody', '/bons-commande/' + bcId + '/detail/');
+        };
+        window.openDAOffcanvas = function (daId) {
+            window.openOffcanvas('daDetailOffcanvas', 'daDetailBody', '/demandes-achat/' + daId + '/detail/');
+        };
+        window.openPrestataireOffcanvas = function (pid) {
+            window.openOffcanvas('prestDetailOffcanvas', 'prestDetailBody', '/prestataires/' + pid + '/detail/');
+        };
+        window.openLigneOffcanvas = function (lid) {
+            window.openOffcanvas('ligneDetailOffcanvas', 'ligneDetailBody', '/lignes/' + lid + '/detail/');
+        };
+        window.openVirementOffcanvas = function (vid) {
+            window.openOffcanvas('virementDetailOffcanvas', 'virementDetailBody', '/virements/' + vid + '/detail/');
+        };
+        window.openTacheOffcanvas = function (tid) {
+            window.openOffcanvas('tacheDetailOffcanvas', 'tacheDetailBody', '/taches/' + tid + '/detail/');
+        };
+    })();
+    </script>
+
     {% block extra_js %}{% endblock %}
 </body>
 </html>
