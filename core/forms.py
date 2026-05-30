@@ -1,31 +1,31 @@
 from django import forms
 from decimal import Decimal
 from .models import (
-    Tache, VirementBudgetaire, Prestataire, DemandeAchat,
-    BonCommande, Offre,
+    Tache, LigneBudgetaire, VirementBudgetaire, Prestataire,
+    DemandeAchat, BonCommande, Offre, ImputationBC, ProlongationBC,
 )
 from .constants import TVA_RATE
 
 
 class VirementForm(forms.ModelForm):
-    """Formulaire pour créer un virement budgétaire"""
+    """Formulaire pour créer un virement budgétaire (entre lignes)."""
 
     class Meta:
         model = VirementBudgetaire
-        fields = ['tache_source', 'tache_dest', 'montant', 'motif']
+        fields = ['ligne_source', 'ligne_destination', 'montant', 'motif']
         widgets = {
-            'tache_source': forms.Select(attrs={'class': 'form-select'}),
-            'tache_dest': forms.Select(attrs={'class': 'form-select'}),
+            'ligne_source': forms.Select(attrs={'class': 'form-select'}),
+            'ligne_destination': forms.Select(attrs={'class': 'form-select'}),
             'montant': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'min': '0.01',
                 'step': '0.01',
-                'placeholder': '0.00'
+                'placeholder': '0.00',
             }),
             'motif': forms.Textarea(attrs={
                 'class': 'form-control',
                 'rows': 3,
-                'placeholder': 'Raison du virement...'
+                'placeholder': 'Raison du virement...',
             }),
         }
 
@@ -33,35 +33,38 @@ class VirementForm(forms.ModelForm):
         exercice = kwargs.pop('exercice', None)
         super().__init__(*args, **kwargs)
         if exercice:
-            qs = Tache.objects.filter(exercice=exercice)
-            self.fields['tache_source'].queryset = qs
-            self.fields['tache_dest'].queryset = qs
+            qs = LigneBudgetaire.objects.filter(
+                tache__exercice=exercice, actif=True,
+            ).select_related('tache').order_by('tache__numero', 'code_nature')
+            self.fields['ligne_source'].queryset = qs
+            self.fields['ligne_destination'].queryset = qs
 
     def clean(self):
         cleaned_data = super().clean()
-        source = cleaned_data.get('tache_source')
-        dest = cleaned_data.get('tache_dest')
+        source = cleaned_data.get('ligne_source')
+        dest   = cleaned_data.get('ligne_destination')
         montant = cleaned_data.get('montant')
 
         if source and dest and source == dest:
-            raise forms.ValidationError(
-                "La source et destination doivent être différentes."
-            )
+            raise forms.ValidationError("La ligne source et destination doivent être différentes.")
 
         if montant and source:
             if montant <= 0:
                 raise forms.ValidationError("Le montant doit être positif.")
-            if montant > source.solde:
-                raise forms.ValidationError(
-                    f"Solde insuffisant. Disponible: {source.solde:,.0f} FCFA"
-                )
+            # Calcul du solde de la ligne source (sans annotation complète, on fait une requête simple)
+            lignes = LigneBudgetaire.objects.with_aggregates().filter(pk=source.pk)
+            if lignes.exists():
+                ligne_annotee = lignes.first()
+                solde_source = getattr(ligne_annotee, 'solde', None)
+                if solde_source is not None and montant > solde_source:
+                    raise forms.ValidationError(
+                        f"Solde insuffisant sur la ligne source. Disponible : {solde_source:,.0f} FCFA"
+                    )
 
         return cleaned_data
 
 
 class PrestataireForm(forms.ModelForm):
-    """Formulaire pour gérer les prestataires"""
-    
     class Meta:
         model = Prestataire
         fields = ['nom', 'adresse', 'telephone', 'email']
@@ -69,72 +72,62 @@ class PrestataireForm(forms.ModelForm):
             'nom': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'Nom du prestataire',
-                'required': True
             }),
             'adresse': forms.Textarea(attrs={
                 'class': 'form-control',
                 'rows': 2,
-                'placeholder': 'Adresse complète'
+                'placeholder': 'Adresse complète',
             }),
             'telephone': forms.TextInput(attrs={
                 'class': 'form-control',
                 'type': 'tel',
-                'placeholder': '+237 2XX XXX XXX'
+                'placeholder': '+237 2XX XXX XXX',
             }),
             'email': forms.EmailInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'email@example.com'
+                'placeholder': 'email@example.com',
             }),
         }
 
 
 class TacheForm(forms.ModelForm):
-    """Formulaire pour créer/modifier une tâche"""
-    
     class Meta:
         model = Tache
-        fields = ['numero', 'titre', 'code_nature', 'libelle_nature', 'montant_initial', 'taux_previsionnel']
+        fields = ['numero', 'titre']
         widgets = {
             'numero': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'T-001',
-                'readonly': True  # Auto-généré
+                'placeholder': 'Ex: 3101069',
             }),
             'titre': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'Ex: Fournitures de bureau'
+                'placeholder': 'Ex: REVISION DE LA CONVENTION COLLECTIVE',
             }),
+        }
+
+
+class LigneBudgetaireForm(forms.ModelForm):
+    class Meta:
+        model = LigneBudgetaire
+        fields = ['code_nature', 'libelle_nature', 'montant_initial']
+        widgets = {
             'code_nature': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': '60410'
+                'placeholder': 'Ex: 6047210',
             }),
             'libelle_nature': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'Fournitures de bureau'
+                'placeholder': 'Ex: FOURNITURES DE BUREAU SUR STOCK',
             }),
             'montant_initial': forms.NumberInput(attrs={
                 'class': 'form-control',
-                'min': '0.01',
-                'step': '0.01',
-            }),
-            'taux_previsionnel': forms.NumberInput(attrs={
-                'class': 'form-control',
                 'min': '0',
-                'max': '100',
-                'step': '0.1',
+                'step': '1',
             }),
         }
-    
-    def clean_montant_initial(self):
-        montant = self.cleaned_data.get('montant_initial')
-        if montant and montant < 0.01:
-            raise forms.ValidationError("Le montant doit être >= 0.01 FCFA")
-        return montant
 
 
 class DemandeAchatForm(forms.ModelForm):
-    """Formulaire pour créer une demande d'achat"""
-
     class Meta:
         model = DemandeAchat
         fields = ['tache', 'objet', 'montant_estime']
@@ -142,7 +135,7 @@ class DemandeAchatForm(forms.ModelForm):
             'tache': forms.Select(attrs={'class': 'form-select'}),
             'objet': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'Ex: Achat fournitures bureau'
+                'placeholder': 'Ex: Achat fournitures bureau',
             }),
             'montant_estime': forms.NumberInput(attrs={
                 'class': 'form-control',
@@ -150,6 +143,14 @@ class DemandeAchatForm(forms.ModelForm):
                 'step': '0.01',
             }),
         }
+
+    def __init__(self, *args, **kwargs):
+        exercice = kwargs.pop('exercice', None)
+        super().__init__(*args, **kwargs)
+        if exercice:
+            self.fields['tache'].queryset = Tache.objects.filter(
+                exercice=exercice, actif=True,
+            ).order_by('numero')
 
     def clean_montant_estime(self):
         montant = self.cleaned_data.get('montant_estime')
@@ -159,11 +160,9 @@ class DemandeAchatForm(forms.ModelForm):
 
 
 class BonCommandeForm(forms.ModelForm):
-    """Formulaire pour créer un bon de commande"""
-    
     class Meta:
         model = BonCommande
-        fields = ['tache', 'prestataire', 'montant_ht']
+        fields = ['tache', 'prestataire', 'montant_ht', 'delai_execution_jours']
         widgets = {
             'tache': forms.Select(attrs={'class': 'form-select'}),
             'prestataire': forms.Select(attrs={'class': 'form-select'}),
@@ -172,25 +171,39 @@ class BonCommandeForm(forms.ModelForm):
                 'min': '0.01',
                 'step': '0.01',
             }),
+            'delai_execution_jours': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '1',
+                'placeholder': 'Délai en jours',
+            }),
         }
-    
-    def clean(self):
-        cleaned_data = super().clean()
-        tache = cleaned_data.get('tache')
-        montant_ht = cleaned_data.get('montant_ht')
 
-        if tache and montant_ht:
-            montant_ttc = montant_ht * (1 + TVA_RATE / 100)
-            if montant_ttc > tache.solde:
-                raise forms.ValidationError(
-                    f"Montant TTC ({montant_ttc:,.0f}) dépasse le solde ({tache.solde:,.0f})"
-                )
 
-        return cleaned_data
+class ProlongationBCForm(forms.ModelForm):
+    class Meta:
+        model = ProlongationBC
+        fields = ['nouvelle_echeance', 'motif']
+        widgets = {
+            'nouvelle_echeance': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date',
+            }),
+            'motif': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Motif de la prolongation...',
+            }),
+        }
+
+    def clean_nouvelle_echeance(self):
+        from datetime import date as _date
+        val = self.cleaned_data.get('nouvelle_echeance')
+        if val and val <= _date.today():
+            raise forms.ValidationError("La nouvelle échéance doit être dans le futur.")
+        return val
 
 
 class OffreSolliciterForm(forms.Form):
-    """Formulaire de sollicitation d'un prestataire (sans montant encore connu)."""
     prestataire = forms.ModelChoiceField(
         queryset=Prestataire.objects.order_by('nom'),
         widget=forms.Select(attrs={'class': 'form-select'}),
@@ -200,7 +213,6 @@ class OffreSolliciterForm(forms.Form):
 
 
 class OffreSaisirForm(forms.Form):
-    """Formulaire de saisie du montant d'une offre reçue."""
     montant = forms.DecimalField(
         max_digits=15, decimal_places=2,
         widget=forms.NumberInput(attrs={
@@ -220,7 +232,6 @@ class OffreSaisirForm(forms.Form):
 
 
 class OffreRefuserForm(forms.Form):
-    """Formulaire de refus manuel d'une offre (motif obligatoire)."""
     motif = forms.CharField(
         widget=forms.Textarea(attrs={
             'class': 'form-control',

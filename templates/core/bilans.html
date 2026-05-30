@@ -2,64 +2,103 @@
 {% load budget_filters %}
 {% block title %}Bilans — BudgetPAD{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-start mb-4">
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
     <div>
         <h4 style="font-weight:600;color:#1B3A5C;">Bilans périodiques</h4>
-        <p class="text-muted mb-0" style="font-size:14px;">Synthèse budgétaire &amp; engagements</p>
+        <p class="text-muted mb-0" style="font-size:14px;">
+            Synthèse budgétaire &amp; engagements
+            {% if exercice %}&middot; du {{ periode.date_debut|date:"d/m/Y" }} au {{ periode.date_fin|date:"d/m/Y" }}{% endif %}
+        </p>
     </div>
-    <div class="d-flex gap-2 align-items-center">
-        <select class="form-select form-select-sm" style="width:auto;"
-                onchange="window.location.href='?periode=' + this.value">
-            <option value="annuel"      {% if periode == 'annuel' %}selected{% endif %}>Annuel</option>
-            <option value="trimestriel" {% if periode == 'trimestriel' %}selected{% endif %}>Trimestriel</option>
-            <option value="mensuel"     {% if periode == 'mensuel' %}selected{% endif %}>Mensuel</option>
-        </select>
-        <a href="{% url 'bilan_csv_export' %}{% if request.GET.periode %}?periode={{ request.GET.periode }}{% endif %}"
-           class="btn btn-sm btn-outline-secondary">
+    {% if exercice %}
+    <div class="d-flex gap-2">
+        <a href="{% url 'bilan_csv_export' %}?{{ request.GET.urlencode }}" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-file-earmark-excel"></i> CSV
         </a>
-        <a href="{% url 'bilan_pdf_export' %}{% if request.GET.periode %}?periode={{ request.GET.periode }}{% endif %}"
-           class="btn btn-sm btn-outline-danger">
+        <a href="{% url 'bilan_pdf_export' %}?{{ request.GET.urlencode }}" class="btn btn-sm btn-outline-danger">
             <i class="bi bi-file-earmark-pdf"></i> PDF
         </a>
-        <button class="btn btn-sm btn-outline-secondary" onclick="window.print()">
+        <button class="btn btn-sm btn-outline-secondary no-print" onclick="window.print()">
             <i class="bi bi-printer"></i> Imprimer
         </button>
     </div>
+    {% endif %}
 </div>
 
 {% if not exercice %}
 <div class="alert alert-warning">Aucun exercice budgétaire actif.</div>
 {% else %}
 
+<!-- FORMULAIRE FILTRE PÉRIODE -->
+<div class="data-card mb-3 py-2 px-3">
+<form method="get" class="d-flex flex-wrap align-items-center gap-2">
+    <span class="text-muted small me-1"><i class="bi bi-funnel"></i> Période :</span>
+    <select name="type_periode" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+        <option value="annuel" {% if periode.type == 'annuel' %}selected{% endif %}>Annuel</option>
+        <option value="trimestriel" {% if periode.type == 'trimestriel' %}selected{% endif %}>Trimestriel</option>
+        <option value="mensuel" {% if periode.type == 'mensuel' %}selected{% endif %}>Mensuel</option>
+        <option value="personnalise" {% if periode.type == 'personnalise' %}selected{% endif %}>Personnalisé</option>
+    </select>
+
+    {% if periode.type == 'trimestriel' %}
+    <select name="trimestre" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+        <option value="1" {% if periode.trimestre == '1' %}selected{% endif %}>T1 (Jan-Mars)</option>
+        <option value="2" {% if periode.trimestre == '2' %}selected{% endif %}>T2 (Avr-Juin)</option>
+        <option value="3" {% if periode.trimestre == '3' %}selected{% endif %}>T3 (Jui-Sep)</option>
+        <option value="4" {% if periode.trimestre == '4' %}selected{% endif %}>T4 (Oct-Déc)</option>
+    </select>
+    {% endif %}
+
+    {% if periode.type == 'mensuel' %}
+    <select name="mois" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+        {% for m, nom in mois_choices %}
+        <option value="{{ m }}" {% if periode.mois == m|stringformat:"d" %}selected{% endif %}>{{ nom }}</option>
+        {% endfor %}
+    </select>
+    {% endif %}
+
+    {% if periode.type == 'personnalise' %}
+    <input type="date" name="date_debut" value="{{ periode.date_debut|date:'Y-m-d' }}" class="form-control form-control-sm" style="width:auto;">
+    <span class="small text-muted">au</span>
+    <input type="date" name="date_fin" value="{{ periode.date_fin|date:'Y-m-d' }}" class="form-control form-control-sm" style="width:auto;">
+    <button type="submit" class="btn btn-sm btn-pad">Filtrer</button>
+    {% endif %}
+</form>
+</div>
+
 <div class="row g-3 mb-4">
     <div class="col-md-4">
-        <div class="kpi-card">
-            <div class="kpi-label">Budget global</div>
+        <div class="kpi-card primary" style="padding-right:70px;">
+            <div style="position:absolute;right:16px;top:50%;transform:translateY(-50%);opacity:.15;font-size:48px;"><i class="bi bi-wallet2"></i></div>
+            <div class="kpi-label">BUDGET GLOBAL</div>
             <div class="kpi-value">{{ budget_total|fmt }}</div>
+            <div class="kpi-sub">Exercice {{ exercice.annee }}</div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="kpi-card">
-            <div class="kpi-label">Consommation</div>
+        <div class="kpi-card" style="padding-right:70px;">
+            <div style="position:absolute;right:16px;top:50%;transform:translateY(-50%);opacity:.06;font-size:48px;"><i class="bi bi-graph-up-arrow"></i></div>
+            <div class="kpi-label">CONSOMMATION (PÉRIODE)</div>
             <div class="kpi-value">{{ consommation|fmt }}</div>
-            <div class="kpi-sub">{{ taux }} %</div>
+            <div class="kpi-sub" style="color:#F39C12;font-weight:600;">{{ taux }} % du budget annuel</div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="kpi-card">
-            <div class="kpi-label">Solde</div>
+        <div class="kpi-card" style="padding-right:70px;">
+            <div style="position:absolute;right:16px;top:50%;transform:translateY(-50%);opacity:.06;font-size:48px;"><i class="bi bi-piggy-bank"></i></div>
+            <div class="kpi-label">SOLDE RESTANT</div>
             <div class="kpi-value" style="color:#1A5632;">{{ solde|fmt }}</div>
+            <div class="kpi-sub">Disponible</div>
         </div>
     </div>
 </div>
 
 <div class="row g-3 mb-4">
-    <div class="col-md-6">
+    <div class="col-md-7">
         <div class="data-card">
-            <h6>Top tâches par taux</h6>
-            {% if taches %}
-            <div id="bilanBarWrap" style="position:relative;height:250px;">
+            <h6>Top 10 tâches par taux de consommation</h6>
+            {% if chart_labels %}
+            <div style="position:relative;height:400px;">
                 <canvas id="bilanBar"></canvas>
             </div>
             {% else %}
@@ -67,28 +106,35 @@
             {% endif %}
         </div>
     </div>
-    <div class="col-md-6">
+    <div class="col-md-5">
+        <div class="data-card mb-3">
+            <h6>Budget global</h6>
+            <div style="position:relative;height:175px;">
+                <canvas id="budgetDonut"></canvas>
+            </div>
+        </div>
         <div class="data-card">
             <h6>BC par statut</h6>
             {% with total_bc=bc_statuts.cree|add:bc_statuts.notifie|add:bc_statuts.en_cours|add:bc_statuts.execute|add:bc_statuts.annule %}
             {% if total_bc > 0 %}
-            <div style="position:relative;height:260px;">
+            <div style="position:relative;height:175px;">
                 <canvas id="bilanDonut"></canvas>
             </div>
             {% else %}
-            <p class="text-muted text-center mt-3" style="font-size:14px;">Aucun bon de commande sur cette période.</p>
+            <p class="text-muted text-center mt-3" style="font-size:14px;">Aucun BC sur la période.</p>
             {% endif %}
             {% endwith %}
         </div>
     </div>
 </div>
 
-<div class="data-card">
+<div class="data-card mb-3">
     <h6>Détail par tâche</h6>
+    <div class="table-responsive">
     <table class="table table-hover mb-0">
         <thead>
             <tr>
-                <th>N°</th><th>Titre</th><th>Nature</th>
+                <th>N°</th><th>Titre</th>
                 <th class="money">Budget</th><th class="money">Conso</th>
                 <th class="money">Solde</th><th>Taux</th>
             </tr>
@@ -98,18 +144,60 @@
         <tr>
             <td>{{ t.numero }}</td>
             <td>{{ t.titre }}</td>
-            <td><small class="text-muted">{{ t.libelle_nature|default:t.code_nature }}</small></td>
             <td class="money">{{ t.budget_ajuste|fmt }}</td>
             <td class="money">{{ t.consommation|fmt }}</td>
             <td class="money">{{ t.solde|fmt }}</td>
             <td><span class="taux-badge {{ t.taux_couleur }}">{{ t.taux_consommation }} %</span></td>
         </tr>
         {% empty %}
-        <tr><td colspan="7" class="text-center text-muted py-3">Aucune tâche.</td></tr>
+        <tr><td colspan="6" class="text-center text-muted py-3">Aucune tâche.</td></tr>
         {% endfor %}
         </tbody>
     </table>
+    </div>
 </div>
+
+<!-- DÉTAIL DES ENGAGEMENTS PAR BC -->
+{% if bcs_avec_imputations %}
+<div class="data-card">
+    <h6><i class="bi bi-diagram-3 me-1"></i> Détail des engagements par bon de commande</h6>
+    <p class="text-muted small mb-3">Imputations budgétaires de chaque BC sur les lignes consommées (période sélectionnée)</p>
+    <div class="row g-2">
+    {% for bc in bcs_avec_imputations %}
+    <div class="col-md-6">
+        <div class="border rounded p-2" style="font-size:12px;background:#fafbfd;">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <div>
+                    <strong style="color:#1B3A5C;cursor:pointer;" onclick="window.openBCOffcanvas({{ bc.pk }})">{{ bc.numero }}</strong>
+                    <span class="badge bg-{{ bc.statut_couleur }}" style="font-size:9px;">{{ bc.get_statut_display }}</span>
+                </div>
+                <span style="font-weight:600;color:#1B3A5C;">{{ bc.montant_ttc|fmt }}</span>
+            </div>
+            <div class="text-muted" style="font-size:11px;">{{ bc.prestataire.nom|truncatechars:35 }} &middot; {{ bc.date_emission|date:"d/m/Y" }}</div>
+            {% if bc.imputations.all %}
+            <table class="table table-sm mb-0 mt-1" style="font-size:11px;background:transparent;">
+                <tbody>
+                {% for imp in bc.imputations.all %}
+                <tr>
+                    <td style="padding:2px 4px;border:none;">
+                        ↳ <strong>{{ imp.ligne_budgetaire.code_nature }}</strong>
+                        <span class="text-muted">— {{ imp.ligne_budgetaire.libelle_nature|truncatechars:25 }}</span>
+                    </td>
+                    <td style="padding:2px 4px;border:none;text-align:right;font-weight:600;">{{ imp.montant|fmt }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-muted small mt-1">Aucune imputation enregistrée</div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 {% endif %}
 {% endblock %}
 
@@ -119,14 +207,16 @@
 {{ chart_data|json_script:"chart-data-data" }}
 {{ chart_colors|json_script:"chart-colors-data" }}
 {{ bc_donut|json_script:"bc-donut-data" }}
+{{ budget_donut|json_script:"budget-donut-data" }}
 
 <script>
 (function () {
-    var labels   = JSON.parse(document.getElementById('chart-labels-data').textContent);
-    var data     = JSON.parse(document.getElementById('chart-data-data').textContent);
-    var colors   = JSON.parse(document.getElementById('chart-colors-data').textContent);
-    var bcDonut  = JSON.parse(document.getElementById('bc-donut-data').textContent);
-    // Plugin seuil inline (pas de dépendance externe)
+    var labels      = JSON.parse(document.getElementById('chart-labels-data').textContent);
+    var data        = JSON.parse(document.getElementById('chart-data-data').textContent);
+    var colors      = JSON.parse(document.getElementById('chart-colors-data').textContent);
+    var bcDonut     = JSON.parse(document.getElementById('bc-donut-data').textContent);
+    var budgetDonut = JSON.parse(document.getElementById('budget-donut-data').textContent);
+
     var seuilPlugin = {
         id: 'seuilLine',
         afterDraw: function(chart) {
@@ -143,11 +233,6 @@
         }
     };
 
-    // Bar chart tâches — hauteur dynamique selon le nombre de tâches
-    var barWrap = document.getElementById('bilanBarWrap');
-    if (barWrap && labels.length > 0) {
-        barWrap.style.height = Math.max(200, labels.length * 38) + 'px';
-    }
     var barEl = document.getElementById('bilanBar');
     if (barEl && labels.length > 0) {
         new Chart(barEl, {
@@ -155,10 +240,11 @@
             data: {
                 labels: labels,
                 datasets: [{
+                    label: 'Taux de consommation (%)',
                     data: data,
                     backgroundColor: colors,
                     borderRadius: 4,
-                    maxBarThickness: 26
+                    barThickness: 26
                 }]
             },
             options: {
@@ -166,10 +252,7 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {
-                    x: {
-                        max: 100,
-                        ticks: { callback: function(v) { return v + ' %'; } }
-                    },
+                    x: { max: 100, ticks: { callback: function(v) { return v + ' %'; } } },
                     y: { grid: { display: false } }
                 },
                 plugins: { legend: { display: false } }
@@ -178,7 +261,34 @@
         });
     }
 
-    // Donut BC par statut (données structurées depuis le serveur)
+    var budgetEl = document.getElementById('budgetDonut');
+    if (budgetEl && budgetDonut.length > 0) {
+        new Chart(budgetEl, {
+            type: 'doughnut',
+            data: {
+                labels: budgetDonut.map(function(d) { return d.label; }),
+                datasets: [{
+                    data: budgetDonut.map(function(d) { return d.value; }),
+                    backgroundColor: budgetDonut.map(function(d) { return d.color; }),
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: '70%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { size: 11 } } },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                return ctx.label + ' : ' + ctx.parsed.toLocaleString('fr-FR') + ' FCFA';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
     var donutEl = document.getElementById('bilanDonut');
     if (donutEl && bcDonut.length > 0) {
         var total = bcDonut.reduce(function(s, d) { return s + d.value; }, 0);
@@ -192,25 +302,9 @@
                 }]
             },
             options: {
-                responsive: true,
-                maintainAspectRatio: false,
+                responsive: true, maintainAspectRatio: false, cutout: '65%',
                 plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            generateLabels: function(chart) {
-                                return bcDonut.map(function(d, i) {
-                                    var pct = total > 0 ? Math.round(d.value / total * 100) : 0;
-                                    return {
-                                        text: d.label + ' · ' + d.value + ' (' + pct + ' %)',
-                                        fillStyle: d.color,
-                                        strokeStyle: d.color,
-                                        index: i
-                                    };
-                                });
-                            }
-                        }
-                    },
+                    legend: { position: 'bottom', labels: { font: { size: 11 } } },
                     tooltip: {
                         callbacks: {
                             label: function(ctx) {

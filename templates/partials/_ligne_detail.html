@@ -1,0 +1,111 @@
+{% load budget_filters %}
+<div class="mb-3">
+    <h6 class="mb-1" style="font-size:16px;font-weight:700;color:#1B3A5C;">{{ ligne.code_nature }}</h6>
+    <div style="font-size:13px;">{{ ligne.libelle_nature }}</div>
+    <small class="text-muted">Tâche {{ ligne.tache.numero }} — {{ ligne.tache.titre|truncatechars:50 }}</small>
+</div>
+
+<div class="row g-2 mb-3" style="font-size:13px;">
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">MONTANT INITIAL</div>
+        <div>{{ ligne.montant_initial|fmt_exact }}</div>
+        <div class="text-muted" style="font-size:10px;">{{ ligne.montant_initial|fmt }}</div>
+    </div>
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">BUDGET AJUSTÉ</div>
+        <div><strong>{{ ligne.budget_ajuste|fmt_exact }}</strong></div>
+        <div class="text-muted" style="font-size:10px;">{{ ligne.budget_ajuste|fmt }}</div>
+    </div>
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">TRANSFERTS +</div>
+        <div class="text-success">+ {{ ligne.transfert_plus|fmt_exact }}</div>
+    </div>
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">TRANSFERTS −</div>
+        <div class="text-danger">− {{ ligne.transfert_moins|fmt_exact }}</div>
+    </div>
+</div>
+
+<hr style="margin:10px 0;">
+
+<div class="row g-2 mb-3" style="font-size:13px;">
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">CONSOMMATION</div>
+        <div style="color:#E74C3C;">{{ ligne.consommation|fmt_exact }}</div>
+        <div class="text-muted" style="font-size:10px;">{{ ligne.consommation|fmt }}</div>
+    </div>
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">SOLDE DISPONIBLE</div>
+        <div style="color:#1A5632;font-weight:600;">{{ ligne.solde|fmt_exact }}</div>
+        <div class="text-muted" style="font-size:10px;">{{ ligne.solde|fmt }}</div>
+    </div>
+    <div class="col-12 mt-1">
+        <div class="text-muted mb-1" style="font-size:11px;">TAUX DE CONSOMMATION</div>
+        <div class="d-flex align-items-center gap-2">
+            <div class="progress flex-grow-1" style="height:8px;">
+                <div class="progress-bar {% if ligne.taux_consommation >= 90 %}bg-danger{% elif ligne.taux_consommation >= 70 %}bg-warning{% else %}bg-success{% endif %}"
+                     style="width:{{ ligne.taux_consommation|floatformat:0 }}%"></div>
+            </div>
+            <span style="white-space:nowrap;font-weight:600;">{{ ligne.taux_consommation|floatformat:1 }} %</span>
+        </div>
+    </div>
+</div>
+
+{% if imputations %}
+<hr style="margin:12px 0;">
+<div class="mb-3">
+    <div class="text-muted mb-2" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">
+        <i class="bi bi-cart-check me-1"></i>BC consommant cette ligne ({{ imputations|length }})
+    </div>
+    {% for imp in imputations %}
+    <div class="d-flex justify-content-between align-items-center py-2 px-2"
+         style="font-size:12px;border-bottom:1px solid #f5f5f5;cursor:pointer;border-radius:4px;"
+         onclick="window.openBCOffcanvas({{ imp.bon_commande.pk }})"
+         title="Voir le détail du BC">
+        <div>
+            <strong style="color:#1B3A5C;">{{ imp.bon_commande.numero }}</strong>
+            <span class="badge bg-{{ imp.bon_commande.statut_couleur }} ms-1" style="font-size:9px;">{{ imp.bon_commande.get_statut_display }}</span>
+            <div class="text-muted" style="font-size:11px;">{{ imp.bon_commande.prestataire.nom|truncatechars:30 }}</div>
+            <div class="text-muted" style="font-size:10px;">{{ imp.bon_commande.date_emission|date:"d/m/Y" }}</div>
+        </div>
+        <div class="text-end">
+            <div style="font-weight:600;">{{ imp.montant|fmt_exact }}</div>
+            <i class="bi bi-chevron-right text-muted" style="font-size:10px;"></i>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if virements_entrants or virements_sortants %}
+<hr style="margin:12px 0;">
+<div class="mb-3">
+    <div class="text-muted mb-2" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">
+        <i class="bi bi-arrow-left-right me-1"></i>Virements
+    </div>
+    {% for v in virements_entrants %}
+    <div class="py-2 px-2" style="font-size:12px;border-bottom:1px solid #f5f5f5;background:#f0f7f1;cursor:pointer;border-radius:4px;"
+         onclick="window.openVirementOffcanvas({{ v.pk }})">
+        <div class="d-flex justify-content-between">
+            <span><i class="bi bi-arrow-down-circle text-success"></i> Entrant depuis <strong>{{ v.ligne_source.code_nature }}</strong> ({{ v.ligne_source.tache.numero }})</span>
+            <strong class="text-success">+{{ v.montant|fmt_exact }}</strong>
+        </div>
+        {% if v.motif %}<div class="text-muted" style="font-size:11px;">{{ v.motif|truncatechars:60 }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    {% for v in virements_sortants %}
+    <div class="py-2 px-2" style="font-size:12px;border-bottom:1px solid #f5f5f5;background:#fdf2f0;cursor:pointer;border-radius:4px;"
+         onclick="window.openVirementOffcanvas({{ v.pk }})">
+        <div class="d-flex justify-content-between">
+            <span><i class="bi bi-arrow-up-circle text-danger"></i> Sortant vers <strong>{{ v.ligne_destination.code_nature }}</strong> ({{ v.ligne_destination.tache.numero }})</span>
+            <strong class="text-danger">−{{ v.montant|fmt_exact }}</strong>
+        </div>
+        {% if v.motif %}<div class="text-muted" style="font-size:11px;">{{ v.motif|truncatechars:60 }}</div>{% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if not imputations and not virements_entrants and not virements_sortants %}
+<p class="text-muted text-center mt-3" style="font-size:13px;">Aucune activité sur cette ligne pour le moment.</p>
+{% endif %}

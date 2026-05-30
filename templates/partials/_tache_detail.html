@@ -2,33 +2,18 @@
 <div class="mb-3">
     <h6 class="mb-1" style="font-size:16px;font-weight:700;color:#1B3A5C;">{{ tache.numero }}</h6>
     <div style="font-size:14px;">{{ tache.titre }}</div>
-    {% if tache.code_nature %}
-    <small class="text-muted">{{ tache.code_nature }} — {{ tache.libelle_nature }}</small>
-    {% endif %}
 </div>
 
 <div class="row g-2 mb-3" style="font-size:13px;">
     <div class="col-6">
         <div class="text-muted" style="font-size:11px;">BUDGET INITIAL</div>
-        <div>{{ tache.montant_initial|fmt }}</div>
-        <div class="text-muted" style="font-size:10px;">{{ tache.montant_initial|fmt_exact }}</div>
-    </div>
-    <div class="col-6">
-        <div class="text-muted" style="font-size:11px;">VIREMENTS +/−</div>
-        <div>
-            {% if tache.transactions_plus > 0 %}<span class="text-success">+{{ tache.transactions_plus|fmt }}</span>{% endif %}
-            {% if tache.transactions_moins > 0 %}<span class="text-danger"> −{{ tache.transactions_moins|fmt }}</span>{% endif %}
-            {% if tache.transactions_plus == 0 and tache.transactions_moins == 0 %}—{% endif %}
-        </div>
+        <div>{{ tache.budget_initial|fmt }}</div>
+        <div class="text-muted" style="font-size:10px;">{{ tache.budget_initial|fmt_exact }}</div>
     </div>
     <div class="col-6">
         <div class="text-muted" style="font-size:11px;">BUDGET AJUSTÉ</div>
         <div><strong>{{ tache.budget_ajuste|fmt }}</strong></div>
         <div class="text-muted" style="font-size:10px;">{{ tache.budget_ajuste|fmt_exact }}</div>
-    </div>
-    <div class="col-6">
-        <div class="text-muted" style="font-size:11px;">TAUX PRÉVISIONNEL</div>
-        <div>{{ tache.taux_previsionnel|default:"—" }} %</div>
     </div>
 </div>
 

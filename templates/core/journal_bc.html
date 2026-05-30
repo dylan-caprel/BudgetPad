@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load budget_filters %}
+{% block title %}Détail des engagements par BC — BudgetPAD{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h4 style="font-weight:600;color:#1B3A5C;">Détail des engagements par BC</h4>
+        <p class="text-muted mb-0" style="font-size:14px;">Imputations budgétaires &middot; Exercice {{ exercice.annee }}</p>
+    </div>
+</div>
+
+{% if not bcs %}
+<div class="data-card">
+    <div class="empty-state">
+        <i class="bi bi-journal-text"></i>
+        <p class="empty-title">Aucun bon de commande actif</p>
+        <p class="empty-sub">Les imputations budgétaires de l'exercice {{ exercice.annee }} apparaîtront ici.</p>
+    </div>
+</div>
+{% else %}
+<div class="data-card p-0">
+    <table class="table table-hover mb-0" style="font-size:13px;">
+        <thead>
+            <tr style="background:#f4f6f8;">
+                <th style="padding:10px 14px;">N° BC</th>
+                <th>Tâche</th>
+                <th>Prestataire</th>
+                <th>Date émission</th>
+                <th>Statut</th>
+                <th>Échéance</th>
+                <th class="text-end" style="padding-right:14px;">Montant TTC</th>
+                <th>Imputations</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for bc in bcs %}
+        <tr style="vertical-align:top;">
+            <td style="padding:10px 14px;font-weight:700;color:#1B3A5C;">
+                <a href="{% url 'bc_list' %}" style="color:inherit;text-decoration:none;">{{ bc.numero }}</a>
+            </td>
+            <td>
+                <span style="font-weight:600;">{{ bc.tache.numero }}</span><br>
+                <small class="text-muted">{{ bc.tache.titre|truncatechars:35 }}</small>
+            </td>
+            <td>{{ bc.prestataire.nom|truncatechars:28 }}</td>
+            <td>{{ bc.date_emission|date:"d/m/Y" }}</td>
+            <td><span class="badge bg-{{ bc.statut_couleur }}">{{ bc.get_statut_display }}</span></td>
+            <td>
+                {% if bc.date_echeance %}
+                <span class="{% if bc.est_en_retard %}text-danger fw-bold{% elif bc.echeance_proche %}text-warning fw-bold{% endif %}">
+                    {{ bc.date_echeance|date:"d/m/Y" }}
+                    {% if bc.est_en_retard %}<i class="bi bi-alarm-fill ms-1"></i>{% endif %}
+                </span>
+                {% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-end" style="padding-right:14px;font-weight:600;">{{ bc.montant_ttc|fmt }}</td>
+            <td style="min-width:200px;">
+                {% if bc.imputations.all %}
+                <table class="table table-sm mb-0" style="font-size:11px;background:transparent;">
+                    <tbody>
+                    {% for imp in bc.imputations.all %}
+                    <tr>
+                        <td style="padding:2px 4px;border:none;">
+                            <strong>{{ imp.ligne_budgetaire.code_nature }}</strong>
+                            <span class="text-muted">({{ imp.ligne_budgetaire.tache.numero }})</span>
+                        </td>
+                        <td style="padding:2px 4px;border:none;text-align:right;font-weight:600;">{{ imp.montant|fmt }}</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <span class="text-muted" style="font-size:11px;">Aucune imputation</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}

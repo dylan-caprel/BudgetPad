@@ -35,14 +35,18 @@
 {% if bcs %}
 <div class="text-muted mb-2" style="font-size:11px;">BONS DE COMMANDE ({{ bcs|length }})</div>
 {% for bc in bcs %}
-<div class="d-flex justify-content-between align-items-center py-1" style="font-size:12px;border-bottom:1px solid #f5f5f5;">
+<div class="d-flex justify-content-between align-items-center py-1 prestataire-bc-link"
+     style="font-size:12px;border-bottom:1px solid #f5f5f5;cursor:pointer;"
+     onclick="window.openBCOffcanvas({{ bc.pk }})"
+     title="Voir le détail du BC">
     <div>
-        <strong>{{ bc.numero }}</strong>
+        <strong style="color:#1B3A5C;">{{ bc.numero }}</strong>
         <span class="text-muted ms-1">{{ bc.tache.numero }}</span>
     </div>
     <div class="d-flex align-items-center gap-2">
         <span class="money" style="font-size:12px;">{{ bc.montant_ttc|fmt }}</span>
         <span class="badge bg-{{ bc.statut_couleur }}" style="font-size:10px;">{{ bc.get_statut_display }}</span>
+        <i class="bi bi-chevron-right text-muted" style="font-size:10px;"></i>
     </div>
 </div>
 {% endfor %}

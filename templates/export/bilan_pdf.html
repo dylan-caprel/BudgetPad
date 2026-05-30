@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+{# Template de référence pour WeasyPrint (rendu PDF natif HTML).
+   En production, le bilan PDF est généré via ReportLab dans
+   core/services/pdf_service.py::generer_pdf_bilan(). Ce template
+   est conservé pour permettre une bascule vers WeasyPrint si besoin.
+#}
+<html>
+<head>
+<meta charset="utf-8">
+<title>Suivi des tâches DRH — {{ exercice.annee }}</title>
+<style>
+  @page {
+    size: A4 landscape;
+    margin: 1.5cm;
+    @bottom-right { content: "Page " counter(page) " / " counter(pages); font-size: 9px; color: #888; }
+    @bottom-left { content: "BudgetPAD · PAD/DRH · Exercice {{ exercice.annee }}"; font-size: 9px; color: #888; }
+  }
+  body { font-family: Arial, sans-serif; font-size: 10px; color: #333; }
+  .header-table { width: 100%; margin-bottom: 15px; border: none; }
+  .header-table td { border: none; vertical-align: top; padding: 5px; }
+  .header-left, .header-right { font-size: 9px; line-height: 1.4; }
+  .header-right { text-align: right; }
+  .header-center { text-align: center; }
+  .header-center img { width: 80px; height: auto; }
+  .titre-principal {
+    text-align: center; background: #D5E8F0; padding: 10px;
+    font-size: 14px; font-weight: bold; margin: 10px 0;
+    border: 1px solid #999; color: #1B3A5C;
+  }
+  .tache-titre {
+    font-size: 11px; font-weight: bold; margin: 12px 0 4px 0;
+    padding: 3px 0; color: #1B3A5C;
+  }
+  table.lignes { width: 100%; border-collapse: collapse; margin-bottom: 2px; font-size: 9px; }
+  table.lignes th {
+    background: #D5E8F0; border: 1px solid #999; padding: 4px 6px;
+    text-align: center; font-weight: bold; font-size: 8px;
+  }
+  table.lignes td { border: 1px solid #ccc; padding: 3px 6px; }
+  table.lignes td.montant { text-align: right; font-family: 'Courier New', monospace; }
+  table.lignes tr.total-tache { font-weight: bold; background: #f0f0f0; }
+  table.lignes tr.total-drh { font-weight: bold; background: #D5E8F0; font-size: 11px; }
+</style>
+</head>
+<body>
+
+  <table class="header-table">
+    <tr>
+      <td class="header-left" style="width:35%">
+        <b>REPUBLIQUE DU CAMEROUN</b><br>
+        Paix - Travail - Patrie<br>
+        ----------------<br>
+        <b>PORT AUTONOME DE DOUALA</b><br>(P.A.D.)
+      </td>
+      <td class="header-center" style="width:30%">
+        {% if logo_path %}<img src="file://{{ logo_path }}" alt="Logo PAD">{% endif %}
+      </td>
+      <td class="header-right" style="width:35%">
+        <b>REPUBLIC OF CAMEROON</b><br>
+        Peace - Work - Fatherland<br>
+        ----------------<br>
+        <b>PORT AUTHORITY OF DOUALA</b><br>(P.A.D.)
+      </td>
+    </tr>
+  </table>
+
+  <div class="titre-principal">
+    SUIVI DETAILLE DES TACHES — EXERCICE {{ exercice.annee }} — DRH<br>
+    <span style="font-size:11px;font-weight:normal;">Période du {{ date_debut|date:"d/m/Y" }} au {{ date_fin|date:"d/m/Y" }}</span>
+  </div>
+
+  {% for tache in taches %}
+  <div class="tache-titre">
+    TACHE&nbsp;&nbsp;{{ tache.numero }}&nbsp;&nbsp;-&nbsp;&nbsp;{{ tache.titre }}
+  </div>
+  <table class="lignes">
+    <thead>
+      <tr>
+        <th style="width:8%">Code nature</th>
+        <th style="width:24%">Libellé nature</th>
+        <th style="width:12%">Budget {{ exercice.annee }}</th>
+        <th style="width:11%">Transfert +</th>
+        <th style="width:11%">Transfert -</th>
+        <th style="width:12%">Consommation</th>
+        <th style="width:12%">Solde</th>
+        <th style="width:6%">Taux</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ligne in tache.lignes_annotees %}
+      <tr>
+        <td>{{ ligne.code_nature }}</td>
+        <td>{{ ligne.libelle_nature }}</td>
+        <td class="montant">{{ ligne.montant_initial|floatformat:0 }}</td>
+        <td class="montant">{{ ligne.transfert_plus|floatformat:0 }}</td>
+        <td class="montant">{{ ligne.transfert_moins|floatformat:0 }}</td>
+        <td class="montant">{{ ligne.consommation|floatformat:0 }}</td>
+        <td class="montant">{{ ligne.solde|floatformat:0 }}</td>
+        <td class="montant">{{ ligne.taux_consommation|floatformat:1 }}%</td>
+      </tr>
+      {% endfor %}
+      <tr class="total-tache">
+        <td colspan="2">TOTAL POUR LA TACHE {{ tache.numero }} :</td>
+        <td class="montant">{{ tache.total_budget_initial|floatformat:0 }}</td>
+        <td class="montant">{{ tache.total_transfert_plus|floatformat:0 }}</td>
+        <td class="montant">{{ tache.total_transfert_moins|floatformat:0 }}</td>
+        <td class="montant">{{ tache.total_consommation|floatformat:0 }}</td>
+        <td class="montant">{{ tache.total_solde|floatformat:0 }}</td>
+        <td class="montant">{{ tache.taux_consommation_global|floatformat:1 }}%</td>
+      </tr>
+    </tbody>
+  </table>
+  {% endfor %}
+
+  <table class="lignes" style="margin-top:15px">
+    <tr class="total-drh">
+      <td colspan="2">TOTAL POUR DRH :</td>
+      <td class="montant">{{ total_budget|floatformat:0 }}</td>
+      <td class="montant">{{ total_transfert_plus|floatformat:0 }}</td>
+      <td class="montant">{{ total_transfert_moins|floatformat:0 }}</td>
+      <td class="montant">{{ total_consommation|floatformat:0 }}</td>
+      <td class="montant">{{ total_solde|floatformat:0 }}</td>
+      <td class="montant">{{ total_taux|floatformat:1 }}%</td>
+    </tr>
+  </table>
+
+</body>
+</html>

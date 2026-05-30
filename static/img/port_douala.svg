@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice">
+  <!-- Cliché portuaire stylisé — Port Autonome de Douala -->
+  <defs>
+    <!-- Ciel coucher de soleil -->
+    <linearGradient id="sky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#1b3a5c"/>
+      <stop offset="35%" stop-color="#3a5a7a"/>
+      <stop offset="60%" stop-color="#e89261"/>
+      <stop offset="85%" stop-color="#f4b56b"/>
+      <stop offset="100%" stop-color="#fac38a"/>
+    </linearGradient>
+    <!-- Eau du Wouri -->
+    <linearGradient id="water" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#d68957"/>
+      <stop offset="25%" stop-color="#9b6a55"/>
+      <stop offset="60%" stop-color="#3a4f5e"/>
+      <stop offset="100%" stop-color="#1c2935"/>
+    </linearGradient>
+    <!-- Soleil -->
+    <radialGradient id="sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"  stop-color="#ffe5b4" stop-opacity="1"/>
+      <stop offset="40%" stop-color="#f7c574" stop-opacity=".9"/>
+      <stop offset="100%" stop-color="#f7c574" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Halo soleil -->
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"  stop-color="#ffd9a3" stop-opacity=".6"/>
+      <stop offset="100%" stop-color="#ffd9a3" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Brume horizon -->
+    <linearGradient id="mist" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#eea784" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#eea784" stop-opacity=".4"/>
+    </linearGradient>
+    <!-- Reflet sur eau -->
+    <linearGradient id="reflet" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffd9a3" stop-opacity=".5"/>
+      <stop offset="100%" stop-color="#ffd9a3" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- CIEL -->
+  <rect width="1200" height="500" fill="url(#sky)"/>
+
+  <!-- Halo soleil large -->
+  <circle cx="780" cy="430" r="280" fill="url(#glow)"/>
+  <!-- Soleil -->
+  <circle cx="780" cy="430" r="70" fill="url(#sun)"/>
+  <circle cx="780" cy="430" r="42" fill="#fff3d6" opacity=".95"/>
+
+  <!-- Brume basse -->
+  <rect x="0" y="380" width="1200" height="140" fill="url(#mist)"/>
+
+  <!-- Silhouette ville/zone industrielle au loin (rive opposée) -->
+  <g fill="#1c2935" opacity=".75">
+    <rect x="0"   y="455" width="80"  height="30"/>
+    <rect x="60"  y="445" width="40"  height="40"/>
+    <rect x="95"  y="450" width="55"  height="35"/>
+    <rect x="140" y="438" width="30"  height="47"/>
+    <rect x="165" y="448" width="55"  height="37"/>
+    <rect x="210" y="444" width="40"  height="41"/>
+    <rect x="245" y="450" width="80"  height="35"/>
+    <rect x="320" y="446" width="35"  height="39"/>
+    <rect x="350" y="440" width="60"  height="45"/>
+    <rect x="405" y="450" width="45"  height="35"/>
+    <rect x="445" y="445" width="60"  height="40"/>
+    <!-- cheminée fumante -->
+    <rect x="510" y="420" width="14"  height="65"/>
+    <rect x="525" y="450" width="40"  height="35"/>
+    <rect x="560" y="440" width="55"  height="45"/>
+    <rect x="600" y="448" width="48"  height="37"/>
+    <rect x="900" y="450" width="60"  height="35"/>
+    <rect x="955" y="445" width="40"  height="40"/>
+    <rect x="990" y="450" width="80"  height="35"/>
+    <rect x="1065" y="446" width="35" height="39"/>
+    <rect x="1095" y="450" width="55" height="35"/>
+    <rect x="1145" y="448" width="55" height="37"/>
+  </g>
+  <!-- Fumée cheminée -->
+  <g fill="#3a4f5e" opacity=".4">
+    <ellipse cx="517" cy="410" rx="15" ry="8"/>
+    <ellipse cx="525" cy="395" rx="22" ry="11"/>
+    <ellipse cx="540" cy="378" rx="28" ry="14"/>
+  </g>
+
+  <!-- EAU -->
+  <rect y="485" width="1200" height="315" fill="url(#water)"/>
+
+  <!-- Reflet du soleil sur l'eau -->
+  <ellipse cx="780" cy="495" rx="55" ry="6" fill="#ffe2b3" opacity=".8"/>
+  <ellipse cx="780" cy="540" rx="50" ry="4" fill="#ffd9a3" opacity=".55"/>
+  <ellipse cx="780" cy="580" rx="45" ry="3" fill="#ffd9a3" opacity=".4"/>
+  <ellipse cx="780" cy="620" rx="40" ry="2.5" fill="#ffd9a3" opacity=".3"/>
+  <ellipse cx="780" cy="660" rx="35" ry="2" fill="#ffd9a3" opacity=".22"/>
+
+  <!-- Vagues légères -->
+  <g stroke="#d68957" stroke-width="1" opacity=".25" fill="none">
+    <path d="M0,540 Q150,535 300,540 T600,540 T900,540 T1200,540"/>
+    <path d="M0,580 Q150,575 300,580 T600,580 T900,580 T1200,580"/>
+    <path d="M0,620 Q150,615 300,620 T600,620 T900,620 T1200,620"/>
+    <path d="M0,660 Q150,655 300,660 T600,660 T900,660 T1200,660"/>
+    <path d="M0,710 Q150,705 300,710 T600,710 T900,710 T1200,710"/>
+    <path d="M0,750 Q150,745 300,750 T600,750 T900,750 T1200,750"/>
+  </g>
+
+  <!-- CARGO PORTE-CONTAINER (à gauche, navigant sur le Wouri) -->
+  <g>
+    <!-- Coque -->
+    <path d="M 220,500 L 220,545 Q 220,560 240,562 L 480,562 Q 510,562 515,545 L 515,500 Z"
+          fill="#1f2a35"/>
+    <!-- Ligne de flottaison rouge -->
+    <rect x="220" y="555" width="290" height="6" fill="#8c2c2c"/>
+    <!-- Pont avec containers empilés -->
+    <g>
+      <!-- Rangée basse -->
+      <rect x="240" y="478" width="32" height="22" fill="#c8442f"/>
+      <rect x="272" y="478" width="32" height="22" fill="#2c6f9c"/>
+      <rect x="304" y="478" width="32" height="22" fill="#4a8b41"/>
+      <rect x="336" y="478" width="32" height="22" fill="#d4a040"/>
+      <rect x="368" y="478" width="32" height="22" fill="#2c6f9c"/>
+      <rect x="400" y="478" width="32" height="22" fill="#c8442f"/>
+      <rect x="432" y="478" width="32" height="22" fill="#5a5a5a"/>
+      <!-- Rangée moyenne -->
+      <rect x="252" y="458" width="32" height="20" fill="#4a8b41"/>
+      <rect x="284" y="458" width="32" height="20" fill="#c8442f"/>
+      <rect x="316" y="458" width="32" height="20" fill="#d4a040"/>
+      <rect x="348" y="458" width="32" height="20" fill="#5a5a5a"/>
+      <rect x="380" y="458" width="32" height="20" fill="#2c6f9c"/>
+      <rect x="412" y="458" width="32" height="20" fill="#4a8b41"/>
+      <!-- Rangée haute -->
+      <rect x="264" y="440" width="32" height="18" fill="#c8442f"/>
+      <rect x="296" y="440" width="32" height="18" fill="#2c6f9c"/>
+      <rect x="328" y="440" width="32" height="18" fill="#4a8b41"/>
+      <rect x="360" y="440" width="32" height="18" fill="#d4a040"/>
+      <!-- Lignes de séparation containers -->
+      <g stroke="#000" stroke-width=".4" opacity=".4">
+        <line x1="240" y1="500" x2="464" y2="500"/>
+        <line x1="252" y1="478" x2="444" y2="478"/>
+        <line x1="264" y1="458" x2="392" y2="458"/>
+      </g>
+    </g>
+    <!-- Cabine de pilotage -->
+    <rect x="475" y="438" width="40" height="62" fill="#e8e3d8"/>
+    <rect x="478" y="442" width="34" height="14" fill="#3a5a7a"/>
+    <rect x="478" y="460" width="34" height="14" fill="#3a5a7a"/>
+    <rect x="478" y="478" width="34" height="14" fill="#3a5a7a"/>
+    <!-- Mât avec antenne -->
+    <line x1="495" y1="438" x2="495" y2="408" stroke="#1f2a35" stroke-width="2"/>
+    <circle cx="495" cy="408" r="3" fill="#c8442f"/>
+    <!-- Cheminée -->
+    <rect x="450" y="420" width="14" height="20" fill="#8c2c2c"/>
+    <rect x="448" y="416" width="18" height="6" fill="#1f2a35"/>
+  </g>
+
+  <!-- GRUES PORTUAIRES À CONTAINER (à droite, sur le quai) -->
+  <g fill="#c8442f" stroke="#3a1010" stroke-width=".5">
+    <!-- Grue 1 -->
+    <g transform="translate(950, 0)">
+      <!-- Pieds -->
+      <rect x="0"  y="380" width="8" height="110"/>
+      <rect x="60" y="380" width="8" height="110"/>
+      <rect x="0"  y="490" width="8" height="6" fill="#1f2a35"/>
+      <rect x="60" y="490" width="8" height="6" fill="#1f2a35"/>
+      <!-- Traverse haute -->
+      <rect x="-5" y="370" width="80" height="14"/>
+      <!-- Diagonales -->
+      <line x1="8"  y1="490" x2="60" y2="384" stroke="#c8442f" stroke-width="3"/>
+      <line x1="60" y1="490" x2="8"  y2="384" stroke="#c8442f" stroke-width="3"/>
+      <!-- Bras horizontal (flèche) -->
+      <rect x="-70" y="345" width="220" height="10"/>
+      <!-- Treillis bras -->
+      <g stroke="#c8442f" stroke-width="1.5">
+        <line x1="-70" y1="355" x2="-50" y2="370"/>
+        <line x1="-50" y1="355" x2="-30" y2="370"/>
+        <line x1="-30" y1="355" x2="-10" y2="370"/>
+        <line x1="-10" y1="355" x2="10"  y2="370"/>
+        <line x1="10"  y1="355" x2="30"  y2="370"/>
+        <line x1="30"  y1="355" x2="50"  y2="370"/>
+        <line x1="50"  y1="355" x2="70"  y2="370"/>
+        <line x1="70"  y1="355" x2="90"  y2="370"/>
+        <line x1="90"  y1="355" x2="110" y2="370"/>
+        <line x1="110" y1="355" x2="130" y2="370"/>
+      </g>
+      <!-- Cabine opérateur -->
+      <rect x="-25" y="358" width="22" height="18" fill="#e8e3d8"/>
+      <rect x="-22" y="361" width="16" height="8" fill="#3a5a7a"/>
+      <!-- Câble + crochet (en train de soulever) -->
+      <line x1="100" y1="355" x2="100" y2="430" stroke="#1f2a35" stroke-width="1"/>
+      <rect x="92" y="430" width="16" height="14" fill="#5a5a5a"/>
+      <!-- Container suspendu -->
+      <rect x="86" y="444" width="28" height="20" fill="#2c6f9c"/>
+    </g>
+
+    <!-- Grue 2 -->
+    <g transform="translate(1080, 10)">
+      <rect x="0"  y="380" width="8" height="100"/>
+      <rect x="60" y="380" width="8" height="100"/>
+      <rect x="-5" y="370" width="80" height="14"/>
+      <line x1="8"  y1="480" x2="60" y2="384" stroke="#c8442f" stroke-width="3"/>
+      <line x1="60" y1="480" x2="8"  y2="384" stroke="#c8442f" stroke-width="3"/>
+      <rect x="-70" y="345" width="200" height="10"/>
+      <g stroke="#c8442f" stroke-width="1.5">
+        <line x1="-70" y1="355" x2="-50" y2="370"/>
+        <line x1="-50" y1="355" x2="-30" y2="370"/>
+        <line x1="-30" y1="355" x2="-10" y2="370"/>
+        <line x1="-10" y1="355" x2="10"  y2="370"/>
+        <line x1="10"  y1="355" x2="30"  y2="370"/>
+        <line x1="30"  y1="355" x2="50"  y2="370"/>
+        <line x1="50"  y1="355" x2="70"  y2="370"/>
+        <line x1="70"  y1="355" x2="90"  y2="370"/>
+        <line x1="90"  y1="355" x2="110" y2="370"/>
+      </g>
+      <rect x="-25" y="358" width="22" height="18" fill="#e8e3d8"/>
+      <rect x="-22" y="361" width="16" height="8" fill="#3a5a7a"/>
+      <line x1="80" y1="355" x2="80" y2="420" stroke="#1f2a35" stroke-width="1"/>
+      <rect x="72" y="420" width="16" height="12" fill="#5a5a5a"/>
+    </g>
+  </g>
+
+  <!-- QUAI / CONTAINERS EMPILÉS sur le quai (côté droit, premier plan) -->
+  <g>
+    <!-- Quai (béton sombre) -->
+    <rect x="850" y="475" width="350" height="40" fill="#2a3540"/>
+    <rect x="850" y="475" width="350" height="4" fill="#3a4f5e"/>
+
+    <!-- Containers empilés -->
+    <g>
+      <!-- Pile 1 -->
+      <rect x="870"  y="438" width="42" height="37" fill="#c8442f" stroke="#3a1010" stroke-width=".5"/>
+      <rect x="870"  y="404" width="42" height="34" fill="#2c6f9c" stroke="#3a1010" stroke-width=".5"/>
+      <rect x="870"  y="372" width="42" height="32" fill="#4a8b41" stroke="#3a1010" stroke-width=".5"/>
+      <!-- détails portes -->
+      <g stroke="#000" stroke-width=".4" opacity=".4">
+        <line x1="891" y1="438" x2="891" y2="475"/>
+        <line x1="891" y1="404" x2="891" y2="438"/>
+        <line x1="891" y1="372" x2="891" y2="404"/>
+      </g>
+
+      <!-- Pile 2 -->
+      <rect x="920"  y="438" width="42" height="37" fill="#d4a040" stroke="#3a1010" stroke-width=".5"/>
+      <rect x="920"  y="404" width="42" height="34" fill="#c8442f" stroke="#3a1010" stroke-width=".5"/>
+      <g stroke="#000" stroke-width=".4" opacity=".4">
+        <line x1="941" y1="438" x2="941" y2="475"/>
+        <line x1="941" y1="404" x2="941" y2="438"/>
+      </g>
+
+      <!-- Pile 3 -->
+      <rect x="1140" y="438" width="42" height="37" fill="#2c6f9c" stroke="#3a1010" stroke-width=".5"/>
+      <rect x="1140" y="404" width="42" height="34" fill="#4a8b41" stroke="#3a1010" stroke-width=".5"/>
+      <rect x="1140" y="372" width="42" height="32" fill="#c8442f" stroke="#3a1010" stroke-width=".5"/>
+      <g stroke="#000" stroke-width=".4" opacity=".4">
+        <line x1="1161" y1="438" x2="1161" y2="475"/>
+        <line x1="1161" y1="404" x2="1161" y2="438"/>
+        <line x1="1161" y1="372" x2="1161" y2="404"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- PALMIERS (côté gauche, premier plan — tropical Douala) -->
+  <g>
+    <!-- Palmier 1 -->
+    <g transform="translate(80, 0)">
+      <!-- Tronc -->
+      <path d="M 0,800 Q 5,700 8,620 Q 10,560 6,500" stroke="#3a2418" stroke-width="9" fill="none"/>
+      <!-- Anneaux du tronc -->
+      <g stroke="#2a1810" stroke-width="1.5" opacity=".7">
+        <line x1="0" y1="780" x2="14" y2="780"/>
+        <line x1="3" y1="740" x2="14" y2="740"/>
+        <line x1="5" y1="700" x2="14" y2="700"/>
+        <line x1="6" y1="660" x2="13" y2="660"/>
+        <line x1="7" y1="620" x2="13" y2="620"/>
+        <line x1="8" y1="580" x2="12" y2="580"/>
+        <line x1="7" y1="540" x2="11" y2="540"/>
+      </g>
+      <!-- Palmes -->
+      <g fill="#1a3520" opacity=".95">
+        <path d="M 6,500 Q -40,485 -85,490 Q -55,500 -30,515 Q -10,510 6,500 Z"/>
+        <path d="M 6,500 Q 50,485 95,490 Q 70,500 40,515 Q 18,510 6,500 Z"/>
+        <path d="M 6,500 Q -25,460 -55,440 Q -30,460 -15,485 Q 0,495 6,500 Z"/>
+        <path d="M 6,500 Q 35,460 65,440 Q 40,460 25,485 Q 10,495 6,500 Z"/>
+        <path d="M 6,500 Q -10,455 -25,420 Q -5,440 5,475 Z"/>
+        <path d="M 6,500 Q 20,455 35,420 Q 15,440 7,475 Z"/>
+      </g>
+      <!-- Noix de coco -->
+      <circle cx="6"  cy="505" r="4" fill="#3a2418"/>
+      <circle cx="12" cy="503" r="4" fill="#3a2418"/>
+      <circle cx="0"  cy="507" r="4" fill="#3a2418"/>
+    </g>
+
+    <!-- Palmier 2 (plus petit, plus loin) -->
+    <g transform="translate(155, 0) scale(0.7) translate(0, 150)">
+      <path d="M 0,800 Q 5,700 8,620 Q 10,560 6,500" stroke="#3a2418" stroke-width="9" fill="none"/>
+      <g fill="#1a3520" opacity=".9">
+        <path d="M 6,500 Q -40,485 -85,490 Q -55,500 -30,515 Q -10,510 6,500 Z"/>
+        <path d="M 6,500 Q 50,485 95,490 Q 70,500 40,515 Q 18,510 6,500 Z"/>
+        <path d="M 6,500 Q -25,460 -55,440 Q -30,460 -15,485 Q 0,495 6,500 Z"/>
+        <path d="M 6,500 Q 35,460 65,440 Q 40,460 25,485 Q 10,495 6,500 Z"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- OISEAUX -->
+  <g fill="none" stroke="#1c2935" stroke-width="2" stroke-linecap="round" opacity=".85">
+    <path d="M 250,180 Q 260,170 270,180 Q 280,170 290,180"/>
+    <path d="M 320,160 Q 328,153 336,160 Q 344,153 352,160"/>
+    <path d="M 400,200 Q 408,193 416,200 Q 424,193 432,200"/>
+    <path d="M 580,150 Q 586,144 592,150 Q 598,144 604,150"/>
+    <path d="M 200,260 Q 208,253 216,260 Q 224,253 232,260"/>
+  </g>
+
+</svg>

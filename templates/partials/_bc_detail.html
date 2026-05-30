@@ -34,6 +34,27 @@
         <div class="text-muted" style="font-size:11px;">DIRECTION</div>
         <div>{{ bc.direction }}</div>
     </div>
+    {% if bc.delai_execution_jours %}
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">DÉLAI D'EXÉCUTION</div>
+        <div>{{ bc.delai_execution_jours }} jours</div>
+    </div>
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">DATE ÉCHÉANCE</div>
+        <div>
+            {% if bc.date_echeance %}
+            <span class="{% if bc.est_en_retard %}text-danger fw-bold{% elif bc.echeance_proche %}text-warning fw-bold{% endif %}">
+                {{ bc.date_echeance|date:"d/m/Y" }}
+                {% if bc.est_en_retard %}<i class="bi bi-alarm-fill ms-1" title="En retard"></i>{% endif %}
+                {% if bc.echeance_proche and not bc.est_en_retard %}<i class="bi bi-clock-fill ms-1" title="Échéance proche"></i>{% endif %}
+            </span>
+            {% if bc.jours_restants is not None and not bc.est_en_retard %}
+            <div style="font-size:10px;color:#888;">{{ bc.jours_restants }} j restants</div>
+            {% endif %}
+            {% else %}—{% endif %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <hr style="margin:10px 0;">
@@ -90,20 +111,90 @@
 {% endif %}
 
 {% if historiques %}
-<hr style="margin:10px 0;">
+<hr style="margin:12px 0;">
 <div>
-    <div class="text-muted mb-2" style="font-size:11px;">HISTORIQUE</div>
-    {% for h in historiques %}
-    <div class="d-flex align-items-start gap-2 mb-2" style="font-size:12px;">
-        <div style="width:8px;height:8px;border-radius:50%;background:#1B3A5C;margin-top:4px;flex-shrink:0;"></div>
-        <div>
-            <span class="text-muted">{{ h.created_at|date:"d/m/Y H:i" }}</span> —
-            <strong>{{ h.ancien_statut }}</strong> → <strong>{{ h.nouveau_statut }}</strong>
-            {% if h.utilisateur %}<span class="text-muted"> · {{ h.utilisateur.nom_complet|default:h.utilisateur.username }}</span>{% endif %}
-            {% if h.commentaire %}<br><span class="text-muted">{{ h.commentaire }}</span>{% endif %}
+    <div class="text-muted mb-3" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">
+        <i class="bi bi-clock-history me-1"></i>Historique
+    </div>
+    <div class="journal-timeline">
+        {% for h in historiques %}
+        <div style="position:relative;padding:10px 14px;margin-bottom:8px;background:#fafbfd;border:1px solid #eef0f4;border-radius:10px;font-size:12px;">
+            <div style="font-weight:600;color:#1a2332;margin-bottom:2px;">
+                <span class="badge bg-secondary" style="font-size:10px;">{{ h.ancien_statut }}</span>
+                <i class="bi bi-arrow-right mx-1 text-muted" style="font-size:10px;"></i>
+                <span class="badge bg-{{ h.nouveau_statut|lower }}" style="font-size:10px;">{{ h.nouveau_statut }}</span>
+            </div>
+            <div class="text-muted" style="font-size:11px;margin-top:3px;">
+                <i class="bi bi-calendar3 me-1"></i>{{ h.created_at|date:"d/m/Y à H:i" }}
+                {% if h.utilisateur %}&nbsp;&middot;&nbsp;<i class="bi bi-person me-1"></i>{{ h.utilisateur.nom_complet|default:h.utilisateur.username }}{% endif %}
+            </div>
+            {% if h.commentaire %}
+            <div style="margin-top:4px;color:#6b7a99;font-style:italic;">{{ h.commentaire }}</div>
+            {% endif %}
         </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if bc.imputations.all %}
+<hr style="margin:10px 0;">
+<div class="mb-3">
+    <div class="text-muted mb-2" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">
+        <i class="bi bi-diagram-3 me-1"></i>Imputations budgétaires
+    </div>
+    <table class="table table-sm mb-0" style="font-size:12px;">
+        <thead><tr><th>Ligne</th><th>Tâche</th><th class="text-end">Montant</th></tr></thead>
+        <tbody>
+        {% for imp in bc.imputations.all %}
+        <tr>
+            <td><strong>{{ imp.ligne_budgetaire.code_nature }}</strong><br><span class="text-muted">{{ imp.ligne_budgetaire.libelle_nature|truncatechars:30 }}</span></td>
+            <td>{{ imp.ligne_budgetaire.tache.numero }}</td>
+            <td class="text-end">{{ imp.montant|fmt }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% if bc.prolongations.all %}
+<hr style="margin:10px 0;">
+<div class="mb-3">
+    <div class="text-muted mb-2" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">
+        <i class="bi bi-calendar-plus me-1"></i>Prolongations
+    </div>
+    {% for p in bc.prolongations.all %}
+    <div style="background:#fff9e6;border:1px solid #ffe082;border-radius:6px;padding:8px 10px;font-size:12px;margin-bottom:6px;">
+        <div class="d-flex justify-content-between">
+            <span>{{ p.ancienne_echeance|date:"d/m/Y" }} → <strong>{{ p.nouvelle_echeance|date:"d/m/Y" }}</strong></span>
+            <span class="text-muted">{{ p.created_at|date:"d/m/Y" }}</span>
+        </div>
+        {% if p.motif %}<div class="text-muted mt-1" style="font-style:italic;">{{ p.motif }}</div>{% endif %}
+        {% if p.created_by %}<div class="text-muted" style="font-size:10px;">par {{ p.created_by.nom_complet|default:p.created_by.username }}</div>{% endif %}
     </div>
     {% endfor %}
+</div>
+{% endif %}
+
+{% if can_prolong %}
+<hr style="margin:10px 0;">
+<div class="mb-3">
+    <div class="text-muted mb-2" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">
+        <i class="bi bi-calendar-plus me-1"></i>Prolonger l'échéance
+    </div>
+    <form method="post" action="{% url 'bc_prolong' bc.pk %}">
+        {% csrf_token %}
+        <div class="mb-2">
+            <label class="form-label" style="font-size:12px;">Nouvelle échéance</label>
+            <input type="date" name="nouvelle_echeance" class="form-control form-control-sm" required>
+        </div>
+        <div class="mb-2">
+            <label class="form-label" style="font-size:12px;">Motif</label>
+            <textarea name="motif" class="form-control form-control-sm" rows="2" placeholder="Justification..." required></textarea>
+        </div>
+        <button type="submit" class="btn btn-sm btn-warning w-100">Enregistrer la prolongation</button>
+    </form>
 </div>
 {% endif %}
 

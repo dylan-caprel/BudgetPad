@@ -13,7 +13,7 @@ class BonCommandeFilter(django_filters.FilterSet):
     )
     statut = django_filters.ChoiceFilter(
         choices=BonCommande.STATUT_CHOICES,
-        empty_label='Tous',
+        empty_label='Tous les statuts',
         widget=forms.Select(attrs={'class': 'form-select form-select-sm'}),
     )
     tache = django_filters.ModelChoiceFilter(
@@ -26,10 +26,22 @@ class BonCommandeFilter(django_filters.FilterSet):
         empty_label='Tous les prestataires',
         widget=forms.Select(attrs={'class': 'form-select form-select-sm'}),
     )
+    date_debut = django_filters.DateFilter(
+        field_name='date_emission',
+        lookup_expr='gte',
+        label='Du',
+        widget=forms.DateInput(attrs={'class': 'form-control form-control-sm', 'type': 'date'}),
+    )
+    date_fin = django_filters.DateFilter(
+        field_name='date_emission',
+        lookup_expr='lte',
+        label='Au',
+        widget=forms.DateInput(attrs={'class': 'form-control form-control-sm', 'type': 'date'}),
+    )
 
     class Meta:
         model = BonCommande
-        fields = ['numero', 'statut', 'tache', 'prestataire']
+        fields = ['numero', 'statut', 'tache', 'prestataire', 'date_debut', 'date_fin']
 
 
 class DemandeAchatFilter(django_filters.FilterSet):
@@ -44,7 +56,7 @@ class DemandeAchatFilter(django_filters.FilterSet):
     )
     statut = django_filters.ChoiceFilter(
         choices=DemandeAchat.STATUT_CHOICES,
-        empty_label='Tous',
+        empty_label='Tous les statuts',
         widget=forms.Select(attrs={'class': 'form-select form-select-sm'}),
     )
     tache = django_filters.ModelChoiceFilter(
@@ -52,10 +64,22 @@ class DemandeAchatFilter(django_filters.FilterSet):
         empty_label='Toutes les tâches',
         widget=forms.Select(attrs={'class': 'form-select form-select-sm'}),
     )
+    date_debut = django_filters.DateFilter(
+        field_name='created_at',
+        lookup_expr='gte',
+        label='Du',
+        widget=forms.DateInput(attrs={'class': 'form-control form-control-sm', 'type': 'date'}),
+    )
+    date_fin = django_filters.DateFilter(
+        field_name='created_at',
+        lookup_expr='lte',
+        label='Au',
+        widget=forms.DateInput(attrs={'class': 'form-control form-control-sm', 'type': 'date'}),
+    )
 
     class Meta:
         model = DemandeAchat
-        fields = ['reference', 'objet', 'statut', 'tache']
+        fields = ['reference', 'objet', 'statut', 'tache', 'date_debut', 'date_fin']
 
 
 class JournalFilter(django_filters.FilterSet):

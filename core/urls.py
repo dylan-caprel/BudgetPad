@@ -45,11 +45,20 @@ urlpatterns = [
     path('bons-commande/<int:pk>/pdf/', views.bc_pdf, name='bc_pdf'),
     path('bons-commande/<int:pk>/statut/<str:nouveau_statut>/', views.bc_change_statut, name='bc_change_statut'),
     path('bons-commande/<int:pk>/detail/', views.bc_detail, name='bc_detail'),
+    path('bons-commande/<int:pk>/prolonger/', views.bc_prolong, name='bc_prolong'),
+
+    # Lignes budgétaires
+    path('taches/<int:tache_pk>/lignes/creer/', views.ligne_budgetaire_create, name='ligne_budgetaire_create'),
+    path('lignes/<int:pk>/modifier/', views.ligne_budgetaire_edit, name='ligne_budgetaire_edit'),
+    path('lignes/<int:pk>/detail/', views.ligne_detail, name='ligne_detail'),
 
     # Bilans
     path('bilans/', views.bilans_view, name='bilans'),
     path('bilans/export/csv/', views.bilan_csv_export, name='bilan_csv_export'),
     path('bilans/export/pdf/', views.bilan_pdf_export, name='bilan_pdf_export'),
+
+    # Journal de programmation par BC
+    path('journal-bc/', views.journal_bc_view, name='journal_bc'),
 
     # Pièces jointes
     path('pieces-jointes/upload/', views.piece_jointe_upload, name='piece_jointe_upload'),
@@ -79,6 +88,9 @@ urlpatterns = [
     path('exercices/', views.exercices_list, name='exercices_list'),
     path('exercices/creer/', views.exercice_create, name='exercice_create'),
     path('exercices/<int:pk>/cloturer/', views.exercice_cloturer, name='exercice_cloturer'),
+    path('exercices/<int:pk>/reconduire/', views.exercice_reconduire, name='exercice_reconduire'),
+    path('exercices/import-excel/', views.exercice_import_excel, name='exercice_import_excel'),
+    path('exercices/template-excel/', views.exercice_template_excel, name='exercice_template_excel'),
     path('exercice/switch/', views.exercice_switch, name='exercice_switch'),
 
     # RGPD (Sprint 3)

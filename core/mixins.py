@@ -11,7 +11,7 @@ class RoleRequiredMixin(LoginRequiredMixin):
 
     Usage :
         class MaVue(RoleRequiredMixin, ListView):
-            allowed_roles = ('dag', 'directeur_drh')
+            allowed_roles = ('directeur_drh', 'assistante_drh')
 
     Le role 'admin' contourne toujours la restriction.
     """

@@ -1,27 +1,57 @@
 {% load core_tags %}
 <div class="sidebar">
     <div class="sidebar-logo">
-        <h5><i class="bi bi-pie-chart-fill"></i> BudgetPAD</h5>
-        <small>DRH · PAD</small>
+        <h5><i class="bi bi-pie-chart-fill"></i>BudgetPAD</h5>
+        <small>DRH &middot; Port Autonome de Douala</small>
     </div>
+
     <div class="sidebar-section">Navigation</div>
     <ul class="sidebar-nav">
-        <li><a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><i class="bi bi-speedometer2"></i> Tableau de bord</a></li>
-        <li><a href="{% url 'taches_list' %}" class="{% if 'tache' in request.resolver_match.url_name %}active{% endif %}"><i class="bi bi-list-check"></i> Tâches budgétaires</a></li>
-        <li><a href="{% url 'virements_list' %}" class="{% if 'virement' in request.resolver_match.url_name %}active{% endif %}"><i class="bi bi-arrow-left-right"></i> Transferts</a></li>
-        <li><a href="{% url 'da_list' %}" class="{% if 'da_' in request.resolver_match.url_name %}active{% endif %}"><i class="bi bi-file-earmark-text"></i> Demandes d'achat</a></li>
-        <li><a href="{% url 'bc_list' %}" class="{% if 'bc_' in request.resolver_match.url_name %}active{% endif %}"><i class="bi bi-cart-check"></i> Bons de commande</a></li>
-        <li><a href="{% url 'prestataires_list' %}" class="{% if 'prestataire' in request.resolver_match.url_name %}active{% endif %}"><i class="bi bi-people"></i> Prestataires</a></li>
-        <li><a href="{% url 'bilans' %}" class="{% if request.resolver_match.url_name == 'bilans' %}active{% endif %}"><i class="bi bi-bar-chart-line"></i> Bilans</a></li>
-        <li><a href="{% url 'exercices_list' %}" class="{% if 'exercice' in request.resolver_match.url_name %}active{% endif %}"><i class="bi bi-calendar3"></i> Exercices</a></li>
-        <li><a href="{% url 'journal' %}" class="{% if request.resolver_match.url_name == 'journal' %}active{% endif %}"><i class="bi bi-clock-history"></i> Journal d'activité</a></li>
+        <li><a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+            <i class="bi bi-speedometer2"></i> Tableau de bord
+        </a></li>
+        <li><a href="{% url 'taches_list' %}" class="{% if 'tache' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="bi bi-list-check"></i> Tâches budgétaires
+        </a></li>
+        <li><a href="{% url 'virements_list' %}" class="{% if 'virement' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="bi bi-arrow-left-right"></i> Transferts
+        </a></li>
+        <li><a href="{% url 'da_list' %}" class="{% if 'da_' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="bi bi-file-earmark-text"></i> Demandes d'achat
+        </a></li>
+        <li><a href="{% url 'bc_list' %}" class="{% if 'bc_' in request.resolver_match.url_name and request.resolver_match.url_name != 'journal_bc' %}active{% endif %}">
+            <i class="bi bi-cart-check"></i> Bons de commande
+        </a></li>
+        <li><a href="{% url 'journal_bc' %}" class="{% if request.resolver_match.url_name == 'journal_bc' %}active{% endif %}">
+            <i class="bi bi-journal-text"></i> Détail des engagements
+        </a></li>
+        <li><a href="{% url 'prestataires_list' %}" class="{% if 'prestataire' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="bi bi-people"></i> Prestataires
+        </a></li>
+        <li><a href="{% url 'bilans' %}" class="{% if request.resolver_match.url_name == 'bilans' %}active{% endif %}">
+            <i class="bi bi-bar-chart-line"></i> Bilans
+        </a></li>
+        <li><a href="{% url 'exercices_list' %}" class="{% if 'exercice' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="bi bi-calendar3"></i> Exercices
+        </a></li>
+        <li><a href="{% url 'journal' %}" class="{% if request.resolver_match.url_name == 'journal' %}active{% endif %}">
+            <i class="bi bi-clock-history"></i> Journal d'activité
+        </a></li>
     </ul>
+
     {% if request.user.role == 'admin' %}
     <div class="sidebar-section">Administration</div>
     <ul class="sidebar-nav">
-        <li><a href="{% url 'parametres' %}" class="{% if request.resolver_match.url_name == 'parametres' %}active{% endif %}"><i class="bi bi-gear"></i> Paramètres</a></li>
-        <li><a href="{% url 'utilisateurs_list' %}" class="{% if request.resolver_match.url_name == 'utilisateurs_list' %}active{% endif %}"><i class="bi bi-person-gear"></i> Utilisateurs</a></li>
+        <li><a href="{% url 'parametres' %}" class="{% if request.resolver_match.url_name == 'parametres' %}active{% endif %}">
+            <i class="bi bi-gear"></i> Paramètres
+        </a></li>
+        <li><a href="{% url 'utilisateurs_list' %}" class="{% if request.resolver_match.url_name == 'utilisateurs_list' %}active{% endif %}">
+            <i class="bi bi-person-gear"></i> Utilisateurs
+        </a></li>
     </ul>
     {% endif %}
-    <div class="sidebar-footer">Port Autonome de Douala<br>Exercice {{ exercice_courant.annee|default:"—" }}</div>
+
+    <div class="sidebar-footer">
+        Port Autonome de Douala<br>Exercice {{ exercice_courant.annee|default:"—" }}
+    </div>
 </div>
