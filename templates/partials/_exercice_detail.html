@@ -1,0 +1,105 @@
+{% load budget_filters %}
+<div class="p-1">
+    <div class="text-center mb-4">
+        <h5 class="mb-2" style="font-weight:700;color:#1B3A5C;">Exercice {{ exercice.annee }}</h5>
+        <div class="d-flex justify-content-center gap-2">
+            {% if exercice.statut == 'actif' %}
+            <span class="badge" style="background:rgba(76,175,80,0.12);color:#2E7D32;font-size:12px;">
+                <i class="bi bi-check-circle"></i> ACTIF
+            </span>
+            {% else %}
+            <span class="badge" style="background:rgba(108,117,125,0.12);color:#6c757d;font-size:12px;">
+                <i class="bi bi-lock"></i> CLÔTURÉ
+            </span>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="border-top border-bottom py-3 mb-3" style="font-size:13px;">
+        <div class="row mb-2">
+            <div class="col-5 text-muted" style="font-size:11px;text-transform:uppercase;">Début</div>
+            <div class="col-7">{{ exercice.date_debut|date:"d/m/Y" }}</div>
+        </div>
+        <div class="row">
+            <div class="col-5 text-muted" style="font-size:11px;text-transform:uppercase;">Fin</div>
+            <div class="col-7">{{ exercice.date_fin|date:"d/m/Y" }}</div>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <div class="text-muted mb-2" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">Données</div>
+        <div class="row g-2 mb-2">
+            <div class="col-6">
+                <div class="p-2 rounded text-center" style="background:rgba(27,58,92,0.05);">
+                    <div style="font-size:22px;font-weight:700;color:#1B3A5C;">{{ nb_taches }}</div>
+                    <small class="text-muted">Tâches</small>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="p-2 rounded text-center" style="background:rgba(27,58,92,0.05);">
+                    <div style="font-size:22px;font-weight:700;color:#1B3A5C;">{{ nb_lignes }}</div>
+                    <small class="text-muted">Lignes</small>
+                </div>
+            </div>
+        </div>
+        <div class="row g-2">
+            <div class="col-6">
+                <div class="p-2 rounded text-center" style="background:rgba(27,58,92,0.05);">
+                    <div style="font-size:22px;font-weight:700;color:#1B3A5C;">{{ nb_das }}</div>
+                    <small class="text-muted">DA</small>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="p-2 rounded text-center" style="background:rgba(27,58,92,0.05);">
+                    <div style="font-size:22px;font-weight:700;color:#1B3A5C;">{{ nb_bcs }}</div>
+                    <small class="text-muted">BC</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="border-top pt-3 mb-3" style="font-size:13px;">
+        <div class="text-muted mb-2" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">Budget</div>
+        <div class="row mb-2">
+            <div class="col-6">
+                <small class="text-muted">Budget total</small>
+                <div class="fw-bold money">{{ budget_total|fmt }}</div>
+            </div>
+            <div class="col-6">
+                <small class="text-muted">Consommé</small>
+                <div class="fw-bold money">{{ consommation|fmt }}</div>
+            </div>
+        </div>
+        {% if budget_total > 0 %}
+        <div class="progress mb-1" style="height:6px;">
+            <div class="progress-bar bg-{% if taux >= 90 %}danger{% elif taux >= 75 %}warning{% else %}success{% endif %}"
+                 style="width:{{ taux }}%;"></div>
+        </div>
+        <small class="text-muted">{{ taux|floatformat:1 }} % consommé</small>
+        {% endif %}
+    </div>
+
+    {% if request.user.role == 'admin' %}
+    <div class="border-top pt-3 d-flex gap-2">
+        {% if exercice.statut == 'actif' %}
+        <form method="post" action="{% url 'exercice_cloturer' exercice.pk %}"
+              class="flex-fill"
+              onsubmit="return confirm('Clôturer l\'exercice {{ exercice.annee }} ? Les données deviendront en lecture seule.');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-warning w-100">
+                <i class="bi bi-lock"></i> Clôturer
+            </button>
+        </form>
+        {% else %}
+        <form method="post" action="{% url 'exercice_reconduire' exercice.pk %}"
+              class="flex-fill"
+              onsubmit="return confirm('Reconduire vers {{ exercice.annee|add:1 }} ? La structure sera copiée avec montants à 0.');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+                <i class="bi bi-arrow-repeat"></i> Reconduire
+            </button>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>

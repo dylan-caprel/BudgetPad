@@ -74,6 +74,13 @@ def _exercice_courant(request):
 
 # ============ HELPERS ============
 
+def _check_exercice_non_verrouille(exercice, redirect_url='dashboard'):
+    """Retourne un redirect d'erreur si l'exercice est verrouillé, sinon None."""
+    if exercice and exercice.is_locked:
+        return (True, f"L'exercice {exercice.annee} est clôturé et en lecture seule.")
+    return (False, None)
+
+
 def log_action(user, type_action, description, entite_type='', entite_id=None):
     """Enregistre une action dans le journal d'activité."""
     JournalActivite.objects.create(
@@ -258,14 +265,25 @@ def taches_list(request):
     exercice = _exercice_courant(request)
     if exercice:
         lignes_annotees = LigneBudgetaire.objects.with_aggregates()
-        taches = (
+        taches = list(
             Tache.objects.filter(exercice=exercice)
             .with_aggregates()
             .prefetch_related(Prefetch('lignes', queryset=lignes_annotees))
         )
+        # Détecter si l'exercice a au moins UN virement (sur n'importe quelle tâche)
+        # afin de masquer entièrement la colonne "Ajusté" sinon (UX épuré).
+        has_any_transfer = any(
+            (t.total_transfert_plus or 0) > 0 or (t.total_transfert_moins or 0) > 0
+            for t in taches
+        )
     else:
-        taches = Tache.objects.none()
-    return render(request, 'core/taches_list.html', {'exercice': exercice, 'taches': taches})
+        taches = []
+        has_any_transfer = False
+    return render(request, 'core/taches_list.html', {
+        'exercice': exercice,
+        'taches': taches,
+        'has_any_transfer': has_any_transfer,
+    })
 
 @login_required
 def tache_detail(request, pk):
@@ -277,23 +295,72 @@ def tache_detail(request, pk):
 @login_required
 @role_required('admin', 'assistante_drh')
 @require_POST
+@transaction.atomic
 def tache_create(request):
-    form = TacheForm(request.POST)
-    if form.is_valid():
-        exercice = ExerciceBudgetaire.get_actif()
-        if exercice is None:
-            messages.error(request, "Aucun exercice budgétaire actif.")
-            return redirect('taches_list')
-        tache = form.save(commit=False)
-        tache.exercice = exercice
-        tache.numero = SequenceService.next_tache_numero(exercice.annee)
-        tache.save()
-        log_action(request.user, 'Tache.create', f"Création de la tâche {tache.numero} — {tache.titre}", 'tache', tache.id)
-        messages.success(request, f"Tâche {tache.numero} créée avec succès.")
-    else:
-        for field, errors in form.errors.items():
-            for error in errors:
-                messages.error(request, f"{field}: {error}")
+    """Crée une tâche + ses lignes budgétaires (formulaire multi-lignes)."""
+    exercice = ExerciceBudgetaire.get_actif()
+    if exercice is None:
+        messages.error(request, "Aucun exercice budgétaire actif.")
+        return redirect('taches_list')
+    locked, msg = _check_exercice_non_verrouille(exercice)
+    if locked:
+        messages.error(request, msg)
+        return redirect('taches_list')
+
+    numero = request.POST.get('numero', '').strip()
+    titre = request.POST.get('titre', '').strip()
+    if not numero or not titre:
+        messages.error(request, "Numéro et titre obligatoires.")
+        return redirect('taches_list')
+
+    # Unicité (exercice, numero)
+    if Tache.objects.filter(exercice=exercice, numero=numero).exists():
+        messages.error(request, f"La tâche {numero} existe déjà pour l'exercice {exercice.annee}.")
+        return redirect('taches_list')
+
+    tache = Tache.objects.create(
+        exercice=exercice, numero=numero, titre=titre, actif=True,
+    )
+
+    # Lignes budgétaires inline (POST arrays : ligne_code_0, ligne_libelle_0, ligne_montant_0, ...)
+    from decimal import Decimal as _D
+    nb_lignes = 0
+    idx = 0
+    while True:
+        code = request.POST.get(f'ligne_code_{idx}', '').strip()
+        libelle = request.POST.get(f'ligne_libelle_{idx}', '').strip()
+        montant_raw = request.POST.get(f'ligne_montant_{idx}', '').strip()
+        if not code and not libelle and not montant_raw:
+            # Stop dès qu'on a une ligne entièrement vide après les premières
+            if idx >= 3:
+                break
+            idx += 1
+            continue
+        if code and libelle:
+            try:
+                montant = _D(montant_raw or '0')
+                if montant < 0:
+                    raise ValueError
+                LigneBudgetaire.objects.create(
+                    tache=tache, code_nature=code, libelle_nature=libelle,
+                    montant_initial=montant, actif=True,
+                )
+                nb_lignes += 1
+            except Exception:
+                pass
+        idx += 1
+        if idx > 100:  # garde-fou
+            break
+
+    log_action(
+        request.user, 'Tache.create',
+        f"Création de la tâche {tache.numero} — {tache.titre} ({nb_lignes} lignes)",
+        'tache', tache.id,
+    )
+    messages.success(
+        request,
+        f"Tâche {tache.numero} créée avec {nb_lignes} ligne(s) budgétaire(s)."
+    )
     return redirect('taches_list')
 
 @login_required
@@ -351,6 +418,10 @@ def virements_list(request):
 @require_POST
 def virement_create(request):
     exercice = ExerciceBudgetaire.get_actif()
+    locked, msg = _check_exercice_non_verrouille(exercice)
+    if locked:
+        messages.error(request, msg)
+        return redirect('virements_list')
     form = VirementForm(request.POST, exercice=exercice)
     if form.is_valid():
         try:
@@ -382,7 +453,21 @@ def virement_detail(request, pk):
         ),
         pk=pk,
     )
-    return render(request, 'partials/_virement_detail.html', {'v': v})
+    # Recharger les lignes avec leurs agrégats (transfert_plus/moins/budget_ajuste/conso/solde)
+    src = LigneBudgetaire.objects.with_aggregates().select_related('tache').get(pk=v.ligne_source_id)
+    dst = LigneBudgetaire.objects.with_aggregates().select_related('tache').get(pk=v.ligne_destination_id)
+    # Source : transfert_moins inclut ce virement -> solde actuel = solde "après"
+    src_solde_apres = src.solde
+    src_solde_avant = src_solde_apres + v.montant
+    # Destination : transfert_plus inclut ce virement -> solde actuel = solde "après"
+    dst_solde_apres = dst.solde
+    dst_solde_avant = dst_solde_apres - v.montant
+    return render(request, 'partials/_virement_detail.html', {
+        'v': v,
+        'src': src, 'dst': dst,
+        'src_solde_avant': src_solde_avant, 'src_solde_apres': src_solde_apres,
+        'dst_solde_avant': dst_solde_avant, 'dst_solde_apres': dst_solde_apres,
+    })
 
 
 # ============ PRESTATAIRES ============
@@ -462,7 +547,12 @@ def da_list(request):
 @role_required('admin', 'directeur_drh', 'chef_service', 'assistante_drh')
 @require_POST
 def da_create(request):
-    form = DemandeAchatForm(request.POST)
+    exercice = ExerciceBudgetaire.get_actif()
+    locked, msg = _check_exercice_non_verrouille(exercice)
+    if locked:
+        messages.error(request, msg)
+        return redirect('da_list')
+    form = DemandeAchatForm(request.POST, exercice=exercice)
     if form.is_valid():
         try:
             da = DemandeAchatService.creer(
@@ -595,6 +685,13 @@ def da_detail(request, pk):
         Prestataire.objects.exclude(pk__in=prest_deja_ids).order_by('nom')
     )
     pieces_jointes = PieceJointe.objects.filter(type_entite='da', entite_id=pk).select_related('uploaded_by')
+    # BC lié (si la DA est passée à bc_cree)
+    bc_lie = None
+    if da.statut == 'bc_cree':
+        bc_lie = (
+            BonCommande.objects.filter(demande=da)
+            .select_related('prestataire').order_by('-created_at').first()
+        )
     return render(request, 'partials/_da_detail.html', {
         'da': da,
         'offres': offres,
@@ -604,6 +701,7 @@ def da_detail(request, pk):
         'form_solliciter': form_solliciter,
         'can_manage': request.user.role in ('admin', 'directeur_drh'),
         'pieces_jointes': pieces_jointes,
+        'bc_lie': bc_lie,
     })
 
 
@@ -789,6 +887,11 @@ def bc_list(request):
 @transaction.atomic
 def bc_create(request):
     """Crée un BC depuis une DA validée ; prestataire + montant auto-remplis depuis l'offre retenue."""
+    exercice_actif = ExerciceBudgetaire.get_actif()
+    locked, msg = _check_exercice_non_verrouille(exercice_actif)
+    if locked:
+        messages.error(request, msg)
+        return redirect('bc_list')
     da_id = request.POST.get('da_id', '').strip()
     if not da_id:
         messages.error(request, "Veuillez sélectionner une demande d'achat validée.")
@@ -857,9 +960,33 @@ def bc_change_statut(request, pk, nouveau_statut):
         messages.error(request, "Motif d'annulation obligatoire.")
         return redirect('bc_list')
 
+    # Paramètres spécifiques à la notification
+    date_notif = None
+    delai_jours = None
+    if nouveau_statut == 'notifie':
+        from datetime import datetime as _dt
+        raw_date = request.POST.get('date_notification', '').strip()
+        raw_delai = request.POST.get('delai_execution_jours', '').strip()
+        if raw_date:
+            try:
+                date_notif = _dt.strptime(raw_date, '%Y-%m-%d').date()
+            except ValueError:
+                messages.error(request, "Format de date de notification invalide.")
+                return redirect('bc_list')
+        if raw_delai:
+            try:
+                delai_jours = int(raw_delai)
+                if not (1 <= delai_jours <= 365):
+                    messages.error(request, "Le délai doit être entre 1 et 365 jours.")
+                    return redirect('bc_list')
+            except ValueError:
+                messages.error(request, "Délai d'exécution invalide.")
+                return redirect('bc_list')
+
     try:
         result = BonCommandeService.changer_statut(
-            bc, nouveau_statut, request.user, motif=motif
+            bc, nouveau_statut, request.user, motif=motif,
+            date_notification=date_notif, delai_jours=delai_jours,
         )
         messages.success(request, result['message'])
         if nouveau_statut == 'annule':
@@ -888,12 +1015,14 @@ def bc_detail(request, pk):
         and bc.statut in ('notifie', 'en_cours')
         and bc.date_echeance is not None
     )
+    from datetime import date as _date
     return render(request, 'partials/_bc_detail.html', {
         'bc': bc,
         'historiques': historiques,
         'pieces_jointes': pieces_jointes,
         'can_prolong': can_prolong,
         'form_prolong': ProlongationBCForm(),
+        'today': _date.today(),
     })
 
 
@@ -1072,6 +1201,13 @@ def bilan_csv_export(request):
     # BOM pour Excel
     response.write('﻿')
     writer = csv.writer(response, delimiter=';')
+    # En-tête identitaire PAD (visible à l'ouverture dans Excel)
+    from datetime import date as _date
+    writer.writerow(['PORT AUTONOME DE DOUALA - PORT AUTHORITY OF DOUALA'])
+    writer.writerow(['Direction des Ressources Humaines'])
+    writer.writerow([f'Suivi détaillé des tâches - Exercice {exercice.annee}'])
+    writer.writerow([f'Édité le {_date.today().strftime("%d/%m/%Y")} par {request.user.nom_complet or request.user.username}'])
+    writer.writerow([])  # ligne vide de séparation
     writer.writerow([
         'N° Tâche', 'Titre tâche',
         'Code nature', 'Libellé nature',
@@ -1345,13 +1481,30 @@ def utilisateur_create(request):
 @require_POST
 def utilisateur_edit(request, pk):
     u = get_object_or_404(Utilisateur, pk=pk)
+    valid_roles = {r[0] for r in Utilisateur.ROLE_CHOICES}
+    new_role = request.POST.get('role', u.role)
+    if new_role not in valid_roles:
+        messages.error(request, f"Rôle invalide : « {new_role} ».")
+        return redirect('utilisateurs_list')
     u.nom_complet = request.POST.get('nom_complet', u.nom_complet).strip()
     u.email       = request.POST.get('email', u.email).strip()
-    u.role        = request.POST.get('role', u.role)
+    u.role        = new_role
+    if 'is_active' in request.POST:
+        u.is_active = request.POST.get('is_active') in ('on', 'true', '1')
     u.save()
     log_action(request.user, 'User.edit', f"Modification de {u.username} (rôle : {u.role})", 'user', u.pk)
     messages.success(request, f"Utilisateur « {u.username} » mis à jour.")
     return redirect('utilisateurs_list')
+
+
+@login_required
+@role_required('admin')
+def utilisateur_detail(request, pk):
+    """Fragment HTML — détail d'un utilisateur (pour l'offcanvas)."""
+    utilisateur = get_object_or_404(Utilisateur, pk=pk)
+    return render(request, 'partials/_utilisateur_detail.html', {
+        'utilisateur': utilisateur,
+    })
 
 
 @login_required
@@ -1487,6 +1640,36 @@ def rgpd_export_view(request):
 # ============ EXERCICE ============
 
 @login_required
+def exercice_detail(request, pk):
+    """Fragment HTML — détail d'un exercice (pour l'offcanvas)."""
+    from django.db.models import Sum as _Sum
+    exercice = get_object_or_404(ExerciceBudgetaire, pk=pk)
+    taches_qs = Tache.objects.filter(exercice=exercice, actif=True).with_aggregates()
+    nb_taches = taches_qs.count()
+    nb_lignes = LigneBudgetaire.objects.filter(tache__exercice=exercice, actif=True).count()
+    nb_das = DemandeAchat.objects.filter(exercice=exercice).count()
+    nb_bcs = BonCommande.objects.filter(exercice=exercice).count()
+    budget_total = sum((t.total_budget_ajuste or Decimal('0')) for t in taches_qs)
+    consommation = (
+        ImputationBC.objects
+        .filter(bon_commande__exercice=exercice)
+        .exclude(bon_commande__statut='annule')
+        .aggregate(t=_Sum('montant'))['t'] or Decimal('0')
+    )
+    taux = round(float(consommation) / float(budget_total) * 100, 1) if budget_total > 0 else 0
+    return render(request, 'partials/_exercice_detail.html', {
+        'exercice': exercice,
+        'nb_taches': nb_taches,
+        'nb_lignes': nb_lignes,
+        'nb_das': nb_das,
+        'nb_bcs': nb_bcs,
+        'budget_total': budget_total,
+        'consommation': consommation,
+        'taux': taux,
+    })
+
+
+@login_required
 def exercices_list(request):
     exercices = ExerciceBudgetaire.objects.order_by('-annee')
     stats = {}
@@ -1565,9 +1748,10 @@ def exercice_cloturer(request, pk):
         messages.warning(request, f"L'exercice {ex.annee} est déjà clôturé.")
         return redirect('exercices_list')
     ex.statut = 'cloture'
-    ex.save()
+    ex.is_locked = True
+    ex.save(update_fields=['statut', 'is_locked'])
     log_action(request.user, 'Exercice.cloturer', f"Clôture de l'exercice {ex.annee}", 'exercice', ex.pk)
-    messages.success(request, f"Exercice {ex.annee} clôturé.")
+    messages.success(request, f"Exercice {ex.annee} clôturé et verrouillé en lecture seule.")
     return redirect('exercices_list')
 
 
@@ -1696,19 +1880,43 @@ def notifications_marquer_lues(request):
 @login_required
 @role_required('admin')
 def parametres_view(request):
-    if request.method == 'POST' and 'reset_seed' in request.POST:
-        from django.conf import settings
-        if not settings.DEBUG:
-            messages.error(
-                request,
-                "La réinitialisation des données de démonstration est interdite en production."
-            )
+    exercice = _exercice_courant(request)
+    if request.method == 'POST':
+        # Reset seed (DEV uniquement)
+        if 'reset_seed' in request.POST:
+            from django.conf import settings
+            if not settings.DEBUG:
+                messages.error(
+                    request,
+                    "La réinitialisation des données de démonstration est interdite en production."
+                )
+                return redirect('parametres')
+            from django.core.management import call_command
+            call_command('seed_data')
+            messages.success(request, "Données de démonstration réinitialisées.")
             return redirect('parametres')
-        from django.core.management import call_command
-        call_command('seed_data')
-        messages.success(request, "Données de démonstration réinitialisées.")
-        return redirect('parametres')
-    return render(request, 'core/parametres.html')
+
+        # Seuil d'alerte
+        if 'seuil_alerte' in request.POST and exercice is not None:
+            raw = request.POST.get('seuil_alerte', '').strip()
+            try:
+                seuil = int(raw)
+                if 50 <= seuil <= 100:
+                    exercice.seuil_alerte = seuil
+                    exercice.save(update_fields=['seuil_alerte'])
+                    log_action(
+                        request.user, 'Parametres.seuil',
+                        f"Seuil d'alerte porté à {seuil}% sur l'exercice {exercice.annee}",
+                        'exercice', exercice.pk,
+                    )
+                    messages.success(request, f"Seuil d'alerte mis à jour : {seuil}%.")
+                else:
+                    messages.error(request, "Le seuil doit être entre 50% et 100%.")
+            except ValueError:
+                messages.error(request, "Valeur de seuil invalide.")
+            return redirect('parametres')
+
+    return render(request, 'core/parametres.html', {'exercice': exercice})
 
 
 # ============ PROLONGATION BC ============

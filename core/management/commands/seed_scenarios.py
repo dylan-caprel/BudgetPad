@@ -237,42 +237,46 @@ class Command(BaseCommand):
                 self.stdout.write(f"  ! Tâche {tache_num} introuvable - scénario ignoré")
                 continue
 
-            # DA
+            # DA — get_or_create pour idempotence
             ref = f"DA-2026-{da_counter:03d}"
-            da = DemandeAchat.objects.create(
-                reference=ref, exercice=exercice, tache=tache,
-                objet=objet, montant_estime=Decimal(est),
-                statut=statut_da, motif_refus=motif or '',
-                created_by=assistante,
+            da, da_created = DemandeAchat.objects.get_or_create(
+                reference=ref,
+                defaults={
+                    'exercice': exercice, 'tache': tache,
+                    'objet': objet, 'montant_estime': Decimal(est),
+                    'statut': statut_da, 'motif_refus': motif or '',
+                    'created_by': assistante,
+                },
             )
             da_counter += 1
-            nb_da += 1
+            if da_created:
+                nb_da += 1
+                JournalActivite.objects.create(
+                    type_action='DA.create', utilisateur=assistante,
+                    description=f"Création DA {ref} — {objet[:50]}",
+                    entite_type='da', entite_id=da.pk,
+                )
 
-            JournalActivite.objects.create(
-                type_action='DA.create', utilisateur=assistante,
-                description=f"Création DA {ref} — {objet[:50]}",
-                entite_type='da', entite_id=da.pk,
-            )
+            # OFFRES — ne créer que si la DA vient d'être créée
+            if da_created:
+                for code_prest, montant_offre, statut_offre in offres_data:
+                    p = prest_by_code.get(code_prest)
+                    if not p:
+                        continue
+                    kwargs = {
+                        'demande': da, 'prestataire': p,
+                        'statut': statut_offre,
+                    }
+                    if montant_offre is not None:
+                        kwargs['montant'] = Decimal(montant_offre)
+                    if statut_offre in ('recue', 'retenue', 'refusee'):
+                        kwargs['date_reception'] = timezone.now() - timedelta(days=3)
+                    if statut_offre == 'refusee':
+                        kwargs['motif_refus'] = "Tarif supérieur à l'offre concurrente"
+                    Offre.objects.create(**kwargs)
+                    nb_offres += 1
 
-            # OFFRES
-            for code_prest, montant_offre, statut_offre in offres_data:
-                p = prest_by_code.get(code_prest)
-                if not p:
-                    continue
-                kwargs = {
-                    'demande': da, 'prestataire': p,
-                    'statut': statut_offre,
-                }
-                if montant_offre is not None:
-                    kwargs['montant'] = Decimal(montant_offre)
-                if statut_offre in ('recue', 'retenue', 'refusee'):
-                    kwargs['date_reception'] = timezone.now() - timedelta(days=3)
-                if statut_offre == 'refusee':
-                    kwargs['motif_refus'] = "Tarif supérieur à l'offre concurrente"
-                Offre.objects.create(**kwargs)
-                nb_offres += 1
-
-            # BC (si scénario en a un)
+            # BC (si scénario en a un) — get_or_create par numéro
             if bc_data:
                 offre_retenue = da.offres.filter(statut='retenue').first()
                 if not offre_retenue:
@@ -290,44 +294,48 @@ class Command(BaseCommand):
                     date_echeance = date_emission + timedelta(days=delai)
 
                 numero = f"BC-2026-{bc_counter:04d}"
-                bc = BonCommande.objects.create(
-                    numero=numero, demande=da, tache=tache,
-                    exercice=exercice, prestataire=offre_retenue.prestataire,
-                    date_notification=date_notif,
-                    delai_execution_jours=delai,
-                    date_echeance=date_echeance,
-                    montant_ht=montant_ht, montant_tva=tva, montant_ttc=ttc,
-                    statut=bc_data['statut'],
-                    motif_annulation=bc_data.get('motif_annulation', ''),
+                bc, bc_created = BonCommande.objects.get_or_create(
+                    numero=numero,
+                    defaults={
+                        'demande': da, 'tache': tache,
+                        'exercice': exercice, 'prestataire': offre_retenue.prestataire,
+                        'date_notification': date_notif,
+                        'delai_execution_jours': delai,
+                        'date_echeance': date_echeance,
+                        'montant_ht': montant_ht, 'montant_tva': tva, 'montant_ttc': ttc,
+                        'statut': bc_data['statut'],
+                        'motif_annulation': bc_data.get('motif_annulation', ''),
+                    },
                 )
-                # Override de la date_emission (auto_now_add)
-                BonCommande.objects.filter(pk=bc.pk).update(date_emission=date_emission)
                 bc_counter += 1
-                nb_bc += 1
+                if bc_created:
+                    # Override de la date_emission (auto_now_add)
+                    BonCommande.objects.filter(pk=bc.pk).update(date_emission=date_emission)
+                    nb_bc += 1
 
-                # Imputations sur les lignes budgétaires de la tâche
-                for code_nature, montant_imp in bc_data.get('imputations', []):
-                    ligne = LigneBudgetaire.objects.filter(
-                        tache=tache, code_nature=code_nature, actif=True
-                    ).first()
-                    if ligne:
-                        ImputationBC.objects.create(
-                            bon_commande=bc, ligne_budgetaire=ligne,
-                            montant=Decimal(montant_imp),
-                        )
-                        nb_imp += 1
+                    # Imputations sur les lignes budgétaires de la tâche
+                    for code_nature, montant_imp in bc_data.get('imputations', []):
+                        ligne = LigneBudgetaire.objects.filter(
+                            tache=tache, code_nature=code_nature, actif=True
+                        ).first()
+                        if ligne:
+                            ImputationBC.objects.create(
+                                bon_commande=bc, ligne_budgetaire=ligne,
+                                montant=Decimal(montant_imp),
+                            )
+                            nb_imp += 1
 
-                JournalActivite.objects.create(
-                    type_action='BC.create', utilisateur=assistante,
-                    description=f"Création BC {numero} — {offre_retenue.prestataire.nom[:40]}",
-                    entite_type='bc', entite_id=bc.pk,
-                )
-                if bc.statut != 'cree':
                     JournalActivite.objects.create(
-                        type_action='BC.transition', utilisateur=directeur,
-                        description=f"BC {numero} -> {bc.get_statut_display()}",
+                        type_action='BC.create', utilisateur=assistante,
+                        description=f"Création BC {numero} — {offre_retenue.prestataire.nom[:40]}",
                         entite_type='bc', entite_id=bc.pk,
                     )
+                    if bc.statut != 'cree':
+                        JournalActivite.objects.create(
+                            type_action='BC.notify', utilisateur=directeur,
+                            description=f"BC {numero} -> {bc.get_statut_display()}",
+                            entite_type='bc', entite_id=bc.pk,
+                        )
 
         self.stdout.write(f"  -> {nb_da} DA, {nb_offres} offres, {nb_bc} BC, {nb_imp} imputations")
 

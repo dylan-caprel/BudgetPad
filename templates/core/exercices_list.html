@@ -32,7 +32,7 @@
         <tbody>
         {% for ex in exercices %}
         {% with s=stats|get_item:ex.pk %}
-        <tr>
+        <tr class="exercice-row" data-exercice-id="{{ ex.pk }}" style="cursor:pointer;" title="Cliquer pour voir les détails">
             <td><strong>{{ ex.annee }}</strong></td>
             <td><small class="text-muted">{{ ex.date_debut|date:"d/m/Y" }} → {{ ex.date_fin|date:"d/m/Y" }}</small></td>
             <td class="money">{{ s.budget|fmt }}</td>
@@ -52,7 +52,7 @@
                 {% endif %}
             </td>
             {% if request.user.role == 'admin' %}
-            <td>
+            <td onclick="event.stopPropagation();">
                 {% if ex.statut == 'actif' %}
                 <form method="post" action="{% url 'exercice_cloturer' ex.pk %}" class="d-inline"
                       onsubmit="return confirm('Clôturer l\'exercice {{ ex.annee }} ? Cette action est irréversible.');">
@@ -112,4 +112,14 @@
     </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('.exercice-row').forEach(function(row) {
+    row.addEventListener('click', function() {
+        window.openExerciceOffcanvas(this.dataset.exerciceId);
+    });
+});
+</script>
 {% endblock %}

@@ -1,0 +1,110 @@
+{% load budget_filters %}
+{% with initials=utilisateur.nom_complet|default:utilisateur.username %}
+<div>
+    <!-- Avatar avec initiales -->
+    <div class="text-center mb-3">
+        <div class="rounded-circle d-inline-flex align-items-center justify-content-center"
+             style="width:72px;height:72px;background:linear-gradient(135deg,#1A5632 0%,#22753F 100%);color:#fff;font-size:26px;font-weight:700;box-shadow:0 4px 14px rgba(26,86,50,.25);">
+            {{ initials|slice:":2"|upper }}
+        </div>
+        <h5 class="mt-2 mb-1" style="font-size:18px;font-weight:700;color:#1B3A5C;">
+            {{ utilisateur.nom_complet|default:utilisateur.username }}
+        </h5>
+        <span class="badge" style="background:rgba(26,86,50,.12);color:#1A5632;font-size:11px;padding:6px 12px;">
+            {{ utilisateur.get_role_display }}
+        </span>
+    </div>
+
+    <!-- Infos -->
+    <div class="border-top pt-3" style="font-size:13px;">
+        <div class="row g-2 mb-2">
+            <div class="col-5 text-muted small text-uppercase" style="letter-spacing:.4px;">Identifiant</div>
+            <div class="col-7"><code style="font-size:12px;background:#f4f6f8;padding:2px 6px;border-radius:4px;">{{ utilisateur.username }}</code></div>
+        </div>
+        <div class="row g-2 mb-2">
+            <div class="col-5 text-muted small text-uppercase" style="letter-spacing:.4px;">Email</div>
+            <div class="col-7">
+                {% if utilisateur.email %}
+                <a href="mailto:{{ utilisateur.email }}" style="color:#1B3A5C;">{{ utilisateur.email }}</a>
+                {% else %}<span class="text-muted">—</span>{% endif %}
+            </div>
+        </div>
+        <div class="row g-2 mb-2">
+            <div class="col-5 text-muted small text-uppercase" style="letter-spacing:.4px;">Statut</div>
+            <div class="col-7">
+                {% if utilisateur.is_active %}
+                <span class="badge" style="background:rgba(76,175,80,.12);color:#2E7D32;">
+                    <i class="bi bi-check-circle me-1"></i>Actif
+                </span>
+                {% else %}
+                <span class="badge" style="background:rgba(231,76,60,.12);color:#C0392B;">
+                    <i class="bi bi-x-circle me-1"></i>Inactif
+                </span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="row g-2 mb-2">
+            <div class="col-5 text-muted small text-uppercase" style="letter-spacing:.4px;">Créé le</div>
+            <div class="col-7">{{ utilisateur.date_joined|date:"d/m/Y à H:i" }}</div>
+        </div>
+        <div class="row g-2 mb-2">
+            <div class="col-5 text-muted small text-uppercase" style="letter-spacing:.4px;">Dernière conn.</div>
+            <div class="col-7">{{ utilisateur.last_login|date:"d/m/Y à H:i"|default:"Jamais" }}</div>
+        </div>
+        {% if utilisateur.must_change_password %}
+        <div class="row g-2 mb-2">
+            <div class="col-12">
+                <span class="badge bg-warning text-dark" style="font-size:10px;">
+                    <i class="bi bi-key-fill me-1"></i>Doit changer son mot de passe à la prochaine connexion
+                </span>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Permissions du rôle -->
+    <div class="border-top pt-3 mt-3">
+        <div class="text-muted mb-1" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">
+            <i class="bi bi-shield-lock me-1"></i>Périmètre du rôle
+        </div>
+        <div class="text-muted" style="font-size:12px;">
+            {% if utilisateur.role == 'admin' %}
+            Accès complet à toutes les fonctionnalités, y compris la gestion des utilisateurs et des paramètres.
+            {% elif utilisateur.role == 'directeur_drh' %}
+            Validation/refus des DA, création et changement de statut des BC, gestion des prolongations, bilans, dashboard.
+            {% elif utilisateur.role == 'chef_service' %}
+            Création de DA, consultation tâches, BC et bilans.
+            {% elif utilisateur.role == 'assistante_drh' %}
+            Saisie budgétaire (tâches, lignes), virements, création de prestataires, sollicitation et saisie d'offres.
+            {% elif utilisateur.role == 'lecteur' %}
+            Consultation en lecture seule (audit externe).
+            {% else %}
+            Rôle non documenté.
+            {% endif %}
+        </div>
+    </div>
+
+    {% if request.user.role == 'admin' and request.user.pk != utilisateur.pk %}
+    <!-- Actions admin -->
+    <div class="border-top pt-3 mt-3 d-flex gap-2">
+        <form method="post" action="{% url 'utilisateur_reset_pwd' utilisateur.pk %}" class="flex-fill">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-warning w-100"
+                    onclick="return confirm('Réinitialiser le mot de passe de {{ utilisateur.username }} ?');">
+                <i class="bi bi-key me-1"></i>Réinit. mot de passe
+            </button>
+        </form>
+        <form method="post" action="{% url 'utilisateur_toggle_actif' utilisateur.pk %}" class="flex-fill">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm {% if utilisateur.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %} w-100">
+                {% if utilisateur.is_active %}
+                <i class="bi bi-pause-circle me-1"></i>Désactiver
+                {% else %}
+                <i class="bi bi-play-circle me-1"></i>Réactiver
+                {% endif %}
+            </button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endwith %}
