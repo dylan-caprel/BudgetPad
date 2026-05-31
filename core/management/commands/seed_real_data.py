@@ -733,7 +733,7 @@ class Command(BaseCommand):
                     ImputationBC.objects.create(
                         bon_commande=bc1,
                         ligne_budgetaire=ligne_src,
-                        montant=Decimal('2500000'),
+                        montant=Decimal('2981250'),  # TTC = HT + TVA 19.25%
                         description="Achat direct fournitures de bureau TFT",
                     )
                 seq_bc.value = 1; seq_bc.save()
@@ -803,8 +803,8 @@ class Command(BaseCommand):
                     ImputationBC.objects.create(
                         bon_commande=bc2,
                         ligne_budgetaire=ligne_pharma,
-                        montant=Decimal('14800000'),
-                        description="Médicaments clinique interne PAD",
+                        montant=Decimal('17649000'),  # TTC = HT + TVA 19.25%
+                        description="Medicaments clinique interne PAD",
                     )
 
     def _creer_sequences(self, Sequence):

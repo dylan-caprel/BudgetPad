@@ -47,6 +47,14 @@ class ExerciceBudgetaire(models.Model):
     montant_global = models.DecimalField(max_digits=15, decimal_places=2, default=0)
     STATUT_CHOICES = [('actif', 'Actif'), ('cloture', 'Clôturé')]
     statut = models.CharField(max_length=10, choices=STATUT_CHOICES, default='actif')
+    is_locked = models.BooleanField(
+        default=False,
+        help_text="Si vrai, l'exercice est en lecture seule — aucune création/modification autorisée.",
+    )
+    seuil_alerte = models.PositiveSmallIntegerField(
+        default=80,
+        help_text="Seuil de taux de consommation (en %) déclenchant une alerte sur une tâche.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -514,7 +522,7 @@ class BonCommande(models.Model):
         return f"{self.numero} — {self.prestataire.nom}"
 
     def save(self, *args, **kwargs):
-        if self.date_notification and self.delai_execution_jours and not self.date_echeance:
+        if self.date_notification and self.delai_execution_jours:
             self.date_echeance = self.date_notification + timedelta(days=self.delai_execution_jours)
         super().save(*args, **kwargs)
 

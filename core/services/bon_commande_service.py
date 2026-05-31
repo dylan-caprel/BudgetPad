@@ -165,9 +165,11 @@ class BonCommandeService:
     @staticmethod
     @transaction.atomic
     def changer_statut(bc: BonCommande, nouveau_statut: str,
-                       utilisateur, motif: str = '') -> dict:
+                       utilisateur, motif: str = '',
+                       date_notification=None, delai_jours: int = None) -> dict:
         """
         Change le statut d'un BC avec historique + journal complet.
+        Pour 'notifie', accepte date_notification (date) et delai_jours (int).
         Renvoie {'success': True, 'message': str}. Leve ValueError si invalide.
         """
         peut, msg = bc.peut_transiter_vers(nouveau_statut)
@@ -178,8 +180,15 @@ class BonCommandeService:
         update_fields = ['statut']
 
         if nouveau_statut == 'notifie':
-            bc.date_notification = timezone.now().date()
+            bc.date_notification = date_notification or timezone.now().date()
             update_fields.append('date_notification')
+            if delai_jours is not None and delai_jours > 0:
+                bc.delai_execution_jours = delai_jours
+                update_fields.append('delai_execution_jours')
+            if bc.date_notification and bc.delai_execution_jours:
+                from datetime import timedelta as _td
+                bc.date_echeance = bc.date_notification + _td(days=bc.delai_execution_jours)
+                update_fields.append('date_echeance')
         elif nouveau_statut == 'annule':
             bc.motif_annulation = motif or 'Non specifie'
             update_fields.append('motif_annulation')

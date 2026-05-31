@@ -73,6 +73,7 @@ urlpatterns = [
     # Utilisateurs
     path('utilisateurs/', views.utilisateurs_list, name='utilisateurs_list'),
     path('utilisateurs/creer/', views.utilisateur_create, name='utilisateur_create'),
+    path('utilisateurs/<int:pk>/detail/', views.utilisateur_detail, name='utilisateur_detail'),
     path('utilisateurs/<int:pk>/modifier/', views.utilisateur_edit, name='utilisateur_edit'),
     path('utilisateurs/<int:pk>/reinitialiser-mdp/', views.utilisateur_reset_pwd, name='utilisateur_reset_pwd'),
     path('utilisateurs/<int:pk>/toggle-actif/', views.utilisateur_toggle_actif, name='utilisateur_toggle_actif'),
@@ -87,6 +88,7 @@ urlpatterns = [
     # Exercices
     path('exercices/', views.exercices_list, name='exercices_list'),
     path('exercices/creer/', views.exercice_create, name='exercice_create'),
+    path('exercices/<int:pk>/detail/', views.exercice_detail, name='exercice_detail'),
     path('exercices/<int:pk>/cloturer/', views.exercice_cloturer, name='exercice_cloturer'),
     path('exercices/<int:pk>/reconduire/', views.exercice_reconduire, name='exercice_reconduire'),
     path('exercices/import-excel/', views.exercice_import_excel, name='exercice_import_excel'),

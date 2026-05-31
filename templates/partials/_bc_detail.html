@@ -177,6 +177,53 @@
 </div>
 {% endif %}
 
+{% if bc.statut == 'cree' and request.user.role in 'admin,directeur_drh' %}
+<hr style="margin:10px 0;">
+<div class="mb-3">
+    <div class="text-muted mb-2" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">
+        <i class="bi bi-bell me-1"></i>Notifier au prestataire
+    </div>
+    <form method="post" action="{% url 'bc_change_statut' bc.pk 'notifie' %}">
+        {% csrf_token %}
+        <div class="mb-2">
+            <label class="form-label" style="font-size:12px;">Date de notification</label>
+            <input type="date" name="date_notification" class="form-control form-control-sm"
+                   value="{{ today|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}" required>
+        </div>
+        <div class="mb-2">
+            <label class="form-label" style="font-size:12px;">Délai d'exécution (jours)</label>
+            <div class="input-group input-group-sm">
+                <input type="number" name="delai_execution_jours" class="form-control form-control-sm"
+                       value="30" min="1" max="365" required id="bcNotifDelai_{{ bc.pk }}">
+                <span class="input-group-text">j</span>
+            </div>
+            <div style="font-size:10px;color:#888;margin-top:2px;">
+                Échéance : <span id="bcEcheancePreview_{{ bc.pk }}">—</span>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-sm btn-info text-white w-100">
+            <i class="bi bi-bell-fill me-1"></i>Notifier
+        </button>
+    </form>
+    <script>
+    (function(){
+        var delaiInput = document.getElementById('bcNotifDelai_{{ bc.pk }}');
+        var dateInput  = document.querySelector('input[name="date_notification"]');
+        var preview    = document.getElementById('bcEcheancePreview_{{ bc.pk }}');
+        function updatePreview(){
+            var d = new Date(dateInput.value + 'T00:00:00');
+            if(isNaN(d.getTime())) { preview.textContent = '—'; return; }
+            d.setDate(d.getDate() + parseInt(delaiInput.value || 0));
+            preview.textContent = d.toLocaleDateString('fr-FR');
+        }
+        delaiInput.addEventListener('input', updatePreview);
+        dateInput.addEventListener('input', updatePreview);
+        updatePreview();
+    })();
+    </script>
+</div>
+{% endif %}
+
 {% if can_prolong %}
 <hr style="margin:10px 0;">
 <div class="mb-3">
