@@ -46,7 +46,7 @@
             <td><span class="badge bg-{{ da.statut_couleur }} badge-statut">{{ da.get_statut_display }}</span></td>
             <td>{{ da.created_at|date:"d/m/Y" }}</td>
             <td onclick="event.stopPropagation();">
-                {% if request.user|has_role:"dag" %}
+                {% if request.user|has_role:"directeur_drh" %}
                   {% if da.statut == 'cree' %}
                   <!-- Étape 1 : passer en étude -->
                   <form method="post" action="{% url 'da_en_etude' da.pk %}" class="d-inline">{% csrf_token %}

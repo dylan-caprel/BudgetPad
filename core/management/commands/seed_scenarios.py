@@ -314,14 +314,18 @@ class Command(BaseCommand):
                     nb_bc += 1
 
                     # Imputations sur les lignes budgétaires de la tâche
-                    for code_nature, montant_imp in bc_data.get('imputations', []):
+                    # Les imputations doivent totaliser le montant TTC du BC
+                    imp_list = bc_data.get('imputations', [])
+                    for idx_imp, (code_nature, _) in enumerate(imp_list):
                         ligne = LigneBudgetaire.objects.filter(
                             tache=tache, code_nature=code_nature, actif=True
                         ).first()
                         if ligne:
+                            # Si une seule imputation, utiliser le TTC complet
+                            montant_imp = ttc if len(imp_list) == 1 else Decimal(_)
                             ImputationBC.objects.create(
                                 bon_commande=bc, ligne_budgetaire=ligne,
-                                montant=Decimal(montant_imp),
+                                montant=montant_imp,
                             )
                             nb_imp += 1
 
