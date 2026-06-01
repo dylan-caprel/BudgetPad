@@ -51,6 +51,7 @@ urlpatterns = [
     path('taches/<int:tache_pk>/lignes/creer/', views.ligne_budgetaire_create, name='ligne_budgetaire_create'),
     path('lignes/<int:pk>/modifier/', views.ligne_budgetaire_edit, name='ligne_budgetaire_edit'),
     path('lignes/<int:pk>/detail/', views.ligne_detail, name='ligne_detail'),
+    path('lignes/<int:ligne_pk>/consommation/creer/', views.consommation_create, name='consommation_create'),
 
     # Bilans
     path('bilans/', views.bilans_view, name='bilans'),

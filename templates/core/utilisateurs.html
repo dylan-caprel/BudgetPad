@@ -33,13 +33,15 @@
         <tbody>
         {% for u in users %}
         <tr>
-            <td>
+            <td style="cursor:pointer;"
+                onclick="window.openUtilisateurOffcanvas({{ u.pk }})"
+                title="Voir le détail">
                 <div class="d-flex align-items-center gap-2">
                     <div style="width:36px;height:36px;border-radius:50%;background:{% if u.is_active %}#1A5632{% else %}#aaa{% endif %};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;flex-shrink:0;">
                         {{ u.nom_complet|default:u.username|slice:":1"|upper }}
                     </div>
                     <div>
-                        <div style="font-weight:500;">{{ u.nom_complet|default:u.username }}</div>
+                        <div style="font-weight:500;color:#1B3A5C;">{{ u.nom_complet|default:u.username }}</div>
                         <small class="text-muted">{{ u.username }}</small>
                     </div>
                 </div>
@@ -61,7 +63,7 @@
                 </button>
                 <!-- Réinitialiser mot de passe -->
                 <form method="post" action="{% url 'utilisateur_reset_pwd' u.pk %}" class="d-inline"
-                      onsubmit="return confirm('Réinitialiser le mot de passe de {{ u.username }} ?');">
+                      onsubmit="return confirm('Réinitialiser le mot de passe de {{ u.username|escapejs }} ?');">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-sm btn-outline-warning" title="Réinitialiser le mot de passe">
                         <i class="bi bi-key"></i>
@@ -78,7 +80,7 @@
                 </form>
                 <!-- Supprimer -->
                 <form method="post" action="{% url 'utilisateur_delete' u.pk %}" class="d-inline"
-                      onsubmit="return confirm('Supprimer définitivement le compte {{ u.username }} ?');">
+                      onsubmit="return confirm('Supprimer définitivement le compte {{ u.username|escapejs }} ?');">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Supprimer">
                         <i class="bi bi-trash"></i>

@@ -54,11 +54,21 @@ AUTHENTICATION_BACKENDS = [
 # === django-axes : anti brute-force ===
 AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = 1  # heure(s)
-# Liste imbriquee = ET : verrouille seulement la combinaison (username + ip),
-# pas tous les comptes partageant une IP (utile en dev/local).
-AXES_LOCKOUT_PARAMETERS = [['username', 'ip_address']]
+# Verrouillage par username uniquement (pas IP-based, évite le contournement par rotation d'IP)
+AXES_LOCKOUT_PARAMETERS = ['username']
 AXES_RESET_ON_SUCCESS = True
 AXES_LOCKOUT_TEMPLATE = 'registration/lockout.html'
+
+# === Sécurité session ===
+SESSION_COOKIE_AGE = 3600               # Expiration après 1 h d'inactivité
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Invalidée à la fermeture du navigateur
+SESSION_SAVE_EVERY_REQUEST = True       # Renouvelle le timer à chaque requête
+SESSION_COOKIE_HTTPONLY = True          # Inaccessible via JavaScript
+SESSION_COOKIE_SAMESITE = 'Strict'      # Bloque les requêtes cross-site
+
+# === Sécurité CSRF ===
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = 'Strict'
 
 ROOT_URLCONF = 'budgetpad.urls'
 
@@ -91,7 +101,7 @@ DATABASES = {
         'USER': os.getenv('DB_USER', 'root'),
         'PASSWORD': os.getenv('DB_PASSWORD', ''),
         'HOST': os.getenv('DB_HOST', 'localhost'),
-        'PORT': os.getenv('DB_PORT', '3306'),
+        'PORT': os.getenv('DB_PORT', '3307'),
         'OPTIONS': {
             'charset': 'utf8mb4',
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",

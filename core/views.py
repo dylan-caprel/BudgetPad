@@ -20,12 +20,13 @@ from .models import (
     Utilisateur, ExerciceBudgetaire, Tache, LigneBudgetaire,
     VirementBudgetaire, Prestataire, DemandeAchat, Offre, BonCommande,
     LigneBC, ImputationBC, ProlongationBC, JournalActivite, Notification,
-    Alerte, HistoriqueStatut, PieceJointe,
+    Alerte, HistoriqueStatut, PieceJointe, ConsommationDirecte,
 )
 from .forms import (
     VirementForm, PrestataireForm, TacheForm, LigneBudgetaireForm,
     DemandeAchatForm, BonCommandeForm, ProlongationBCForm,
     OffreSolliciterForm, OffreSaisirForm, OffreRefuserForm,
+    ConsommationDirecteForm,
 )
 from .filters import BonCommandeFilter, DemandeAchatFilter, JournalFilter, PrestataireFilter
 from .services import (
@@ -119,6 +120,9 @@ def login_view(request):
         if user:
             login(request, user)
             security_logger.info("LOGIN_SUCCESS user=%s ip=%s", username, request.META.get('REMOTE_ADDR'))
+            next_url = request.POST.get('next', request.GET.get('next', '')).strip()
+            if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                return redirect(next_url)
             return redirect('dashboard')
         security_logger.warning("LOGIN_FAILED user=%s ip=%s", username, request.META.get('REMOTE_ADDR'))
         messages.error(request, "Identifiants incorrects.")
@@ -952,6 +956,12 @@ def bc_pdf(request, pk):
 @role_required('directeur_drh')
 @require_POST
 def bc_change_statut(request, pk, nouveau_statut):
+    # Validation de la liste blanche avant toute logique métier
+    _STATUTS_VALIDES = {'notifie', 'en_cours', 'execute', 'annule'}
+    if nouveau_statut not in _STATUTS_VALIDES:
+        messages.error(request, "Statut invalide.")
+        return redirect('bc_list')
+
     bc = get_object_or_404(BonCommande, pk=pk)
     motif = request.POST.get('motif', '').strip()
 
@@ -1187,6 +1197,7 @@ def bilans_view(request):
 
 
 @login_required
+@role_required('admin', 'directeur_drh', 'assistante_drh', 'chef_service')
 def bilan_csv_export(request):
     """Export CSV du bilan ligne par ligne, format Excel-FR."""
     exercice = _exercice_courant(request)
@@ -1243,6 +1254,7 @@ def bilan_csv_export(request):
 
 
 @login_required
+@role_required('admin', 'directeur_drh', 'assistante_drh', 'chef_service')
 def bilan_pdf_export(request):
     """Génère et télécharge le rapport PDF du bilan budgétaire — format PAD."""
     from .services.pdf_service import generer_pdf_bilan
@@ -1306,31 +1318,78 @@ def bilan_pdf_export(request):
 
 # ============ PIÈCES JOINTES ============
 
+_MAGIC_SIGNATURES = [
+    (b'\x25\x50\x44\x46', 'pdf'),              # %PDF
+    (b'\xff\xd8\xff', 'jpeg'),                  # JPEG
+    (b'\x89\x50\x4e\x47\x0d\x0a\x1a\x0a', 'png'),  # PNG
+    (b'\x47\x49\x46\x38', 'gif'),              # GIF87a / GIF89a
+    (b'\xd0\xcf\x11\xe0', 'ole2'),             # DOC / XLS (OLE2)
+    (b'\x50\x4b\x03\x04', 'zip'),              # DOCX / XLSX (ZIP)
+    (b'\x50\x4b\x05\x06', 'zip'),              # ZIP vide
+]
+
+
+def _magic_bytes_ok(fichier):
+    """Vérifie que le fichier correspond à un type MIME autorisé via ses magic bytes."""
+    header = fichier.read(12)
+    fichier.seek(0)
+    if len(header) < 4:
+        return False
+    # WEBP : RIFF????WEBP
+    if len(header) >= 12 and header[:4] == b'RIFF' and header[8:12] == b'WEBP':
+        return True
+    for sig, _ in _MAGIC_SIGNATURES:
+        if header[:len(sig)] == sig:
+            return True
+    return False
+
+
 @login_required
+@role_required('admin', 'directeur_drh', 'assistante_drh')
 @require_POST
 def piece_jointe_upload(request):
-    """Upload d'une pièce jointe sur une DA ou un BC."""
-    type_entite = request.POST.get('type_entite', '').strip()
-    entite_id   = request.POST.get('entite_id', '').strip()
-    fichier     = request.FILES.get('fichier')
+    """Upload d'une pièce jointe sur une DA ou un BC (admin / directeur_drh / assistante_drh uniquement)."""
+    type_entite   = request.POST.get('type_entite', '').strip()
+    entite_id_raw = request.POST.get('entite_id', '').strip()
+    fichier       = request.FILES.get('fichier')
 
-    REDIRECT_MAP = {'da': 'da_list', 'bc': 'bc_list'}
-    redirect_url = REDIRECT_MAP.get(type_entite, 'da_list')
+    # ── 1. Valider type_entite contre une liste blanche (évite l'IDOR)
+    _ENTITY_MODELS = {'da': DemandeAchat, 'bc': BonCommande}
+    _REDIRECT_MAP  = {'da': 'da_list',    'bc': 'bc_list'}
+    if type_entite not in _ENTITY_MODELS:
+        messages.error(request, "Type d'entité invalide.")
+        return redirect('da_list')
+    redirect_url = _REDIRECT_MAP[type_entite]
+
+    # ── 2. Valider entite_id (évite les 500 sur int())
+    try:
+        entite_id = int(entite_id_raw)
+    except (ValueError, TypeError):
+        messages.error(request, "Identifiant d'entité invalide.")
+        return redirect(redirect_url)
+
+    # ── 3. Vérifier que l'entité cible existe (404 si inconnue)
+    get_object_or_404(_ENTITY_MODELS[type_entite], pk=entite_id)
 
     if not fichier:
         messages.error(request, "Aucun fichier sélectionné.")
         return redirect(redirect_url)
 
     if fichier.size > PieceJointe.TAILLE_MAX:
-        messages.error(request, f"Fichier trop volumineux (max 10 Mo, reçu {fichier.size // 1024 // 1024} Mo).")
+        messages.error(request, f"Fichier trop volumineux (max 10 Mo).")
         return redirect(redirect_url)
 
-    # Validation extension
+    # ── 4. Validation extension
     ext_ok = fichier.name.lower().rsplit('.', 1)[-1] in (
         'pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'doc', 'docx', 'xls', 'xlsx'
     )
     if not ext_ok:
         messages.error(request, "Type de fichier non autorisé (PDF, images, Word, Excel uniquement).")
+        return redirect(redirect_url)
+
+    # ── 5. Validation magic bytes (contrecarre le renommage d'un fichier malveillant)
+    if not _magic_bytes_ok(fichier):
+        messages.error(request, "Contenu du fichier non reconnu — upload refusé.")
         return redirect(redirect_url)
 
     type_piece = request.POST.get('type_piece', 'autre').strip()
@@ -1340,7 +1399,7 @@ def piece_jointe_upload(request):
 
     PieceJointe.objects.create(
         type_entite=type_entite,
-        entite_id=int(entite_id),
+        entite_id=entite_id,
         type_piece=type_piece,
         fichier=fichier,
         nom_original=fichier.name,
@@ -1349,7 +1408,7 @@ def piece_jointe_upload(request):
     )
     log_action(request.user, 'PJ.upload',
                f"Upload pièce jointe « {fichier.name} » sur {type_entite.upper()} #{entite_id}",
-               type_entite, int(entite_id))
+               type_entite, entite_id)
     messages.success(request, f"Fichier « {fichier.name} » joint avec succès.")
     return redirect(redirect_url)
 
@@ -1420,6 +1479,7 @@ def recherche_view(request):
 # ============ JOURNAL ============
 
 @login_required
+@role_required('admin', 'directeur_drh', 'assistante_drh')
 def journal_view(request):
     base_qs = JournalActivite.objects.select_related('utilisateur').all()
     f = JournalFilter(request.GET, queryset=base_qs)
@@ -1438,8 +1498,16 @@ def journal_view(request):
 @role_required('admin')
 def utilisateurs_list(request):
     page_obj, querystring = _paginate(request, Utilisateur.objects.all().order_by('role', 'nom_complet'))
-    # Récupère le mot de passe temporaire généré lors du reset (une seule fois)
+    # Récupère le mot de passe temporaire généré lors du reset (une seule fois, TTL 5 min)
     reset_pwd_info = request.session.pop('reset_pwd_info', None)
+    if reset_pwd_info:
+        try:
+            from datetime import datetime as _dt
+            expires = _dt.fromisoformat(reset_pwd_info['_expires'])
+            if timezone.now() > timezone.make_aware(expires.replace(tzinfo=None)) if expires.tzinfo is None else timezone.now() > expires:
+                reset_pwd_info = None  # Expiré
+        except (KeyError, ValueError, TypeError):
+            reset_pwd_info = None
     return render(request, 'core/utilisateurs.html', {
         'users': page_obj.object_list,
         'page_obj': page_obj,
@@ -1461,8 +1529,18 @@ def utilisateur_create(request):
     if not username or not password:
         messages.error(request, "Nom d'utilisateur et mot de passe obligatoires.")
         return redirect('utilisateurs_list')
-    if len(password) < 6:
-        messages.error(request, "Le mot de passe doit contenir au moins 6 caractères.")
+    # Validation du rôle contre la liste blanche
+    valid_roles = {r[0] for r in Utilisateur.ROLE_CHOICES}
+    if role not in valid_roles:
+        messages.error(request, f"Rôle invalide : « {role} ».")
+        return redirect('utilisateurs_list')
+    # Validation complète du mot de passe (AUTH_PASSWORD_VALIDATORS)
+    from django.contrib.auth.password_validation import validate_password as _vp
+    try:
+        _vp(password)
+    except ValidationError as ve:
+        for msg in ve.messages:
+            messages.error(request, msg)
         return redirect('utilisateurs_list')
     if Utilisateur.objects.filter(username=username).exists():
         messages.error(request, f"Le nom d'utilisateur « {username} » existe déjà.")
@@ -1519,8 +1597,12 @@ def utilisateur_reset_pwd(request, pk):
     u.must_change_password = True
     u.save()
     log_action(request.user, 'User.reset_pwd', f"Réinitialisation du mot de passe de {u.username}", 'user', u.pk)
-    # Stocke le mot de passe en session (affiché une seule fois, sans passer par les messages)
-    request.session['reset_pwd_info'] = {'username': u.username, 'password': new_pwd}
+    # Stocke le mot de passe en session avec TTL 5 min (affiché une seule fois)
+    request.session['reset_pwd_info'] = {
+        'username': u.username,
+        'password': new_pwd,
+        '_expires': (timezone.now() + timezone.timedelta(minutes=5)).isoformat(),
+    }
     return redirect('utilisateurs_list')
 
 
@@ -1606,7 +1688,7 @@ def rgpd_export_view(request):
                 'entite_type': j.entite_type,
                 'entite_id': j.entite_id,
                 'created_at': j.created_at.isoformat(),
-                'hash_chain': j.hash_chain,
+                # hash_chain exclu intentionnellement (métadonnée interne d'audit)
             }
             for j in JournalActivite.objects.filter(utilisateur=user)
         ],
@@ -1644,18 +1726,14 @@ def exercice_detail(request, pk):
     """Fragment HTML — détail d'un exercice (pour l'offcanvas)."""
     from django.db.models import Sum as _Sum
     exercice = get_object_or_404(ExerciceBudgetaire, pk=pk)
-    taches_qs = Tache.objects.filter(exercice=exercice, actif=True).with_aggregates()
-    nb_taches = taches_qs.count()
+    taches_qs = list(Tache.objects.filter(exercice=exercice, actif=True).with_aggregates())
+    nb_taches = len(taches_qs)
     nb_lignes = LigneBudgetaire.objects.filter(tache__exercice=exercice, actif=True).count()
     nb_das = DemandeAchat.objects.filter(exercice=exercice).count()
     nb_bcs = BonCommande.objects.filter(exercice=exercice).count()
     budget_total = sum((t.total_budget_ajuste or Decimal('0')) for t in taches_qs)
-    consommation = (
-        ImputationBC.objects
-        .filter(bon_commande__exercice=exercice)
-        .exclude(bon_commande__statut='annule')
-        .aggregate(t=_Sum('montant'))['t'] or Decimal('0')
-    )
+    consommation = sum((t.total_consommation or Decimal('0')) for t in taches_qs)
+    solde = budget_total - consommation
     taux = round(float(consommation) / float(budget_total) * 100, 1) if budget_total > 0 else 0
     return render(request, 'partials/_exercice_detail.html', {
         'exercice': exercice,
@@ -1665,6 +1743,7 @@ def exercice_detail(request, pk):
         'nb_bcs': nb_bcs,
         'budget_total': budget_total,
         'consommation': consommation,
+        'solde': solde,
         'taux': taux,
     })
 
@@ -1674,14 +1753,16 @@ def exercices_list(request):
     exercices = ExerciceBudgetaire.objects.order_by('-annee')
     stats = {}
     for ex in exercices:
-        taches = ex.taches.all()
-        budget = sum(t.budget_ajuste for t in taches)
-        conso = sum(t.consommation for t in taches)
+        taches = list(Tache.objects.filter(exercice=ex, actif=True).with_aggregates())
+        budget = sum((t.total_budget_ajuste or Decimal('0')) for t in taches)
+        conso = sum((t.total_consommation or Decimal('0')) for t in taches)
+        solde = budget - conso
         stats[ex.pk] = {
             'budget': budget,
             'conso': conso,
+            'solde': solde,
             'taux': round(float(conso) / float(budget) * 100, 1) if budget else 0,
-            'nb_taches': taches.count(),
+            'nb_taches': len(taches),
             'nb_bc': BonCommande.objects.filter(tache__exercice=ex).count(),
         }
     return render(request, 'core/exercices_list.html', {
@@ -2020,11 +2101,74 @@ def ligne_detail(request, pk):
         .select_related('ligne_destination', 'ligne_destination__tache', 'created_by')
         .order_by('-created_at')
     )
+    consommations_directes = (
+        ConsommationDirecte.objects.filter(ligne_budgetaire=ligne)
+        .select_related('created_by')
+        .order_by('-date_consommation', '-created_at')
+    )
+    exercice = ligne.tache.exercice
+    can_consommer = (
+        request.user.role in ('admin', 'directeur_drh', 'assistante_drh')
+        and not exercice.is_locked
+    )
     return render(request, 'partials/_ligne_detail.html', {
         'ligne': ligne,
         'imputations': imputations,
         'virements_entrants': virements_entrants,
         'virements_sortants': virements_sortants,
+        'consommations_directes': consommations_directes,
+        'can_consommer': can_consommer,
+    })
+
+
+# ============ CONSOMMATIONS DIRECTES ============
+
+@login_required
+@role_required('admin', 'directeur_drh', 'assistante_drh')
+def consommation_create(request, ligne_pk):
+    """Enregistre une consommation directe (sans BC) sur une ligne budgétaire."""
+    ligne = get_object_or_404(LigneBudgetaire.objects.select_related('tache__exercice'), pk=ligne_pk)
+    exercice = ligne.tache.exercice
+
+    locked, msg = _check_exercice_non_verrouille(exercice)
+    if locked:
+        messages.error(request, msg)
+        return redirect('taches_list')
+
+    if request.method == 'POST':
+        form = ConsommationDirecteForm(request.POST)
+        if form.is_valid():
+            ligne_annotee = LigneBudgetaire.objects.with_aggregates().get(pk=ligne.pk)
+            montant = form.cleaned_data['montant']
+            if montant > ligne_annotee.solde:
+                messages.error(
+                    request,
+                    f"Solde insuffisant. Disponible : {ligne_annotee.solde:,.0f} FCFA",
+                )
+            else:
+                conso = form.save(commit=False)
+                conso.ligne_budgetaire = ligne
+                conso.created_by = request.user
+                conso.save()
+                log_action(
+                    request.user, 'Consommation.create',
+                    f"Consommation directe de {montant:,.0f} FCFA sur {ligne.code_nature} "
+                    f"— Motif : {conso.get_motif_display()}",
+                    'ConsommationDirecte', conso.pk,
+                )
+                messages.success(request, f"Consommation de {montant:,.0f} FCFA enregistrée.")
+                return redirect('taches_list')
+    else:
+        from django.utils import timezone as _tz
+        form = ConsommationDirecteForm(initial={'date_consommation': _tz.now().date()})
+
+    ligne_annotee = LigneBudgetaire.objects.with_aggregates().get(pk=ligne.pk)
+    return render(request, 'core/consommation_form.html', {
+        'form': form,
+        'ligne': ligne,
+        'tache': ligne.tache,
+        'exercice': exercice,
+        'solde': ligne_annotee.solde,
     })
 
 

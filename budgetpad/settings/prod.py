@@ -15,7 +15,7 @@ SECURE_HSTS_SECONDS = 31536000
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
-SECURE_REFERRER_POLICY = 'same-origin'
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 X_FRAME_OPTIONS = 'DENY'
 
 # Si derriere un reverse-proxy HTTPS (nginx/traefik) :
@@ -26,8 +26,14 @@ _csrf_origins = os.getenv('CSRF_TRUSTED_ORIGINS', '')
 if _csrf_origins:
     CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()]
 
-# URL admin personnalisable
-ADMIN_URL = os.getenv('ADMIN_URL', 'admin/')
+# URL admin — DOIT être défini dans .env en production (éviter le chemin devinable /admin/)
+ADMIN_URL = os.getenv('ADMIN_URL') or 'admin/'
+if ADMIN_URL == 'admin/':
+    import logging as _log
+    _log.getLogger('budgetpad.security').warning(
+        "ADMIN_URL non configuré en production : URL par défaut 'admin/' utilisée. "
+        "Définir ADMIN_URL dans .env pour masquer l'interface d'administration."
+    )
 
 # Logs plus verbeux en production sur le fichier app
 LOGGING['loggers']['budgetpad']['level'] = 'INFO'
