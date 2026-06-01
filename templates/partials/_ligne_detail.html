@@ -106,6 +106,39 @@
 </div>
 {% endif %}
 
-{% if not imputations and not virements_entrants and not virements_sortants %}
+{% if consommations_directes %}
+<hr style="margin:12px 0;">
+<div class="mb-3">
+    <div class="text-muted mb-2" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">
+        <i class="bi bi-arrow-down-circle me-1"></i>Consommations directes ({{ consommations_directes|length }})
+    </div>
+    {% for conso in consommations_directes %}
+    <div class="py-2 px-2 mb-1" style="font-size:12px;background:#fdf6ee;border-left:3px solid #F39C12;border-radius:4px;">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <span class="badge" style="background:rgba(243,156,18,0.15);color:#B7770D;font-size:10px;">{{ conso.get_motif_display }}</span>
+                <div class="text-muted" style="font-size:11px;margin-top:2px;">{{ conso.date_consommation|date:"d/m/Y" }}</div>
+                {% if conso.description %}
+                <div class="text-muted" style="font-size:11px;">{{ conso.description|truncatewords:12 }}</div>
+                {% endif %}
+            </div>
+            <strong style="color:#E67E22;white-space:nowrap;">{{ conso.montant|fmt_exact }}</strong>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if not imputations and not virements_entrants and not virements_sortants and not consommations_directes %}
 <p class="text-muted text-center mt-3" style="font-size:13px;">Aucune activité sur cette ligne pour le moment.</p>
+{% endif %}
+
+{% if can_consommer %}
+<hr style="margin:10px 0;">
+<div class="border-top pt-3">
+    <a href="{% url 'consommation_create' ligne.pk %}"
+       class="btn btn-sm btn-outline-warning w-100">
+        <i class="bi bi-arrow-down-circle me-1"></i>Enregistrer une consommation directe
+    </a>
+</div>
 {% endif %}

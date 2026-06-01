@@ -1,40 +1,78 @@
 {% load budget_filters %}
-<div class="mb-3">
-    <div class="text-muted" style="font-size:11px;">DATE</div>
-    <div style="font-size:14px;">{{ v.created_at|date:"d/m/Y à H:i" }}</div>
-</div>
 
-<div class="d-flex align-items-center gap-3 mb-4 p-3" style="background:#f8f9fa;border-radius:8px;font-size:13px;">
-    <div class="text-center flex-grow-1">
-        <div class="text-muted" style="font-size:10px;">SOURCE</div>
-        <div style="font-weight:700;color:#E74C3C;">{{ v.ligne_source.code_nature }}</div>
-        <div class="text-muted" style="font-size:11px;">{{ v.ligne_source.libelle_nature|truncatechars:25 }}</div>
-        <div class="text-muted" style="font-size:10px;">Tâche {{ v.ligne_source.tache.numero }}</div>
+<div class="mb-3 d-flex justify-content-between align-items-start">
+    <div>
+        <h6 class="mb-1" style="font-size:16px;font-weight:700;color:#1B3A5C;">Virement #{{ v.pk }}</h6>
+        <div style="font-size:18px;font-weight:700;color:#1B3A5C;">{{ v.montant|fmt_exact }}</div>
     </div>
-    <div style="font-size:20px;color:#1B3A5C;">→</div>
-    <div class="text-center flex-grow-1">
-        <div class="text-muted" style="font-size:10px;">DESTINATION</div>
-        <div style="font-weight:700;color:#1A5632;">{{ v.ligne_destination.code_nature }}</div>
-        <div class="text-muted" style="font-size:11px;">{{ v.ligne_destination.libelle_nature|truncatechars:25 }}</div>
-        <div class="text-muted" style="font-size:10px;">Tâche {{ v.ligne_destination.tache.numero }}</div>
-    </div>
-</div>
-
-<div class="text-center mb-4">
-    <div class="text-muted" style="font-size:11px;">MONTANT TRANSFÉRÉ</div>
-    <div style="font-size:22px;font-weight:700;color:#1B3A5C;">{{ v.montant|fmt }}</div>
+    <small class="text-muted">{{ v.created_at|date:"d/m/Y H:i" }}</small>
 </div>
 
 <hr style="margin:10px 0;">
 
-<div class="mb-3" style="font-size:13px;">
-    <div class="text-muted mb-1" style="font-size:11px;">MOTIF</div>
-    <div style="background:#f8f9fa;padding:10px;border-radius:6px;line-height:1.5;">{{ v.motif }}</div>
+<!-- SOURCE -->
+<div class="mb-3 p-3 rounded" style="background:#fdf2f0;border-left:3px solid #E74C3C;">
+    <div class="text-muted mb-2" style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;font-weight:700;color:#C0392B!important;">
+        <i class="bi bi-arrow-up-circle"></i> Source
+    </div>
+    <div class="mb-2" style="font-size:13px;">
+        <div><strong>Tâche</strong> : {{ src.tache.numero }} — {{ src.tache.titre|truncatechars:35 }}</div>
+        <div><strong>Ligne</strong> : <code style="background:#fff;padding:1px 6px;border-radius:3px;">{{ src.code_nature }}</code> — {{ src.libelle_nature }}</div>
+    </div>
+    <div class="row g-2" style="font-size:12px;">
+        <div class="col-6">
+            <div class="text-muted" style="font-size:10px;">SOLDE AVANT VIREMENT</div>
+            <div style="font-weight:600;">{{ src_solde_avant|fmt_exact }}</div>
+        </div>
+        <div class="col-6">
+            <div class="text-muted" style="font-size:10px;">SOLDE APRÈS VIREMENT</div>
+            <div style="font-weight:600;color:#C0392B;">{{ src_solde_apres|fmt_exact }}</div>
+        </div>
+    </div>
 </div>
 
+<!-- DESTINATION -->
+<div class="mb-3 p-3 rounded" style="background:#f0f7f1;border-left:3px solid #1A5632;">
+    <div class="text-muted mb-2" style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;font-weight:700;color:#1A5632!important;">
+        <i class="bi bi-arrow-down-circle"></i> Destination
+    </div>
+    <div class="mb-2" style="font-size:13px;">
+        <div><strong>Tâche</strong> : {{ dst.tache.numero }} — {{ dst.tache.titre|truncatechars:35 }}</div>
+        <div><strong>Ligne</strong> : <code style="background:#fff;padding:1px 6px;border-radius:3px;">{{ dst.code_nature }}</code> — {{ dst.libelle_nature }}</div>
+    </div>
+    <div class="row g-2" style="font-size:12px;">
+        <div class="col-6">
+            <div class="text-muted" style="font-size:10px;">SOLDE AVANT VIREMENT</div>
+            <div style="font-weight:600;">{{ dst_solde_avant|fmt_exact }}</div>
+        </div>
+        <div class="col-6">
+            <div class="text-muted" style="font-size:10px;">SOLDE APRÈS VIREMENT</div>
+            <div style="font-weight:600;color:#1A5632;">{{ dst_solde_apres|fmt_exact }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- MONTANT TRANSFÉRÉ -->
+<div class="text-center mb-3 py-2" style="background:#fafbfd;border-radius:8px;">
+    <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;">Montant transféré</div>
+    <div style="font-size:20px;font-weight:700;color:#1B3A5C;">{{ v.montant|fmt_exact }}</div>
+</div>
+
+<!-- MOTIF -->
+<div class="mb-3" style="font-size:13px;">
+    <div class="text-muted mb-1" style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">Motif</div>
+    <div style="background:#f4f6f8;padding:10px 12px;border-radius:6px;line-height:1.5;">{{ v.motif }}</div>
+</div>
+
+<!-- AUTEUR -->
 {% if v.created_by %}
-<div style="font-size:12px;color:#888;">
+<div style="font-size:12px;color:#666;padding-top:6px;border-top:1px solid #eee;">
     Effectué par <strong>{{ v.created_by.nom_complet|default:v.created_by.username }}</strong>
-    · {{ v.created_by.get_role_display_short }}
+    · <span class="text-muted">{{ v.created_by.get_role_display_short }}</span>
 </div>
 {% endif %}
+
+<!-- Avertissement immuabilité -->
+<div class="mt-3 text-muted" style="font-size:10px;font-style:italic;">
+    <i class="bi bi-lock-fill"></i> Les virements sont immuables (règle R5) — ils ne peuvent être ni modifiés ni supprimés.
+</div>

@@ -3,6 +3,7 @@ from decimal import Decimal
 from .models import (
     Tache, LigneBudgetaire, VirementBudgetaire, Prestataire,
     DemandeAchat, BonCommande, Offre, ImputationBC, ProlongationBC,
+    ConsommationDirecte,
 )
 from .constants import TVA_RATE
 
@@ -247,3 +248,27 @@ class OffreRefuserForm(forms.Form):
         if not motif:
             raise forms.ValidationError("Motif obligatoire.")
         return motif
+
+
+class ConsommationDirecteForm(forms.ModelForm):
+    class Meta:
+        model = ConsommationDirecte
+        fields = ['motif', 'montant', 'description', 'date_consommation']
+        widgets = {
+            'motif': forms.Select(attrs={'class': 'form-select'}),
+            'montant': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': '0',
+                'step': '1',
+                'min': '1',
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Ex : Assistance sociale urgente pour l\'agent…',
+            }),
+            'date_consommation': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date',
+            }),
+        }

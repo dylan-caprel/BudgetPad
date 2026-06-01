@@ -19,7 +19,7 @@
         <h6 class="mb-0">Liste des tâches</h6>
         <small class="text-muted">Cliquer sur une tâche pour voir ses lignes budgétaires</small>
     </div>
-    <div class="accordion accordion-flush" id="accordionTaches">
+    <div class="accordion accordion-flush {% if has_any_transfer %}with-ajuste{% endif %}" id="accordionTaches">
     {% for t in taches %}
     <div class="accordion-item" style="border-bottom:1px solid #f4f4f4;">
         <div class="d-flex align-items-stretch tache-row-wrap">
@@ -27,15 +27,33 @@
                 <button class="accordion-button collapsed py-2 px-3" type="button"
                         data-bs-toggle="collapse" data-bs-target="#tache-{{ t.pk }}"
                         style="font-size:13px;background:transparent;">
-                    <div class="d-flex align-items-center gap-3 w-100">
-                        <span style="font-weight:700;color:#1B3A5C;min-width:60px;">{{ t.numero }}</span>
-                        <span class="flex-grow-1 text-truncate">{{ t.titre }}</span>
-                        <span class="d-none d-lg-flex gap-3 align-items-center" style="font-size:12px;">
-                            <span class="text-muted">Initial&nbsp;<strong class="text-dark">{{ t.budget_initial|fmt }}</strong></span>
-                            <span class="text-muted">Ajusté&nbsp;<strong class="text-dark">{{ t.budget_ajuste|fmt }}</strong></span>
-                            <span class="text-muted">Conso&nbsp;<strong style="color:#E74C3C;">{{ t.consommation|fmt }}</strong></span>
-                            <span class="text-muted">Solde&nbsp;<strong style="color:#1A5632;">{{ t.solde|fmt }}</strong></span>
-                            <span class="taux-badge {{ t.taux_couleur }}" style="white-space:nowrap;">{{ t.taux_consommation|floatformat:1 }}&nbsp;%</span>
+                    <div class="tache-row-grid w-100">
+                        <span class="tache-numero">{{ t.numero }}</span>
+                        <span class="tache-titre text-truncate">{{ t.titre }}</span>
+                        <span class="tache-metric">
+                            <span class="lbl">Initial</span>
+                            <span class="val">{{ t.budget_initial|fmt }}</span>
+                        </span>
+                        {% if has_any_transfer %}
+                        <span class="tache-metric metric-ajuste">
+                            <span class="lbl">Ajusté</span>
+                            {% if t.total_transfert_plus > 0 or t.total_transfert_moins > 0 %}
+                            <span class="val">{{ t.budget_ajuste|fmt }}</span>
+                            {% else %}
+                            <span class="val val-empty">—</span>
+                            {% endif %}
+                        </span>
+                        {% endif %}
+                        <span class="tache-metric">
+                            <span class="lbl">Conso</span>
+                            <span class="val val-danger">{{ t.consommation|fmt }}</span>
+                        </span>
+                        <span class="tache-metric">
+                            <span class="lbl">Solde</span>
+                            <span class="val val-success">{{ t.solde|fmt }}</span>
+                        </span>
+                        <span class="tache-taux">
+                            <span class="taux-badge {{ t.taux_couleur }}">{{ t.taux_consommation|floatformat:1 }}&nbsp;%</span>
                         </span>
                     </div>
                 </button>
@@ -61,30 +79,38 @@
                     </button>
                     {% endif %}
                 </div>
-                <table class="table table-sm mb-1" style="font-size:12px;">
+                <table class="table table-sm table-lignes mb-1">
                     <thead>
-                        <tr style="background:#f0f2f5;">
-                            <th>Code nature</th>
-                            <th>Libellé</th>
-                            <th class="text-end">Montant initial</th>
-                            <th class="text-end">Ajusté</th>
-                            <th class="text-end">Consommé</th>
-                            <th class="text-end">Solde</th>
-                            <th class="text-center">Actif</th>
-                            {% if request.user|has_role:"assistante_drh" %}<th></th>{% endif %}
+                        <tr>
+                            <th class="code-nature">Code</th>
+                            <th class="libelle">Libellé</th>
+                            <th class="montant">Initial</th>
+                            {% if has_any_transfer %}<th class="montant ajuste">Ajusté</th>{% endif %}
+                            <th class="montant">Consommé</th>
+                            <th class="montant">Solde</th>
+                            <th class="taux">Taux %</th>
+                            {% if request.user|has_role:"assistante_drh" %}<th style="width:36px;"></th>{% endif %}
                         </tr>
                     </thead>
                     <tbody>
                     {% for ligne in t.lignes.all %}
                     <tr style="cursor:pointer;" onclick="window.openLigneOffcanvas({{ ligne.pk }})" title="Voir le détail">
-                        <td><strong>{{ ligne.code_nature }}</strong></td>
-                        <td>{{ ligne.libelle_nature }}</td>
-                        <td class="text-end">{{ ligne.montant_initial|fmt }}</td>
-                        <td class="text-end">{{ ligne.budget_ajuste|fmt }}</td>
-                        <td class="text-end" style="color:#E74C3C;">{{ ligne.consommation|fmt }}</td>
-                        <td class="text-end" style="color:#1A5632;font-weight:600;">{{ ligne.solde|fmt }}</td>
-                        <td class="text-center">
-                            {% if ligne.actif %}<i class="bi bi-check-circle text-success"></i>{% else %}<i class="bi bi-x-circle text-muted"></i>{% endif %}
+                        <td class="code-nature">{{ ligne.code_nature }}</td>
+                        <td class="libelle">{{ ligne.libelle_nature }}</td>
+                        <td class="montant">{{ ligne.montant_initial|fmt }}</td>
+                        {% if has_any_transfer %}
+                        <td class="montant ajuste">
+                            {% if ligne.transfert_plus > 0 or ligne.transfert_moins > 0 %}
+                                {{ ligne.budget_ajuste|fmt }}
+                            {% else %}
+                                <span style="color:#cbd2da;">—</span>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                        <td class="montant" style="color:#E74C3C;">{{ ligne.consommation|fmt }}</td>
+                        <td class="montant" style="color:#1A5632;font-weight:600;">{{ ligne.solde|fmt }}</td>
+                        <td class="taux">
+                            <span class="taux-badge {% if ligne.taux_consommation >= 90 %}danger{% elif ligne.taux_consommation >= 70 %}warning{% else %}success{% endif %}">{{ ligne.taux_consommation|floatformat:1 }}&nbsp;%</span>
                         </td>
                         {% if request.user|has_role:"assistante_drh" %}
                         <td onclick="event.stopPropagation();">
@@ -97,7 +123,7 @@
                         {% endif %}
                     </tr>
                     {% empty %}
-                    <tr><td colspan="8" class="text-muted text-center py-2">Aucune ligne budgétaire.</td></tr>
+                    <tr><td colspan="{% if has_any_transfer %}8{% else %}7{% endif %}" class="text-muted text-center py-2">Aucune ligne budgétaire.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>
@@ -174,25 +200,100 @@
     </div>
 </div>
 
-<!-- Modal nouvelle tâche -->
+<!-- Modal nouvelle tâche + lignes budgétaires inline -->
 {% if request.user|has_role:"assistante_drh" %}
-<div class="modal fade" id="modalTache" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
-    <div class="modal-header">
-        <h5 class="modal-title">Nouvelle tâche budgétaire</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-    </div>
-    <form method="post" action="{% url 'tache_create' %}">{% csrf_token %}
-    <div class="modal-body">
-        <div class="mb-3">
-            <label class="form-label">Titre de la tâche</label>
-            <input type="text" name="titre" class="form-control" placeholder="Ex : Maintenance véhicules" required>
+<div class="modal fade" id="modalTache" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nouvelle tâche budgétaire</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'tache_create' %}">{% csrf_token %}
+                <div class="modal-body">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Numéro <span class="text-danger">*</span></label>
+                            <input type="text" name="numero" class="form-control"
+                                   placeholder="Ex : 3211050" required pattern="[0-9A-Z\-]+"
+                                   title="Lettres majuscules, chiffres et tirets uniquement">
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label">Titre <span class="text-danger">*</span></label>
+                            <input type="text" name="titre" class="form-control"
+                                   placeholder="Ex : MAINTENANCE VÉHICULES" required>
+                        </div>
+                    </div>
+
+                    <h6 class="mt-3 mb-2" style="font-weight:600;color:#1B3A5C;">
+                        Lignes budgétaires <small class="text-muted">(au moins 1 obligatoire)</small>
+                    </h6>
+                    <div class="table-responsive">
+                    <table class="table table-sm align-middle" id="lignesTable">
+                        <thead>
+                            <tr style="background:#f0f2f5;font-size:11px;">
+                                <th style="width:30%;">Code nature</th>
+                                <th style="width:45%;">Libellé</th>
+                                <th class="text-end" style="width:20%;">Montant (FCFA)</th>
+                                <th style="width:5%;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for i in "012" %}
+                            <tr class="ligne-row">
+                                <td><input type="text" name="ligne_code_{{ forloop.counter0 }}" class="form-control form-control-sm" placeholder="6047210"></td>
+                                <td><input type="text" name="ligne_libelle_{{ forloop.counter0 }}" class="form-control form-control-sm" placeholder="FOURNITURES DE BUREAU"></td>
+                                <td><input type="number" name="ligne_montant_{{ forloop.counter0 }}" class="form-control form-control-sm text-end" placeholder="0" min="0" step="1"></td>
+                                <td><button type="button" class="btn btn-sm btn-link text-danger p-0 remove-ligne" title="Retirer"><i class="bi bi-x-lg"></i></button></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    </div>
+                    <button type="button" id="addLigneBtn" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-plus-lg"></i> Ajouter une ligne
+                    </button>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-pad">Créer la tâche</button>
+                </div>
+            </form>
         </div>
     </div>
-    <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
-        <button type="submit" class="btn btn-pad">Créer</button>
-    </div>
-    </form>
-</div></div></div>
+</div>
+
+<script>
+(function () {
+    var addBtn = document.getElementById('addLigneBtn');
+    var tbody = document.querySelector('#lignesTable tbody');
+    if (!addBtn || !tbody) return;
+    function reindex() {
+        Array.from(tbody.querySelectorAll('tr')).forEach(function (row, idx) {
+            row.querySelectorAll('input').forEach(function (inp) {
+                inp.name = inp.name.replace(/_\d+$/, '_' + idx);
+            });
+        });
+    }
+    addBtn.addEventListener('click', function () {
+        var idx = tbody.querySelectorAll('tr').length;
+        var row = document.createElement('tr');
+        row.className = 'ligne-row';
+        row.innerHTML =
+            '<td><input type="text" name="ligne_code_' + idx + '" class="form-control form-control-sm" placeholder="6047210"></td>' +
+            '<td><input type="text" name="ligne_libelle_' + idx + '" class="form-control form-control-sm" placeholder="LIBELLÉ"></td>' +
+            '<td><input type="number" name="ligne_montant_' + idx + '" class="form-control form-control-sm text-end" placeholder="0" min="0" step="1"></td>' +
+            '<td><button type="button" class="btn btn-sm btn-link text-danger p-0 remove-ligne" title="Retirer"><i class="bi bi-x-lg"></i></button></td>';
+        tbody.appendChild(row);
+    });
+    tbody.addEventListener('click', function (e) {
+        var btn = e.target.closest('.remove-ligne');
+        if (!btn) return;
+        if (tbody.querySelectorAll('tr').length <= 1) return;
+        btn.closest('tr').remove();
+        reindex();
+    });
+})();
+</script>
 {% endif %}
 {% endblock %}

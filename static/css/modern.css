@@ -611,6 +611,130 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   ACCORDION TÂCHES — alignement grid des en-têtes
+═══════════════════════════════════════════════════════════ */
+.tache-row-grid {
+  display: grid !important;
+  grid-template-columns: 80px minmax(0, 1fr) 110px 110px 110px 80px;
+  gap: 14px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+}
+/* Variante avec colonne "Ajusté" (uniquement si l'exercice a eu des virements) */
+#accordionTaches.with-ajuste .tache-row-grid {
+  grid-template-columns: 80px minmax(0, 1fr) 110px 110px 110px 110px 80px;
+}
+/* Neutraliser le retournement Bootstrap du chevron sur la cellule */
+.tache-row-grid > * {
+  min-width: 0;
+}
+.tache-row-grid .tache-numero {
+  font-weight: 700;
+  color: #1B3A5C;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 13px;
+}
+.tache-row-grid .tache-titre {
+  font-size: 13px;
+  color: #2c3e50;
+}
+.tache-row-grid .tache-metric {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  line-height: 1.15;
+}
+.tache-row-grid .tache-metric .lbl {
+  font-size: 9px;
+  color: #8a96a8;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  font-weight: 600;
+}
+.tache-row-grid .tache-metric .val {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1B3A5C;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+.tache-row-grid .tache-metric .val.val-danger  { color: #E74C3C; }
+.tache-row-grid .tache-metric .val.val-success { color: #1A5632; }
+.tache-row-grid .tache-metric .val.val-empty   { color: #cbd2da; font-weight: 400; }
+/* Colonne Ajusté = discrète (Bug 9) — italique et grise */
+.tache-row-grid .tache-metric.metric-ajuste .lbl,
+.tache-row-grid .tache-metric.metric-ajuste .val {
+  color: #6c7787;
+  font-style: italic;
+  font-weight: 500;
+}
+.tache-row-grid .tache-taux {
+  text-align: right;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TABLEAUX DE LIGNES BUDGÉTAIRES (alignement strict)
+═══════════════════════════════════════════════════════════ */
+.table-lignes th,
+.table-lignes td {
+  white-space: nowrap;
+  vertical-align: middle !important;
+  font-size: 12px;
+}
+.table-lignes thead th {
+  background: #f0f2f5;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: .4px;
+  color: #4a5568;
+  padding: 8px 10px;
+}
+.table-lignes tbody td { padding: 6px 10px; }
+
+/* Colonnes monétaires : alignées à droite, police tabulaire */
+.table-lignes .montant {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  min-width: 110px;
+}
+/* Libellé : seule colonne qui peut wrapper */
+.table-lignes .libelle {
+  white-space: normal;
+  max-width: 280px;
+  line-height: 1.3;
+}
+/* Code nature : largeur fixe, monospace */
+.table-lignes .code-nature {
+  width: 90px;
+  text-align: center;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-weight: 600;
+}
+/* Taux : largeur fixe + centré */
+.table-lignes .taux { width: 80px; text-align: center; }
+
+/* Colonne "Ajusté" : un poil plus discrète (Bug 9) au niveau des tâches */
+.table-lignes .ajuste {
+  color: #5a6878;
+  font-style: italic;
+}
+.table-lignes .ajuste-strong {
+  color: #1B3A5C;
+  font-weight: 600;
+}
+
+/* Ligne TOTAL : fond gris clair + bordure haute */
+.table-lignes .total-row {
+  font-weight: 700;
+  background-color: #fafbfd !important;
+  border-top: 2px solid #cfd6df;
+}
+.table-lignes .total-row td { padding-top: 9px; padding-bottom: 9px; }
+
+/* ═══════════════════════════════════════════════════════════
    TAUX BADGES
 ═══════════════════════════════════════════════════════════ */
 .taux-badge {

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% load budget_filters %}
+{% block title %}Consommation directe — BudgetPAD{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h4 style="font-weight:600;color:#1B3A5C;">Enregistrer une consommation directe</h4>
+        <p class="text-muted mb-0" style="font-size:14px;">
+            Ligne <strong>{{ ligne.code_nature }}</strong> — {{ ligne.libelle_nature|truncatechars:60 }}
+        </p>
+    </div>
+    <a href="{% url 'taches_list' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Retour
+    </a>
+</div>
+
+{% if messages %}
+<div class="mb-3">
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} py-2 px-3" style="font-size:13px;">{{ msg }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="row g-4">
+    <!-- Formulaire -->
+    <div class="col-lg-7">
+        <div class="data-card p-4">
+            <form method="POST">
+                {% csrf_token %}
+
+                <div class="mb-3">
+                    <label for="id_motif" class="form-label fw-semibold">Motif de consommation <span class="text-danger">*</span></label>
+                    {{ form.motif }}
+                </div>
+
+                <div class="mb-3">
+                    <label for="id_montant" class="form-label fw-semibold">Montant à consommer (FCFA) <span class="text-danger">*</span></label>
+                    {{ form.montant }}
+                    <div class="form-text">Ne peut pas dépasser le solde disponible.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="id_date_consommation" class="form-label fw-semibold">Date de consommation <span class="text-danger">*</span></label>
+                    {{ form.date_consommation }}
+                </div>
+
+                <div class="mb-4">
+                    <label for="id_description" class="form-label fw-semibold">Description / Détails</label>
+                    {{ form.description }}
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-pad">
+                        <i class="bi bi-check-circle me-1"></i>Enregistrer la consommation
+                    </button>
+                    <a href="{% url 'taches_list' %}" class="btn btn-outline-secondary">Annuler</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Récapitulatif de la ligne -->
+    <div class="col-lg-5">
+        <div class="data-card p-4">
+            <h6 class="text-uppercase text-muted mb-3" style="font-size:11px;letter-spacing:.5px;font-weight:700;">
+                Récapitulatif de la ligne
+            </h6>
+            <div class="row g-2" style="font-size:13px;">
+                <div class="col-6">
+                    <div class="text-muted" style="font-size:10px;">TÂCHE</div>
+                    <div><strong>{{ tache.numero }}</strong></div>
+                    <div class="text-muted" style="font-size:11px;">{{ tache.titre|truncatechars:30 }}</div>
+                </div>
+                <div class="col-6">
+                    <div class="text-muted" style="font-size:10px;">EXERCICE</div>
+                    <div><strong>{{ exercice.annee }}</strong></div>
+                </div>
+                <div class="col-6 mt-2">
+                    <div class="text-muted" style="font-size:10px;">BUDGET AJUSTÉ</div>
+                    <div class="fw-bold">{{ ligne.budget_ajuste|fmt_exact }}</div>
+                </div>
+                <div class="col-6 mt-2">
+                    <div class="text-muted" style="font-size:10px;">DÉJÀ CONSOMMÉ</div>
+                    <div class="fw-bold" style="color:#E74C3C;">{{ ligne.consommation|fmt_exact }}</div>
+                </div>
+            </div>
+            <hr style="margin:12px 0;">
+            <div class="text-muted" style="font-size:10px;text-transform:uppercase;">SOLDE DISPONIBLE</div>
+            <div style="font-size:22px;font-weight:700;color:#1A5632;">{{ solde|fmt_exact }}</div>
+        </div>
+    </div>
+</div>
+{% endblock %}

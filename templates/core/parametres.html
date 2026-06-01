@@ -3,13 +3,49 @@
 {% block content %}
 <h4 style="font-weight:600;color:#1B3A5C;" class="mb-1">Paramètres</h4>
 <p class="text-muted mb-4" style="font-size:14px;">Configuration de l'application</p>
+
 <div class="row g-3">
-    <div class="col-md-6"><div class="data-card"><h6>Alertes</h6><div class="mb-3"><label class="form-label">Seuil de consommation (%)</label><input type="number" class="form-control" value="80"></div><p class="text-muted" style="font-size:13px;">Une alerte est générée au-delà de ce taux.</p><button class="btn btn-pad">Enregistrer</button></div></div>
-    <div class="col-md-6"><div class="data-card"><h6>Mode démo</h6><p class="text-muted" style="font-size:13px;">Réinitialise toutes les données au jeu de seed initial.</p><form method="post">{% csrf_token %}<button type="submit" name="reset_seed" class="btn btn-outline-secondary"><i class="bi bi-arrow-counterclockwise"></i> Réinitialiser le seed</button></form></div></div>
     <div class="col-md-6">
         <div class="data-card">
-            <h6>RGPD — Mes données</h6>
-            <p class="text-muted" style="font-size:13px;">
+            <h6><i class="bi bi-exclamation-triangle text-warning me-1"></i> Seuil d'alerte</h6>
+            <p class="text-muted small mb-2">
+                Une alerte est déclenchée sur une tâche dès que son taux de consommation
+                atteint ce seuil. Bornes : 50% à 100%.
+            </p>
+            <form method="post">
+                {% csrf_token %}
+                <div class="input-group mb-2">
+                    <input type="number" name="seuil_alerte" class="form-control"
+                           value="{{ exercice.seuil_alerte|default:80 }}"
+                           min="50" max="100" step="1" required>
+                    <span class="input-group-text">%</span>
+                    <button type="submit" class="btn btn-pad">Enregistrer</button>
+                </div>
+                <small class="text-muted">
+                    Exercice {{ exercice.annee }} — seuil actuel : <strong>{{ exercice.seuil_alerte|default:80 }}%</strong>
+                </small>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="data-card">
+            <h6><i class="bi bi-arrow-counterclockwise text-secondary me-1"></i> Mode démo</h6>
+            <p class="text-muted small">Réinitialise toutes les données au jeu de seed initial (DEV uniquement).</p>
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" name="reset_seed" class="btn btn-outline-secondary"
+                        onclick="return confirm('Réinitialiser les données ?');">
+                    <i class="bi bi-arrow-counterclockwise"></i> Réinitialiser le seed
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="data-card">
+            <h6><i class="bi bi-download text-primary me-1"></i> RGPD — Mes données</h6>
+            <p class="text-muted small">
                 Téléchargez l'intégralité de vos données personnelles enregistrées
                 par BudgetPAD au format JSON (article 20 — droit à la portabilité).
             </p>
@@ -18,10 +54,11 @@
             </a>
         </div>
     </div>
+
     <div class="col-md-6">
         <div class="data-card">
-            <h6>Intégrité du journal</h6>
-            <p class="text-muted" style="font-size:13px;">
+            <h6><i class="bi bi-shield-check text-success me-1"></i> Intégrité du journal</h6>
+            <p class="text-muted small">
                 Chaque entrée du journal est scellée par une chaîne SHA-256. Toute
                 modification a posteriori est détectable via la commande
                 <code>python manage.py verify_audit_chain</code>.
