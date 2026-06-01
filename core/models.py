@@ -101,7 +101,7 @@ class TacheQuerySet(models.QuerySet):
                 ),
             )
             .annotate(
-                total_consommation=Coalesce(
+                total_conso_bc=Coalesce(
                     Sum(
                         'lignes__imputations__montant',
                         filter=(
@@ -110,6 +110,21 @@ class TacheQuerySet(models.QuerySet):
                         ),
                     ),
                     zero,
+                ),
+            )
+            .annotate(
+                total_conso_directe=Coalesce(
+                    Sum(
+                        'lignes__consommations_directes__montant',
+                        filter=Q(lignes__actif=True),
+                    ),
+                    zero,
+                ),
+            )
+            .annotate(
+                total_consommation=ExpressionWrapper(
+                    F('total_conso_bc') + F('total_conso_directe'),
+                    output_field=df,
                 ),
             )
             .annotate(
@@ -222,12 +237,24 @@ class LigneBudgetaireQuerySet(models.QuerySet):
                 ),
             )
             .annotate(
-                consommation=Coalesce(
+                consommation_bc=Coalesce(
                     Sum(
                         'imputations__montant',
                         filter=~Q(imputations__bon_commande__statut='annule'),
                     ),
                     zero,
+                ),
+            )
+            .annotate(
+                consommation_directe=Coalesce(
+                    Sum('consommations_directes__montant'),
+                    zero,
+                ),
+            )
+            .annotate(
+                consommation=ExpressionWrapper(
+                    F('consommation_bc') + F('consommation_directe'),
+                    output_field=df,
                 ),
             )
             .annotate(
@@ -596,6 +623,44 @@ class ImputationBC(models.Model):
 
 
 # ─────────────────────────────────────────────────────────────
+# CONSOMMATION DIRECTE (sans BC)
+# ─────────────────────────────────────────────────────────────
+
+class ConsommationDirecte(models.Model):
+    MOTIF_CHOICES = [
+        ('achat_direct',      'Achat direct'),
+        ('assistance_sociale', 'Assistance sociale'),
+        ('urgence',           'Urgence'),
+        ('remboursement',     'Remboursement'),
+        ('correction',        'Correction'),
+        ('autre',             'Autre'),
+    ]
+
+    ligne_budgetaire  = models.ForeignKey(
+        LigneBudgetaire, on_delete=models.CASCADE, related_name='consommations_directes',
+    )
+    montant           = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))],
+    )
+    motif             = models.CharField(max_length=20, choices=MOTIF_CHOICES)
+    description       = models.TextField(blank=True, help_text="Détails supplémentaires")
+    date_consommation = models.DateField()
+    created_by        = models.ForeignKey(
+        'Utilisateur', on_delete=models.SET_NULL, null=True,
+    )
+    created_at        = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date_consommation', '-created_at']
+        verbose_name = 'Consommation directe'
+        verbose_name_plural = 'Consommations directes'
+
+    def __str__(self):
+        return f"{self.ligne_budgetaire.code_nature} — {self.montant:,.0f} FCFA ({self.get_motif_display()})"
+
+
+# ─────────────────────────────────────────────────────────────
 # PROLONGATION BC
 # ─────────────────────────────────────────────────────────────
 
@@ -693,6 +758,7 @@ class JournalActivite(models.Model):
         ('BC.prolong',         'Prolongation BC'),
         ('PJ.upload',          'Upload pièce jointe'),
         ('PJ.delete',          'Suppression pièce jointe'),
+        ('Consommation.create', 'Consommation directe'),
         ('Virement',           'Virement'),
         ('Tache.create',       'Création tâche'),
         ('Tache.edit',         'Modification tâche'),

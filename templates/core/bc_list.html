@@ -7,7 +7,7 @@
         <h4 style="font-weight:600;color:#1B3A5C;">Bons de commande</h4>
         <p class="text-muted mb-0" style="font-size:14px;">{{ page_obj.paginator.count }} BC &middot; TVA 19,25 %</p>
     </div>
-    {% if request.user|has_role:"dag" %}
+    {% if request.user|has_role:"directeur_drh" %}
     <button class="btn btn-pad" data-bs-toggle="modal" data-bs-target="#modalBC">
         <i class="bi bi-plus-lg me-1"></i>Créer un BC
     </button>
@@ -72,7 +72,7 @@
             <td><span class="badge bg-{{ bc.statut_couleur }} badge-statut">{{ bc.get_statut_display }}</span></td>
             <td class="bc-actions" onclick="event.stopPropagation();">
                 <a href="{% url 'bc_pdf' bc.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Télécharger le PDF"><i class="bi bi-file-earmark-pdf"></i></a>
-                {% if request.user|has_role:"dag" %}
+                {% if request.user|has_role:"directeur_drh" %}
                   {% if bc.statut == 'cree' %}
                     <form method="post" action="{% url 'bc_change_statut' bc.pk 'notifie' %}" class="d-inline"
                           title="Requiert un bon de commande signé en pièce jointe">{% csrf_token %}

@@ -90,7 +90,7 @@
         <form method="post" action="{% url 'utilisateur_reset_pwd' utilisateur.pk %}" class="flex-fill">
             {% csrf_token %}
             <button type="submit" class="btn btn-sm btn-outline-warning w-100"
-                    onclick="return confirm('Réinitialiser le mot de passe de {{ utilisateur.username }} ?');">
+                    onclick="return confirm('Réinitialiser le mot de passe de {{ utilisateur.username|escapejs }} ?');">
                 <i class="bi bi-key me-1"></i>Réinit. mot de passe
             </button>
         </form>

@@ -1,20 +1,35 @@
 """Generation PDF officielle — Bons de Commande et Bilans budgétaires (ReportLab)."""
 
+import os
 from io import BytesIO
 from decimal import Decimal
 from datetime import date
 
+from django.conf import settings
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    PageBreak, KeepTogether, HRFlowable,
+    PageBreak, KeepTogether, HRFlowable, Image,
 )
 from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
 
 from ..models import BonCommande
+
+
+def _logo_pad(width_mm: float = 28):
+    """Retourne le logo officiel PAD prêt à embarquer dans un Story ReportLab, ou None."""
+    path = os.path.join(settings.BASE_DIR, 'static', 'img', 'logo_pad.png')
+    if not os.path.exists(path):
+        return None
+    img = Image(path)
+    # Conserve le ratio en fixant la largeur
+    ratio = img.drawHeight / img.drawWidth
+    img.drawWidth = width_mm * mm
+    img.drawHeight = width_mm * mm * ratio
+    return img
 
 
 PAD_GREEN = colors.HexColor('#1A5632')
@@ -72,9 +87,27 @@ def generer_pdf_bon_commande(bc: BonCommande) -> bytes:
     styles = _styles()
     story = []
 
-    # === En-tete ===
-    story.append(Paragraph("PORT AUTONOME DE DOUALA", styles['title']))
-    story.append(Paragraph(bc.direction, styles['subtitle']))
+    # === En-tete avec logo officiel PAD ===
+    logo = _logo_pad(width_mm=32)
+    if logo is not None:
+        header_row = Table(
+            [[logo, Paragraph("PORT AUTONOME DE DOUALA<br/>"
+                              f"<font size='10' color='grey'>{bc.direction}</font>",
+                              styles['title'])]],
+            colWidths=[40*mm, 140*mm],
+        )
+        header_row.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        story.append(header_row)
+    else:
+        story.append(Paragraph("PORT AUTONOME DE DOUALA", styles['title']))
+        story.append(Paragraph(bc.direction, styles['subtitle']))
+    story.append(Spacer(1, 4 * mm))
     story.append(Paragraph(f"<b>BON DE COMMANDE N° {bc.numero}</b>", styles['title']))
 
     # Bandeau info BC
@@ -381,7 +414,12 @@ def generer_pdf_bilan(exercice, taches, consommation, budget_total, solde, taux,
     story  = []
     lignes_par_tache = lignes_par_tache or {}
 
-    # ── En-tête bilingue ──────────────────────────────────────────────────
+    # ── En-tête bilingue avec logo officiel PAD au centre ─────────────────
+    logo_center = _logo_pad(width_mm=32) or Paragraph(
+        f"<b>BILAN BUDGÉTAIRE</b><br/>"
+        f"<font size='10'>Exercice {exercice.annee} — DRH</font>",
+        styles['header_center'],
+    )
     header_data = [[
         Paragraph(
             "<b>REPUBLIQUE DU CAMEROUN</b><br/>"
@@ -390,11 +428,7 @@ def generer_pdf_bilan(exercice, taches, consommation, budget_total, solde, taux,
             "<b>PORT AUTONOME DE DOUALA</b><br/>(P.A.D.)",
             styles['header_left'],
         ),
-        Paragraph(
-            f"<b>BILAN BUDGÉTAIRE</b><br/>"
-            f"<font size='10'>Exercice {exercice.annee} — DRH</font>",
-            styles['header_center'],
-        ),
+        logo_center,
         Paragraph(
             "<b>REPUBLIC OF CAMEROON</b><br/>"
             "Peace - Work - Fatherland<br/>"
@@ -406,6 +440,9 @@ def generer_pdf_bilan(exercice, taches, consommation, budget_total, solde, taux,
     header_table = Table(header_data, colWidths=[80*mm, 110*mm, 80*mm])
     header_table.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (1, 0), (1, 0), 'CENTER'),   # logo centré horizontalement
+        ('LEFTPADDING', (1, 0), (1, 0), 0),
+        ('RIGHTPADDING', (1, 0), (1, 0), 0),
         ('BOX', (0, 0), (-1, -1), 0, colors.white),
     ]))
     story.append(header_table)

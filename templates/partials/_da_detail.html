@@ -152,7 +152,7 @@
                 <form method="post" action="{% url 'offre_retenir' offre.pk %}">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-sm btn-success"
-                            onclick="return confirm('Retenir l\'offre de {{ offre.prestataire.nom }} ? Les autres offres reçues seront automatiquement refusées.');"
+                            onclick="return confirm('Retenir l\'offre de {{ offre.prestataire.nom|escapejs }} ? Les autres offres reçues seront automatiquement refusées.');"
                             style="white-space:nowrap;">
                         <i class="bi bi-trophy me-1"></i>Retenir
                     </button>
@@ -209,16 +209,28 @@
 {% if da.bons_commande.all %}
 <hr style="margin:10px 0;">
 <div>
-    <div class="text-muted mb-2" style="font-size:11px;">BONS DE COMMANDE GÉNÉRÉS</div>
+    <div class="text-muted mb-2" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">
+        <i class="bi bi-cart-check me-1"></i>Bon{{ da.bons_commande.all|length|pluralize }} de commande généré{{ da.bons_commande.all|length|pluralize }}
+    </div>
     {% for bc in da.bons_commande.all %}
-    <div class="d-flex justify-content-between align-items-center py-1" style="font-size:12px;">
-        <strong>{{ bc.numero }}</strong>
+    <div class="d-flex justify-content-between align-items-center py-2 px-2 mb-1"
+         style="font-size:12px;cursor:pointer;border:1px solid #e8eef3;border-radius:8px;background:#fafbfd;transition:all .15s;"
+         onmouseover="this.style.borderColor='#1A5632';this.style.background='#f0f7f1';"
+         onmouseout="this.style.borderColor='#e8eef3';this.style.background='#fafbfd';"
+         onclick="window.openBCOffcanvas({{ bc.pk }})"
+         title="Voir le détail du BC">
+        <div>
+            <strong style="color:#1B3A5C;">{{ bc.numero }}</strong>
+            <div class="text-muted" style="font-size:11px;">{{ bc.prestataire.nom|truncatechars:30 }}</div>
+            <div class="text-muted" style="font-size:10px;">{{ bc.date_emission|date:"d/m/Y" }}</div>
+        </div>
         <div class="d-flex align-items-center gap-2">
             <div class="text-end">
-                <div class="money">{{ bc.montant_ttc|fmt }}</div>
+                <div class="money" style="font-weight:600;">{{ bc.montant_ttc|fmt }}</div>
                 <div class="text-muted" style="font-size:10px;">{{ bc.montant_ttc|fmt_exact }}</div>
             </div>
             <span class="badge bg-{{ bc.statut_couleur }}" style="font-size:10px;">{{ bc.get_statut_display }}</span>
+            <i class="bi bi-chevron-right text-muted" style="font-size:11px;"></i>
         </div>
     </div>
     {% endfor %}

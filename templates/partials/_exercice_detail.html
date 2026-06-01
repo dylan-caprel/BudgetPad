@@ -59,7 +59,7 @@
     </div>
 
     <div class="border-top pt-3 mb-3" style="font-size:13px;">
-        <div class="text-muted mb-2" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">Budget</div>
+        <div class="text-muted mb-2" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">Budget &amp; Consommation</div>
         <div class="row mb-2">
             <div class="col-6">
                 <small class="text-muted">Budget total</small>
@@ -67,15 +67,23 @@
             </div>
             <div class="col-6">
                 <small class="text-muted">Consommé</small>
-                <div class="fw-bold money">{{ consommation|fmt }}</div>
+                <div class="fw-bold money" style="color:{% if taux >= 90 %}#C0392B{% elif taux >= 75 %}#E67E22{% else %}#2E7D32{% endif %};">{{ consommation|fmt }}</div>
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-6">
+                <small class="text-muted">Solde disponible</small>
+                <div class="fw-bold money">{{ solde|fmt }}</div>
+            </div>
+            <div class="col-6">
+                <small class="text-muted">Taux global</small>
+                <div style="font-size:18px;font-weight:700;color:{% if taux >= 90 %}#C0392B{% elif taux >= 75 %}#E67E22{% else %}#2E7D32{% endif %};">{{ taux|floatformat:1 }} %</div>
             </div>
         </div>
         {% if budget_total > 0 %}
         <div class="progress mb-1" style="height:6px;">
-            <div class="progress-bar bg-{% if taux >= 90 %}danger{% elif taux >= 75 %}warning{% else %}success{% endif %}"
-                 style="width:{{ taux }}%;"></div>
+            <div class="progress-bar" style="width:{{ taux }}%;background:{% if taux >= 90 %}#E74C3C{% elif taux >= 75 %}#F39C12{% else %}#27AE60{% endif %};"></div>
         </div>
-        <small class="text-muted">{{ taux|floatformat:1 }} % consommé</small>
         {% endif %}
     </div>
 

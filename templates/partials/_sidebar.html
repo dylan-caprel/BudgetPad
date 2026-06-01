@@ -1,7 +1,14 @@
-{% load core_tags %}
+{% load core_tags static %}
 <div class="sidebar">
     <div class="sidebar-logo">
-        <h5><i class="bi bi-pie-chart-fill"></i>BudgetPAD</h5>
+        <div class="d-flex align-items-center gap-2 mb-1">
+            <img src="{% static 'img/logo_pad.png' %}" alt="PAD"
+                 style="width:36px;height:36px;border-radius:8px;background:#fff;padding:2px;object-fit:contain;">
+            <div>
+                <div style="font-size:17px;font-weight:800;color:#fff;letter-spacing:-.3px;line-height:1.1;">BudgetPAD</div>
+                <div style="font-size:9px;color:rgba(255,255,255,.55);letter-spacing:1px;text-transform:uppercase;">Suivi budgétaire</div>
+            </div>
+        </div>
         <small>DRH &middot; Port Autonome de Douala</small>
     </div>
 
