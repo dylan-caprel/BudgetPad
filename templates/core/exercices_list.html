@@ -8,9 +8,15 @@
         <p class="text-muted mb-0" style="font-size:14px;">{{ exercices|length }} exercice{{ exercices|length|pluralize }}</p>
     </div>
     {% if request.user.role == 'admin' %}
-    <button class="btn btn-pad" data-bs-toggle="modal" data-bs-target="#modalExercice">
-        <i class="bi bi-plus"></i> Nouvel exercice
-    </button>
+    <div class="d-flex gap-2">
+        <a href="{% url 'wizard_exercice_step1' %}" class="btn btn-pad">
+            <i class="bi bi-magic me-1"></i>Wizard (recommandé)
+        </a>
+        <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#modalExercice"
+                title="Créer un exercice vide (sans tâches)">
+            <i class="bi bi-plus"></i> Simple
+        </button>
+    </div>
     {% endif %}
 </div>
 
@@ -45,20 +51,33 @@
             <td>{{ s.nb_taches }}</td>
             <td>{{ s.nb_bc }}</td>
             <td>
-                {% if ex.statut == 'actif' %}
-                <span class="badge bg-success">Actif</span>
+                {% if ex.is_active %}
+                <span class="badge" style="background:#1A5632;">
+                    <i class="bi bi-circle-fill me-1" style="font-size:.5rem;vertical-align:middle;"></i>ACTIF
+                </span>
+                {% elif ex.is_locked %}
+                <span class="badge bg-secondary"><i class="bi bi-lock-fill me-1"></i>Clôturé</span>
                 {% else %}
-                <span class="badge bg-secondary">Clôturé</span>
+                <span class="badge bg-light text-dark border">Inactif</span>
                 {% endif %}
             </td>
             {% if request.user.role == 'admin' %}
-            <td onclick="event.stopPropagation();">
-                {% if ex.statut == 'actif' %}
+            <td onclick="event.stopPropagation();" class="d-flex gap-1 flex-wrap">
+                {% if not ex.is_active and not ex.is_locked %}
+                <form method="post" action="{% url 'exercice_activer' ex.pk %}" class="d-inline"
+                      onsubmit="return confirm('Activer l\'exercice {{ ex.annee }} ?\nRègle R7 : tous les autres exercices seront désactivés.');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-success">
+                        <i class="bi bi-play-circle me-1"></i>Activer
+                    </button>
+                </form>
+                {% endif %}
+                {% if ex.is_active and not ex.is_locked %}
                 <form method="post" action="{% url 'exercice_cloturer' ex.pk %}" class="d-inline"
-                      onsubmit="return confirm('Clôturer l\'exercice {{ ex.annee }} ? Cette action est irréversible.');">
+                      onsubmit="return confirm('Clôturer définitivement l\'exercice {{ ex.annee }} ?\nCette action est irréversible.');">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-sm btn-outline-warning">
-                        <i class="bi bi-lock"></i> Clôturer
+                        <i class="bi bi-lock me-1"></i>Clôturer
                     </button>
                 </form>
                 {% endif %}

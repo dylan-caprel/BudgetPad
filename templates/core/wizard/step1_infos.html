@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% load budget_filters %}
+{% block title %}Wizard Exercice — Étape 1 / 4{% endblock %}
+{% block content %}
+<div class="container-fluid px-4 py-4">
+  <h4 class="mb-4" style="color:#1A5632;font-weight:700;">
+    <i class="bi bi-magic me-2"></i>Nouvel exercice — Assistant (4 étapes)
+  </h4>
+
+  <!-- Progression -->
+  <div class="d-flex align-items-center mb-4" style="max-width:560px;">
+    <div class="text-center" style="flex:1;">
+      <div class="mx-auto rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width:34px;height:34px;font-size:13px;background:#1A5632;color:white;">1</div>
+      <div style="font-size:11px;margin-top:3px;color:#1A5632;font-weight:600;">Infos</div>
+    </div>
+    <div style="flex:1;height:2px;background:#dee2e6;margin-bottom:18px;"></div>
+    <div class="text-center" style="flex:1;">
+      <div class="mx-auto rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width:34px;height:34px;font-size:13px;background:#dee2e6;color:#6c757d;">2</div>
+      <div style="font-size:11px;margin-top:3px;color:#adb5bd;">Tâches</div>
+    </div>
+    <div style="flex:1;height:2px;background:#dee2e6;margin-bottom:18px;"></div>
+    <div class="text-center" style="flex:1;">
+      <div class="mx-auto rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width:34px;height:34px;font-size:13px;background:#dee2e6;color:#6c757d;">3</div>
+      <div style="font-size:11px;margin-top:3px;color:#adb5bd;">Budget</div>
+    </div>
+    <div style="flex:1;height:2px;background:#dee2e6;margin-bottom:18px;"></div>
+    <div class="text-center" style="flex:1;">
+      <div class="mx-auto rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width:34px;height:34px;font-size:13px;background:#dee2e6;color:#6c757d;">4</div>
+      <div style="font-size:11px;margin-top:3px;color:#adb5bd;">Confirmation</div>
+    </div>
+  </div>
+
+  <div class="row justify-content-center">
+    <div class="col-md-7 col-lg-6">
+      <div class="card shadow-sm" style="border-top:3px solid #1A5632;">
+        <div class="card-header" style="background:#1A5632;color:white;">
+          <h5 class="mb-0"><i class="bi bi-calendar-plus me-2"></i>Étape 1 — Informations de base</h5>
+        </div>
+        <div class="card-body p-4">
+          {% if exercice_actif %}
+          <div class="alert alert-info border-0 mb-4" style="font-size:13px;">
+            <i class="bi bi-info-circle me-2"></i>
+            Exercice actuel : <strong>{{ exercice_actif.annee }}</strong>.
+            <br>Règle R7 : le nouvel exercice désactivera automatiquement l'exercice {{ exercice_actif.annee }}.
+          </div>
+          {% endif %}
+
+          <form method="POST">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label class="form-label fw-bold">Année de l'exercice <span class="text-danger">*</span></label>
+              <input type="number" name="annee" class="form-control" value="{{ annee_proposee }}" min="2024" max="2099" required>
+            </div>
+            <div class="row g-3 mb-3">
+              <div class="col-6">
+                <label class="form-label fw-bold">Date de début <span class="text-danger">*</span></label>
+                <input type="date" name="date_debut" class="form-control" required>
+              </div>
+              <div class="col-6">
+                <label class="form-label fw-bold">Date de fin <span class="text-danger">*</span></label>
+                <input type="date" name="date_fin" class="form-control" required>
+              </div>
+            </div>
+            <div class="mb-4">
+              <label class="form-label fw-bold">Seuil d'alerte budgétaire (%)</label>
+              <input type="number" name="seuil_alerte" class="form-control" value="80" min="50" max="99">
+              <small class="text-muted">Alerte orange déclenchée à ce taux de consommation (défaut 80 %)</small>
+            </div>
+            <div class="d-flex justify-content-between">
+              <a href="{% url 'exercices_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-x me-1"></i>Annuler
+              </a>
+              <button type="submit" class="btn px-5" style="background:#1A5632;color:white;">
+                Suivant <i class="bi bi-arrow-right ms-1"></i>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

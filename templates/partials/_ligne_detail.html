@@ -122,7 +122,17 @@
                 <div class="text-muted" style="font-size:11px;">{{ conso.description|truncatewords:12 }}</div>
                 {% endif %}
             </div>
-            <strong style="color:#E67E22;white-space:nowrap;">{{ conso.montant|fmt_exact }}</strong>
+            <div class="text-end flex-shrink-0">
+                <strong style="color:#E67E22;white-space:nowrap;">{{ conso.montant|fmt_exact }}</strong>
+                {% if request.user.role == 'admin' %}
+                <br>
+                <a href="{% url 'annuler_consommation_directe' conso.pk %}"
+                   class="btn btn-sm btn-outline-danger mt-1 px-2 py-0"
+                   style="font-size:10px;" title="Annuler cette consommation (Admin)">
+                    <i class="bi bi-x-circle"></i> Annuler
+                </a>
+                {% endif %}
+            </div>
         </div>
     </div>
     {% endfor %}

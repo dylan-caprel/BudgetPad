@@ -19,8 +19,10 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 
+_admin_url = getattr(settings, 'ADMIN_URL', 'admin/')
+
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path(_admin_url, admin.site.urls),
     path('', include('core.urls')),
 ]
 

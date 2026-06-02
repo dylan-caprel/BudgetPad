@@ -1,0 +1,21 @@
+{% comment %}Barre de progression wizard. Variable requise : etape (int 1-4).{% endcomment %}
+<div class="d-flex align-items-center mb-1">
+  {% for cfg in steps %}
+  <div class="text-center" style="flex:1;">
+    <div class="mx-auto rounded-circle d-flex align-items-center justify-content-center fw-bold"
+         style="width:36px;height:36px;font-size:14px;
+         {% if cfg.num == etape %}background:#1A5632;color:white;
+         {% elif cfg.num < etape %}background:#6fba8a;color:white;
+         {% else %}background:#dee2e6;color:#6c757d;{% endif %}">
+      {% if cfg.num < etape %}<i class="bi bi-check-lg"></i>{% else %}{{ cfg.num }}{% endif %}
+    </div>
+    <div style="font-size:11px;margin-top:4px;
+         {% if cfg.num == etape %}color:#1A5632;font-weight:600;
+         {% else %}color:#adb5bd;{% endif %}">{{ cfg.label }}</div>
+  </div>
+  {% if not forloop.last %}
+  <div style="flex:1;height:2px;margin-bottom:20px;
+       background:{% if cfg.num < etape %}#6fba8a{% else %}#dee2e6{% endif %};"></div>
+  {% endif %}
+  {% endfor %}
+</div>

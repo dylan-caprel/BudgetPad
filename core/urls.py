@@ -90,11 +90,20 @@ urlpatterns = [
     path('exercices/', views.exercices_list, name='exercices_list'),
     path('exercices/creer/', views.exercice_create, name='exercice_create'),
     path('exercices/<int:pk>/detail/', views.exercice_detail, name='exercice_detail'),
+    path('exercices/<int:pk>/activer/', views.exercice_activer, name='exercice_activer'),
     path('exercices/<int:pk>/cloturer/', views.exercice_cloturer, name='exercice_cloturer'),
     path('exercices/<int:pk>/reconduire/', views.exercice_reconduire, name='exercice_reconduire'),
-    path('exercices/import-excel/', views.exercice_import_excel, name='exercice_import_excel'),
-    path('exercices/template-excel/', views.exercice_template_excel, name='exercice_template_excel'),
+    # NB: les routes import-excel/template-excel ont été retirées (stubs non implémentés).
     path('exercice/switch/', views.exercice_switch, name='exercice_switch'),
+    # Wizard création exercice
+    path('exercices/wizard/step1/',  views.wizard_exercice_step1, name='wizard_exercice_step1'),
+    path('exercices/wizard/step2/',  views.wizard_exercice_step2, name='wizard_exercice_step2'),
+    path('exercices/wizard/step3/',  views.wizard_exercice_step3, name='wizard_exercice_step3'),
+    path('exercices/wizard/step4/',  views.wizard_exercice_step4, name='wizard_exercice_step4'),
+    path('exercices/wizard/cancel/', views.wizard_exercice_cancel, name='wizard_exercice_cancel'),
+    # Annulations admin
+    path('consommations/<int:pk>/annuler/', views.annuler_consommation_directe, name='annuler_consommation_directe'),
+    path('virements/<int:pk>/annuler/', views.annuler_virement, name='annuler_virement'),
 
     # RGPD (Sprint 3)
     path('rgpd/export/', views.rgpd_export_view, name='rgpd_export'),

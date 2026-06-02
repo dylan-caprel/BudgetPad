@@ -47,6 +47,11 @@ class ExerciceBudgetaire(models.Model):
     montant_global = models.DecimalField(max_digits=15, decimal_places=2, default=0)
     STATUT_CHOICES = [('actif', 'Actif'), ('cloture', 'Clôturé')]
     statut = models.CharField(max_length=10, choices=STATUT_CHOICES, default='actif')
+    # Règle R7 : is_active garantit qu'un seul exercice est actif à la fois
+    is_active = models.BooleanField(
+        default=False,
+        help_text="Exercice courant — un seul peut être actif (Règle R7).",
+    )
     is_locked = models.BooleanField(
         default=False,
         help_text="Si vrai, l'exercice est en lecture seule — aucune création/modification autorisée.",
@@ -54,6 +59,11 @@ class ExerciceBudgetaire(models.Model):
     seuil_alerte = models.PositiveSmallIntegerField(
         default=80,
         help_text="Seuil de taux de consommation (en %) déclenchant une alerte sur une tâche.",
+    )
+    exercice_precedent = models.ForeignKey(
+        'self', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='exercices_suivants',
+        help_text="Exercice de l'année précédente (renseigné automatiquement).",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -63,11 +73,72 @@ class ExerciceBudgetaire(models.Model):
         verbose_name_plural = 'Exercices budgétaires'
 
     def __str__(self):
-        return f"Exercice {self.annee}"
+        if self.is_active:
+            statut = 'ACTIF'
+        elif self.is_locked:
+            statut = 'CLÔTURÉ'
+        else:
+            statut = 'Inactif'
+        return f"Exercice {self.annee} [{statut}]"
 
     @classmethod
     def get_actif(cls):
-        return cls.objects.filter(statut='actif').first()
+        """Retourne l'exercice actif ou None. Priorité : is_active, puis statut='actif'."""
+        return (
+            cls.objects.filter(is_active=True).first()
+            or cls.objects.filter(statut='actif').first()
+        )
+
+    def activer(self, user=None):
+        """Active cet exercice. RÈGLE R7 : désactive automatiquement tous les autres.
+
+        Protégé contre les race conditions par un select_for_update atomique.
+        """
+        from django.db import transaction
+        if self.is_locked:
+            raise ValueError(f"L'exercice {self.annee} est clôturé, impossible de l'activer.")
+        with transaction.atomic():
+            # Lock toutes les lignes pour empêcher une activation concurrente
+            list(ExerciceBudgetaire.objects.select_for_update().all())
+            ExerciceBudgetaire.objects.exclude(pk=self.pk).update(is_active=False)
+            self.is_active = True
+            self.statut = 'actif'
+            self.save(update_fields=['is_active', 'statut'])
+        JournalActivite.objects.create(
+            type_action='Exercice.activer',
+            description=(
+                f"Exercice {self.annee} activé — Règle R7 appliquée : "
+                f"tous les autres exercices ont été désactivés."
+            ),
+            entite_type='ExerciceBudgetaire',
+            entite_id=self.pk,
+            utilisateur=user,
+        )
+
+    def cloturer(self, user=None):
+        """Clôture l'exercice (lecture seule définitive)."""
+        from django.db import transaction
+        with transaction.atomic():
+            self.is_active = False
+            self.is_locked = True
+            self.statut = 'cloture'
+            self.save(update_fields=['is_active', 'is_locked', 'statut'])
+        JournalActivite.objects.create(
+            type_action='Exercice.cloture',
+            description=f"Exercice {self.annee} clôturé définitivement.",
+            entite_type='ExerciceBudgetaire',
+            entite_id=self.pk,
+            utilisateur=user,
+        )
+
+    def save(self, *args, **kwargs):
+        # COHE-1 : synchronise les deux sources de vérité statut/is_active
+        if self.is_locked:
+            self.statut = 'cloture'
+            self.is_active = False
+        elif self.is_active and self.statut != 'actif':
+            self.statut = 'actif'
+        super().save(*args, **kwargs)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -116,7 +187,10 @@ class TacheQuerySet(models.QuerySet):
                 total_conso_directe=Coalesce(
                     Sum(
                         'lignes__consommations_directes__montant',
-                        filter=Q(lignes__actif=True),
+                        filter=(
+                            Q(lignes__actif=True)
+                            & Q(lignes__consommations_directes__est_annule=False)
+                        ),
                     ),
                     zero,
                 ),
@@ -247,7 +321,10 @@ class LigneBudgetaireQuerySet(models.QuerySet):
             )
             .annotate(
                 consommation_directe=Coalesce(
-                    Sum('consommations_directes__montant'),
+                    Sum(
+                        'consommations_directes__montant',
+                        filter=Q(consommations_directes__est_annule=False),
+                    ),
                     zero,
                 ),
             )
@@ -506,7 +583,7 @@ class BonCommande(models.Model):
     }
     numero           = models.CharField(max_length=20, unique=True)
     demande          = models.ForeignKey(
-        DemandeAchat, on_delete=models.CASCADE, related_name='bons_commande',
+        DemandeAchat, on_delete=models.PROTECT, related_name='bons_commande',
         null=True, blank=True,
     )
     tache            = models.ForeignKey(Tache, on_delete=models.CASCADE, related_name='bons_commande')
@@ -514,7 +591,7 @@ class BonCommande(models.Model):
         ExerciceBudgetaire, on_delete=models.CASCADE, related_name='bons_commande',
     )
     prestataire      = models.ForeignKey(
-        Prestataire, on_delete=models.CASCADE, related_name='bons_commande',
+        Prestataire, on_delete=models.PROTECT, related_name='bons_commande',
     )
     direction        = models.CharField(max_length=100, default='Direction des Ressources Humaines')
     date_emission    = models.DateField(auto_now_add=True)
@@ -637,7 +714,7 @@ class ConsommationDirecte(models.Model):
     ]
 
     ligne_budgetaire  = models.ForeignKey(
-        LigneBudgetaire, on_delete=models.CASCADE, related_name='consommations_directes',
+        LigneBudgetaire, on_delete=models.PROTECT, related_name='consommations_directes',
     )
     montant           = models.DecimalField(
         max_digits=12, decimal_places=2,
@@ -650,6 +727,14 @@ class ConsommationDirecte(models.Model):
         'Utilisateur', on_delete=models.SET_NULL, null=True,
     )
     created_at        = models.DateTimeField(auto_now_add=True)
+    # Soft-delete : annulation admin (préserve la traçabilité du journal)
+    est_annule        = models.BooleanField(default=False, db_index=True)
+    annule_le         = models.DateTimeField(null=True, blank=True)
+    annule_par        = models.ForeignKey(
+        'Utilisateur', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='consommations_annulees',
+    )
+    motif_annulation  = models.TextField(blank=True)
 
     class Meta:
         ordering = ['-date_consommation', '-created_at']
@@ -657,7 +742,8 @@ class ConsommationDirecte(models.Model):
         verbose_name_plural = 'Consommations directes'
 
     def __str__(self):
-        return f"{self.ligne_budgetaire.code_nature} — {self.montant:,.0f} FCFA ({self.get_motif_display()})"
+        flag = ' [ANNULÉE]' if self.est_annule else ''
+        return f"{self.ligne_budgetaire.code_nature} — {self.montant:,.0f} FCFA ({self.get_motif_display()}){flag}"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -758,20 +844,26 @@ class JournalActivite(models.Model):
         ('BC.prolong',         'Prolongation BC'),
         ('PJ.upload',          'Upload pièce jointe'),
         ('PJ.delete',          'Suppression pièce jointe'),
-        ('Consommation.create', 'Consommation directe'),
+        ('Consommation.create',  'Consommation directe'),
+        ('Consommation.annuler', 'Annulation consommation directe'),
+        ('Virement.annuler',     'Annulation virement'),
         ('Virement',           'Virement'),
         ('Tache.create',       'Création tâche'),
         ('Tache.edit',         'Modification tâche'),
         ('Tache.delete',       'Suppression tâche'),
         ('Prestataire.create', 'Création prestataire'),
         ('Prestataire.delete', 'Suppression prestataire'),
-        ('Exercice.create',    'Création exercice'),
-        ('Exercice.cloture',   'Clôture exercice'),
-        ('Exercice.reconduit', 'Reconduction exercice'),
+        ('Exercice.create',          'Création exercice'),
+        ('Exercice.create_wizard',   'Création exercice (wizard)'),
+        ('Exercice.activer',         'Activation exercice'),
+        ('Exercice.cloture',         'Clôture exercice'),
+        ('Exercice.reconduit',       'Reconduction exercice'),
         ('User.create',        'Création utilisateur'),
         ('User.edit',          'Modification utilisateur'),
         ('User.reset_pwd',     'Réinitialisation MDP'),
         ('User.delete',        'Suppression utilisateur'),
+        ('User.toggle_actif',  'Activation/désactivation compte'),
+        ('Parametres.seuil',   'Modification seuil alerte'),
         ('Import.excel',       'Import Excel'),
     ]
     type_action = models.CharField(max_length=30, choices=TYPE_CHOICES)
@@ -805,24 +897,32 @@ class JournalActivite(models.Model):
         return hashlib.sha256(payload.encode('utf-8')).hexdigest()
 
     def save(self, *args, **kwargs):
+        """
+        Persiste l'entrée en chaînant prev_hash + hash_chain dans une seule transaction
+        atomique avec verrou (COHE-13) — empêche 2 inserts concurrents de chaîner sur
+        le même prev_hash, et garantit qu'aucune entrée n'existe sans hash_chain.
+        """
         from django.db import transaction
         is_new = self.pk is None
-        super().save(*args, **kwargs)
         if is_new and not self.hash_chain:
             with transaction.atomic():
+                # Lock toute la table pour sérialiser les inserts
                 last = (
                     JournalActivite.objects
-                    .exclude(pk=self.pk)
                     .select_for_update()
                     .order_by('-pk')
                     .first()
                 )
-                self.prev_hash  = last.hash_chain if last else ''
+                self.prev_hash = last.hash_chain if last else ''
+                # Premier save pour obtenir pk + created_at (auto_now_add)
+                super().save(*args, **kwargs)
                 self.hash_chain = self.compute_hash()
                 JournalActivite.objects.filter(pk=self.pk).update(
                     prev_hash=self.prev_hash,
                     hash_chain=self.hash_chain,
                 )
+        else:
+            super().save(*args, **kwargs)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -962,3 +1062,72 @@ class PieceJointe(models.Model):
         if s < 1024:       return f"{s} o"
         if s < 1024 ** 2:  return f"{s / 1024:.1f} Ko"
         return f"{s / 1024 ** 2:.1f} Mo"
+
+
+# ─────────────────────────────────────────────────────────────
+# RÉPERTOIRE TÂCHES (catalogue réutilisable entre exercices)
+# ─────────────────────────────────────────────────────────────
+
+class RepertoireTache(models.Model):
+    """Catalogue global des tâches — réutilisable à chaque exercice."""
+    numero = models.CharField(max_length=20, unique=True)
+    titre  = models.CharField(max_length=500)  # aligné sur Tache.titre
+    actif  = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['numero']
+        verbose_name = 'Répertoire tâche'
+        verbose_name_plural = 'Répertoire tâches'
+
+    def __str__(self):
+        return f"{self.numero} — {self.titre}"
+
+
+class RepertoireLigne(models.Model):
+    """Catalogue global des lignes budgétaires — rattachées à une tâche du répertoire."""
+    tache_repertoire = models.ForeignKey(
+        RepertoireTache, on_delete=models.CASCADE, related_name='lignes_repertoire',
+    )
+    code_nature    = models.CharField(max_length=10)  # aligné sur LigneBudgetaire.code_nature
+    libelle_nature = models.CharField(max_length=255)  # aligné sur LigneBudgetaire.libelle_nature
+    actif          = models.BooleanField(default=True)
+    created_at     = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['code_nature']
+        unique_together = ['tache_repertoire', 'code_nature']
+        verbose_name = 'Répertoire ligne'
+        verbose_name_plural = 'Répertoire lignes'
+
+    def __str__(self):
+        return f"{self.code_nature} — {self.libelle_nature}"
+
+
+# ─────────────────────────────────────────────────────────────
+# LOG ANNULATION (trace des annulations admin)
+# ─────────────────────────────────────────────────────────────
+
+class LogAnnulation(models.Model):
+    TYPE_CHOICES = [
+        ('consommation_directe', 'Consommation directe'),
+        ('virement',             'Virement budgétaire'),
+        ('demande_achat',        "Demande d'achat"),
+        ('bon_commande',         'Bon de commande'),
+    ]
+    type_entite          = models.CharField(max_length=30, choices=TYPE_CHOICES)
+    entite_id            = models.IntegerField()
+    description_avant    = models.TextField()
+    motif_annulation     = models.TextField()
+    annule_par           = models.ForeignKey(
+        'Utilisateur', on_delete=models.SET_NULL, null=True, related_name='annulations',
+    )
+    annule_le            = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-annule_le']
+        verbose_name = 'Log annulation'
+        verbose_name_plural = 'Logs annulations'
+
+    def __str__(self):
+        return f"Annulation {self.type_entite} #{self.entite_id} — {self.annule_le:%d/%m/%Y}"
