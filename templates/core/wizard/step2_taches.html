@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% load core_tags budget_filters %}
+{% block title %}Wizard Exercice — Étape 2 / 4{% endblock %}
+{% block content %}
+<div class="container-fluid px-4 py-4">
+  <h4 class="mb-4" style="color:#1A5632;font-weight:700;">
+    <i class="bi bi-magic me-2"></i>Nouvel exercice {{ wizard.annee }} — Étape 2 / 4
+  </h4>
+
+  <!-- Progression -->
+  <div class="d-flex align-items-center mb-4" style="max-width:560px;">
+    <div class="text-center" style="flex:1;">
+      <div class="mx-auto rounded-circle d-flex align-items-center justify-content-center" style="width:34px;height:34px;font-size:13px;background:#6fba8a;color:white;"><i class="bi bi-check-lg"></i></div>
+      <div style="font-size:11px;margin-top:3px;color:#6fba8a;">Infos</div>
+    </div>
+    <div style="flex:1;height:2px;background:#6fba8a;margin-bottom:18px;"></div>
+    <div class="text-center" style="flex:1;">
+      <div class="mx-auto rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width:34px;height:34px;font-size:13px;background:#1A5632;color:white;">2</div>
+      <div style="font-size:11px;margin-top:3px;color:#1A5632;font-weight:600;">Tâches</div>
+    </div>
+    <div style="flex:1;height:2px;background:#dee2e6;margin-bottom:18px;"></div>
+    <div class="text-center" style="flex:1;">
+      <div class="mx-auto rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width:34px;height:34px;font-size:13px;background:#dee2e6;color:#6c757d;">3</div>
+      <div style="font-size:11px;margin-top:3px;color:#adb5bd;">Budget</div>
+    </div>
+    <div style="flex:1;height:2px;background:#dee2e6;margin-bottom:18px;"></div>
+    <div class="text-center" style="flex:1;">
+      <div class="mx-auto rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width:34px;height:34px;font-size:13px;background:#dee2e6;color:#6c757d;">4</div>
+      <div style="font-size:11px;margin-top:3px;color:#adb5bd;">Confirmation</div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <!-- Liste des tâches -->
+    <div class="col-lg-8">
+      <div class="card shadow-sm">
+        <div class="card-header" style="background:#1A5632;color:white;">
+          <h5 class="mb-0"><i class="bi bi-list-check me-2"></i>Étape 2 — Sélectionner les tâches</h5>
+        </div>
+        <div class="card-body p-0">
+          <form method="POST" id="formTaches">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="suivant">
+            <div class="p-3 border-bottom" style="font-size:13px;background:#f8f9fa;">
+              <i class="bi bi-info-circle me-1 text-muted"></i>
+              Cochez les tâches à inclure dans l'exercice {{ wizard.annee }} :
+            </div>
+
+            <div style="max-height:480px;overflow-y:auto;">
+              {% for tache in taches_repertoire %}
+              <div class="border-bottom px-3 py-2 d-flex align-items-center"
+                   style="transition:background .15s;"
+                   onmouseover="this.style.background='#f0f7f1'" onmouseout="this.style.background=''">
+                <div class="form-check flex-grow-1 mb-0">
+                  <input class="form-check-input" type="checkbox"
+                         name="taches_selectionnees" value="{{ tache.pk }}"
+                         id="t_{{ tache.pk }}"
+                         {% if tache.pk|stringformat:"s" in taches_selectionnees %}checked{% endif %}>
+                  <label class="form-check-label w-100" for="t_{{ tache.pk }}" style="cursor:pointer;">
+                    <span class="badge me-2" style="background:#1B3A5C;font-size:11px;">{{ tache.numero }}</span>
+                    {{ tache.titre }}
+                  </label>
+                </div>
+              </div>
+              {% empty %}
+              <div class="p-4 text-center text-muted">
+                <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                Aucune tâche dans le répertoire. Ajoutez-en une dans le panneau de droite.
+              </div>
+              {% endfor %}
+            </div>
+
+            <div class="p-3 border-top d-flex justify-content-between align-items-center">
+              <div class="d-flex gap-2">
+                <a href="{% url 'wizard_exercice_step1' %}" class="btn btn-outline-secondary">
+                  <i class="bi bi-arrow-left me-1"></i>Retour
+                </a>
+                <button type="submit" class="btn btn-outline-danger"
+                        formaction="{% url 'wizard_exercice_cancel' %}"
+                        formmethod="POST" formnovalidate
+                        onclick="return confirm('Abandonner la création de cet exercice ?');">
+                  <i class="bi bi-x me-1"></i>Abandonner
+                </button>
+              </div>
+              <button type="submit" class="btn px-4" style="background:#1A5632;color:white;">
+                Suivant <i class="bi bi-arrow-right ms-1"></i>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ajouter une tâche -->
+    <div class="col-lg-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-light">
+          <h6 class="mb-0"><i class="bi bi-plus-circle me-2" style="color:#1A5632;"></i>Ajouter une tâche</h6>
+        </div>
+        <div class="card-body">
+          <form method="POST">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="ajouter_tache">
+            <div class="mb-2">
+              <label class="form-label small fw-bold">Numéro</label>
+              <input type="text" name="nouveau_numero" class="form-control form-control-sm"
+                     placeholder="Ex: 3211020">
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold">Intitulé</label>
+              <textarea name="nouveau_titre" class="form-control form-control-sm"
+                        rows="2" placeholder="Ex: FORMATION DU PERSONNEL"></textarea>
+            </div>
+            <button type="submit" class="btn btn-sm btn-outline-success w-100">
+              <i class="bi bi-plus me-1"></i>Ajouter au répertoire
+            </button>
+          </form>
+          <hr class="my-3">
+          <small class="text-muted d-block" style="font-size:11px;">
+            <i class="bi bi-info-circle me-1"></i>
+            Les tâches ajoutées ici rejoignent le répertoire global et seront disponibles pour les prochains exercices.
+          </small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

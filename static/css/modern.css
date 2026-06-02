@@ -1038,6 +1038,29 @@ h4[style*="color:#1B3A5C"] {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   FOOTER COPYRIGHT
+═══════════════════════════════════════════════════════════ */
+.footer-budgetpad {
+  background: #f8f9fa;
+  border-top: 2px solid var(--pad-green);
+  font-size: 0.82rem;
+  color: #6c757d;
+  position: relative;
+  z-index: 10;
+  margin-left: var(--sidebar-width);
+}
+.footer-brand {
+  color: var(--pad-green);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.footer-sep { color: #ced4da; }
+@media (max-width: 768px) {
+  .footer-budgetpad { margin-left: 0; text-align: center; }
+  .footer-sep { display: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════
    PRINT
 ═══════════════════════════════════════════════════════════ */
 @media print {

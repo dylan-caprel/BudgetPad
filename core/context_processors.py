@@ -30,7 +30,9 @@ def exercices_context(request):
     if selected_annee:
         exercice_courant = next((e for e in exercices_all if e.annee == selected_annee), None)
     if exercice_courant is None:
-        exercice_courant = next((e for e in exercices_all if e.statut == 'actif'), None)
+        exercice_courant = next((e for e in exercices_all if e.is_active), None)
+        if exercice_courant is None:
+            exercice_courant = next((e for e in exercices_all if e.statut == 'actif'), None)
         if exercice_courant is None and exercices_all:
             exercice_courant = exercices_all[0]
     return {

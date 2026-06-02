@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% load budget_filters %}
+{% block title %}Confirmation d'annulation — Admin{% endblock %}
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+      <div class="card shadow border-0" style="border-top:3px solid #E74C3C !important;">
+        <div class="card-header" style="background:#E74C3C;color:white;">
+          <h5 class="mb-0">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Confirmer l'annulation
+          </h5>
+        </div>
+        <div class="card-body p-4">
+
+          <div class="alert alert-warning border-0 mb-4" style="font-size:13px;">
+            <strong><i class="bi bi-shield-exclamation me-1"></i>Action admin irréversible.</strong>
+            Elle sera tracée dans le journal d'activité avec votre identité.
+          </div>
+
+          <h6 class="fw-bold mb-3" style="font-size:14px;">{{ titre }}</h6>
+
+          {% if type == 'consommation' %}
+          <div class="p-3 border rounded mb-3 bg-light" style="font-size:13px;">
+            <div class="mb-1"><strong>Ligne :</strong> {{ objet.ligne_budgetaire.code_nature }} — {{ objet.ligne_budgetaire.libelle_nature }}</div>
+            <div class="mb-1"><strong>Montant :</strong> {{ objet.montant|fmt_exact }} FCFA</div>
+            <div class="mb-1"><strong>Motif initial :</strong> {{ objet.get_motif_display }}</div>
+            <div class="mb-1"><strong>Date :</strong> {{ objet.date_consommation|date:"d/m/Y" }}</div>
+            {% if objet.description %}
+            <div><strong>Description :</strong> {{ objet.description }}</div>
+            {% endif %}
+          </div>
+          {% elif type == 'virement' %}
+          <div class="p-3 border rounded mb-3 bg-light" style="font-size:13px;">
+            <div class="mb-1">
+              <strong>Source :</strong>
+              <code>{{ objet.ligne_source.code_nature }}</code> — {{ objet.ligne_source.libelle_nature }}
+              ({{ objet.ligne_source.tache.numero }})
+            </div>
+            <div class="mb-1">
+              <strong>Destination :</strong>
+              <code>{{ objet.ligne_destination.code_nature }}</code> — {{ objet.ligne_destination.libelle_nature }}
+              ({{ objet.ligne_destination.tache.numero }})
+            </div>
+            <div class="mb-1"><strong>Montant :</strong> {{ objet.montant|fmt_exact }} FCFA</div>
+            <div><strong>Motif original :</strong> {{ objet.motif|truncatechars:80 }}</div>
+          </div>
+          <div class="alert alert-info border-0 mb-3" style="font-size:12px;">
+            <i class="bi bi-arrow-left-right me-1"></i>
+            Un <strong>virement inverse</strong> sera automatiquement créé pour restituer les fonds.
+          </div>
+          {% endif %}
+
+          <form method="POST">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label class="form-label fw-bold text-danger">
+                Motif d'annulation <span class="text-danger">*</span>
+              </label>
+              <textarea name="motif" class="form-control" rows="3" required
+                        placeholder="Expliquez pourquoi cette action est annulée..."
+                        style="border-color:#E74C3C;"></textarea>
+            </div>
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-danger flex-fill">
+                <i class="bi bi-trash me-1"></i>Confirmer l'annulation
+              </button>
+              <button type="button" class="btn btn-outline-secondary flex-fill"
+                      onclick="history.back()">
+                Annuler
+              </button>
+            </div>
+          </form>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

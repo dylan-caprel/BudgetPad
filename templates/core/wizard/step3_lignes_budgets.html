@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% load core_tags budget_filters %}
+{% block title %}Wizard Exercice — Étape 3 / 4{% endblock %}
+{% block content %}
+<div class="container-fluid px-4 py-4">
+  <h4 class="mb-4" style="color:#1A5632;font-weight:700;">
+    <i class="bi bi-magic me-2"></i>Nouvel exercice {{ wizard.annee }} — Étape 3 / 4
+  </h4>
+
+  <!-- Progression -->
+  <div class="d-flex align-items-center mb-4" style="max-width:560px;">
+    <div class="text-center" style="flex:1;">
+      <div class="mx-auto rounded-circle d-flex align-items-center justify-content-center" style="width:34px;height:34px;background:#6fba8a;color:white;"><i class="bi bi-check-lg"></i></div>
+      <div style="font-size:11px;margin-top:3px;color:#6fba8a;">Infos</div>
+    </div>
+    <div style="flex:1;height:2px;background:#6fba8a;margin-bottom:18px;"></div>
+    <div class="text-center" style="flex:1;">
+      <div class="mx-auto rounded-circle d-flex align-items-center justify-content-center" style="width:34px;height:34px;background:#6fba8a;color:white;"><i class="bi bi-check-lg"></i></div>
+      <div style="font-size:11px;margin-top:3px;color:#6fba8a;">Tâches</div>
+    </div>
+    <div style="flex:1;height:2px;background:#6fba8a;margin-bottom:18px;"></div>
+    <div class="text-center" style="flex:1;">
+      <div class="mx-auto rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width:34px;height:34px;background:#1A5632;color:white;">3</div>
+      <div style="font-size:11px;margin-top:3px;color:#1A5632;font-weight:600;">Budget</div>
+    </div>
+    <div style="flex:1;height:2px;background:#dee2e6;margin-bottom:18px;"></div>
+    <div class="text-center" style="flex:1;">
+      <div class="mx-auto rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width:34px;height:34px;background:#dee2e6;color:#6c757d;">4</div>
+      <div style="font-size:11px;margin-top:3px;color:#adb5bd;">Confirmation</div>
+    </div>
+  </div>
+
+  <form method="POST" id="formLignes">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="suivant">
+
+    {% for tache in taches_selectionnees %}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center"
+           style="background:#1B3A5C;color:white;">
+        <div>
+          <span class="badge bg-light text-dark me-2" style="font-size:11px;">{{ tache.numero }}</span>
+          {{ tache.titre }}
+        </div>
+        <span class="badge bg-white text-muted" style="font-size:11px;">
+          {{ tache.lignes_repertoire.count }} ligne{{ tache.lignes_repertoire.count|pluralize }} dans le répertoire
+        </span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0" style="font-size:13px;">
+            <thead class="table-light">
+              <tr>
+                <th style="width:40px;"></th>
+                <th>Code nature</th>
+                <th>Libellé</th>
+                <th style="width:200px;">Budget initial (FCFA)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ligne in tache.lignes_repertoire.all %}
+              {% with ck=tache.pk|stringformat:"s" lid=ligne.pk|stringformat:"s" %}
+              {% with sel=lignes_par_tache|get_item:ck %}
+              <tr>
+                <td class="text-center ps-3">
+                  <input type="checkbox" class="form-check-input"
+                         name="lignes_{{ tache.pk }}"
+                         value="{{ ligne.pk }}"
+                         id="l_{{ tache.pk }}_{{ ligne.pk }}"
+                         onchange="toggleBudget(this,'{{ tache.pk }}_{{ ligne.pk }}')"
+                         {% if sel and lid in sel %}checked{% endif %}>
+                </td>
+                <td><code style="font-size:12px;">{{ ligne.code_nature }}</code></td>
+                <td>{{ ligne.libelle_nature }}</td>
+                <td>
+                  <input type="number" step="1" min="0"
+                         name="budget_{{ tache.pk }}_{{ ligne.pk }}"
+                         id="bi_{{ tache.pk }}_{{ ligne.pk }}"
+                         class="form-control form-control-sm"
+                         placeholder="0"
+                         value=""
+                         {% if not sel or lid not in sel %}disabled{% endif %}>
+                </td>
+              </tr>
+              {% endwith %}
+              {% endwith %}
+              {% empty %}
+              <tr>
+                <td colspan="4" class="text-center text-muted py-2" style="font-size:12px;">
+                  Aucune ligne dans le répertoire pour cette tâche.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <!-- Ajouter ligne -->
+        <div class="p-3 border-top bg-light">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+              <input type="text" class="form-control form-control-sm" id="nc_{{ tache.pk }}" placeholder="Code (ex: 6047210)">
+            </div>
+            <div class="col-md-6">
+              <input type="text" class="form-control form-control-sm" id="nl_{{ tache.pk }}" placeholder="Libellé de la ligne">
+            </div>
+            <div class="col-md-3">
+              <button type="button" class="btn btn-sm btn-outline-success w-100"
+                      onclick="ajouterLigne('{{ tache.pk }}','{{ csrf_token }}')">
+                <i class="bi bi-plus me-1"></i>Ajouter
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+
+    <div class="d-flex justify-content-between mt-2 align-items-center">
+      <div class="d-flex gap-2">
+        <a href="{% url 'wizard_exercice_step2' %}" class="btn btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i>Retour
+        </a>
+        <button type="submit" class="btn btn-outline-danger"
+                formaction="{% url 'wizard_exercice_cancel' %}"
+                formmethod="POST" formnovalidate
+                onclick="return confirm('Abandonner la création de cet exercice ?');">
+          <i class="bi bi-x me-1"></i>Abandonner
+        </button>
+      </div>
+      <button type="submit" class="btn btn-lg px-5" style="background:#1A5632;color:white;">
+        Suivant <i class="bi bi-arrow-right ms-1"></i>
+      </button>
+    </div>
+  </form>
+</div>
+<script>
+function toggleBudget(cb, key) {
+  var inp = document.getElementById('bi_' + key);
+  if (inp) { inp.disabled = !cb.checked; if (!cb.checked) inp.value = ''; }
+}
+function ajouterLigne(tid, csrfToken) {
+  var code    = document.getElementById('nc_' + tid).value.trim();
+  var libelle = document.getElementById('nl_' + tid).value.trim();
+  if (!code || !libelle) { alert('Code et libellé sont requis.'); return; }
+  var f = document.createElement('form');
+  f.method = 'POST';
+  f.style.display = 'none';
+  // Sécurité : utiliser createElement + .value (pas innerHTML) pour éviter XSS
+  var fields = [
+    ['csrfmiddlewaretoken', csrfToken],
+    ['action',              'ajouter_ligne'],
+    ['tache_id',            tid],
+    ['nouveau_code',        code],
+    ['nouveau_libelle',     libelle],
+  ];
+  fields.forEach(function (pair) {
+    var inp = document.createElement('input');
+    inp.type  = 'hidden';
+    inp.name  = pair[0];
+    inp.value = pair[1];
+    f.appendChild(inp);
+  });
+  document.body.appendChild(f);
+  f.submit();
+}
+</script>
+{% endblock %}

@@ -13,7 +13,7 @@ from django.db.models import Count, Q, Sum
 from django.http import HttpResponse
 from django.utils import timezone
 from django.utils.http import urlencode, url_has_allowed_host_and_scheme
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_http_methods
 from functools import wraps
 from decimal import Decimal
 from .models import (
@@ -21,6 +21,7 @@ from .models import (
     VirementBudgetaire, Prestataire, DemandeAchat, Offre, BonCommande,
     LigneBC, ImputationBC, ProlongationBC, JournalActivite, Notification,
     Alerte, HistoriqueStatut, PieceJointe, ConsommationDirecte,
+    RepertoireTache, RepertoireLigne, LogAnnulation,
 )
 from .forms import (
     VirementForm, PrestataireForm, TacheForm, LigneBudgetaireForm,
@@ -209,7 +210,15 @@ def dashboard_view(request):
     bcs, periode = _get_periode_filter(request, bcs_base)
 
     budget_total = exercice.montant_global
-    total_engage = bcs.exclude(statut='annule').aggregate(t=Sum('montant_ttc'))['t'] or 0
+    total_bc = bcs.exclude(statut='annule').aggregate(t=Sum('montant_ttc'))['t'] or 0
+    # COHE-3 : inclure les consommations directes non annulées dans le total engagé
+    total_conso_directe = (
+        ConsommationDirecte.objects
+        .filter(ligne_budgetaire__tache__exercice=exercice, est_annule=False)
+        .aggregate(t=Sum('montant'))['t']
+        or 0
+    )
+    total_engage = total_bc + total_conso_directe
     solde = budget_total - total_engage
     taux_global = round((float(total_engage) / float(budget_total)) * 100, 1) if budget_total > 0 else 0
     taux_disponible = round(100 - taux_global, 1)
@@ -372,18 +381,28 @@ def tache_create(request):
 @require_POST
 def tache_delete(request, pk):
     tache = get_object_or_404(Tache, pk=pk)
-    lignes = tache.lignes.all()
+    lignes = list(tache.lignes.all())
     has_virements = any(
         l.virements_sortants.exists() or l.virements_entrants.exists()
+        for l in lignes
+    )
+    # MED-4 : bloquer aussi si consommations directes non annulées
+    has_conso_directes = any(
+        l.consommations_directes.filter(est_annule=False).exists()
         for l in lignes
     )
     has_linked = (
         tache.bons_commande.exists()
         or tache.demandes_achat.exists()
         or has_virements
+        or has_conso_directes
     )
     if has_linked:
-        messages.error(request, "Impossible de supprimer une tâche avec des BC, DA ou virements associés.")
+        messages.error(
+            request,
+            "Impossible de supprimer une tâche avec des BC, DA, virements "
+            "ou consommations directes associés."
+        )
     else:
         log_action(request.user, 'Tache.delete', f"Suppression de la tâche {tache.numero} — {tache.titre}", 'tache', tache.id)
         tache.delete()
@@ -422,6 +441,9 @@ def virements_list(request):
 @require_POST
 def virement_create(request):
     exercice = ExerciceBudgetaire.get_actif()
+    if exercice is None:
+        messages.error(request, "Aucun exercice budgétaire actif. Activez ou créez un exercice avant de saisir un virement.")
+        return redirect('virements_list')
     locked, msg = _check_exercice_non_verrouille(exercice)
     if locked:
         messages.error(request, msg)
@@ -1806,14 +1828,22 @@ def exercice_create(request):
         if d_debut.year != annee or d_fin.year != annee:
             messages.error(request, f"Les dates doivent appartenir à l'année {annee}.")
             return redirect('exercices_list')
-        ExerciceBudgetaire.objects.create(
-            annee=annee,
-            date_debut=d_debut,
-            date_fin=d_fin,
-            montant_global=montant,
-            statut='actif',
-        )
-        log_action(request.user, 'Exercice.create', f"Création de l'exercice {annee}", 'exercice')
+        # Règle R7 : désactiver tous les exercices existants (atomic + lock)
+        with transaction.atomic():
+            list(ExerciceBudgetaire.objects.select_for_update().all())
+            ExerciceBudgetaire.objects.all().update(is_active=False)
+            ex = ExerciceBudgetaire.objects.create(
+                annee=annee,
+                date_debut=d_debut,
+                date_fin=d_fin,
+                montant_global=montant,
+                statut='actif',
+                is_active=True,
+                exercice_precedent=ExerciceBudgetaire.objects.filter(
+                    is_locked=True,
+                ).order_by('-annee').first(),
+            )
+        log_action(request.user, 'Exercice.create', f"Création de l'exercice {annee} (R7 appliquée)", 'exercice', ex.pk)
         messages.success(request, f"Exercice {annee} créé avec succès.")
     except (ValueError, TypeError):
         messages.error(request, "Données invalides. Vérifiez l'année et le montant.")
@@ -1830,8 +1860,9 @@ def exercice_cloturer(request, pk):
         return redirect('exercices_list')
     ex.statut = 'cloture'
     ex.is_locked = True
-    ex.save(update_fields=['statut', 'is_locked'])
-    log_action(request.user, 'Exercice.cloturer', f"Clôture de l'exercice {ex.annee}", 'exercice', ex.pk)
+    ex.is_active = False
+    ex.save(update_fields=['statut', 'is_locked', 'is_active'])
+    log_action(request.user, 'Exercice.cloture', f"Clôture de l'exercice {ex.annee}", 'exercice', ex.pk)
     messages.success(request, f"Exercice {ex.annee} clôturé et verrouillé en lecture seule.")
     return redirect('exercices_list')
 
@@ -1855,12 +1886,17 @@ def exercice_reconduire(request, pk):
         messages.error(request, f"L'exercice {nouvelle_annee} existe déjà.")
         return redirect('exercices_list')
 
+    # Règle R7 : désactiver tous les exercices existants (lock pour empêcher race)
+    list(ExerciceBudgetaire.objects.select_for_update().all())
+    ExerciceBudgetaire.objects.all().update(is_active=False)
     nouveau = ExerciceBudgetaire.objects.create(
         annee=nouvelle_annee,
         date_debut=_date(nouvelle_annee, 1, 1),
         date_fin=_date(nouvelle_annee, 12, 31),
         montant_global=_D('0'),
         statut='actif',
+        is_active=True,
+        exercice_precedent=src,
     )
 
     # Copie des tâches actives
@@ -1885,7 +1921,7 @@ def exercice_reconduire(request, pk):
             nb_lignes += 1
 
     log_action(
-        request.user, 'Exercice.reconduire',
+        request.user, 'Exercice.reconduit',
         f"Reconduction {src.annee} → {nouvelle_annee} ({nb_taches} tâches, {nb_lignes} lignes)",
         'exercice', nouveau.pk,
     )
@@ -1973,8 +2009,11 @@ def parametres_view(request):
                 )
                 return redirect('parametres')
             from django.core.management import call_command
-            call_command('seed_data')
-            messages.success(request, "Données de démonstration réinitialisées.")
+            try:
+                call_command('seed_real_data')
+                messages.success(request, "Données de démonstration réinitialisées.")
+            except Exception as e:
+                messages.error(request, f"Erreur lors du seed : {e}")
             return redirect('parametres')
 
         # Seuil d'alerte
@@ -2125,6 +2164,7 @@ def ligne_detail(request, pk):
 
 @login_required
 @role_required('admin', 'directeur_drh', 'assistante_drh')
+@require_http_methods(['GET', 'POST'])
 def consommation_create(request, ligne_pk):
     """Enregistre une consommation directe (sans BC) sur une ligne budgétaire."""
     ligne = get_object_or_404(LigneBudgetaire.objects.select_related('tache__exercice'), pk=ligne_pk)
@@ -2133,6 +2173,13 @@ def consommation_create(request, ligne_pk):
     locked, msg = _check_exercice_non_verrouille(exercice)
     if locked:
         messages.error(request, msg)
+        return redirect('taches_list')
+    # MED-2 : interdire les consommations sur un exercice inactif (ni actif, ni clôturé)
+    if not exercice.is_active:
+        messages.error(
+            request,
+            f"L'exercice {exercice.annee} n'est pas actif — impossible d'enregistrer une consommation."
+        )
         return redirect('taches_list')
 
     if request.method == 'POST':
@@ -2190,4 +2237,444 @@ def journal_bc_view(request):
     return render(request, 'core/journal_bc.html', {
         'bcs': bcs,
         'exercice': exercice,
+    })
+
+
+# ============ RÈGLE R7 — ACTIVATION EXERCICE ============
+
+@login_required
+@role_required('admin')
+@require_POST
+def exercice_activer(request, pk):
+    """Active un exercice. RÈGLE R7 : désactive automatiquement tous les autres."""
+    exercice = get_object_or_404(ExerciceBudgetaire, pk=pk)
+    try:
+        exercice.activer(user=request.user)
+        messages.success(
+            request,
+            f"Exercice {exercice.annee} activé. "
+            f"Les autres exercices ont été automatiquement désactivés (Règle R7)."
+        )
+    except ValueError as e:
+        messages.error(request, str(e))
+    return redirect('exercices_list')
+
+
+# ============ WIZARD — CRÉATION EXERCICE (4 ÉTAPES) ============
+
+WIZARD_TTL_SECONDS = 30 * 60  # 30 minutes
+
+
+def _wizard_get_session(request):
+    """Récupère la session wizard ou None si absente/expirée."""
+    wizard = request.session.get('wizard_exercice')
+    if not wizard:
+        return None
+    started = wizard.get('_started_at')
+    if started:
+        from datetime import datetime
+        try:
+            started_dt = datetime.fromisoformat(started)
+            if (timezone.now() - started_dt).total_seconds() > WIZARD_TTL_SECONDS:
+                request.session.pop('wizard_exercice', None)
+                return None
+        except ValueError:
+            pass
+    return wizard
+
+
+@login_required
+@role_required('admin')
+@require_POST
+def wizard_exercice_cancel(request):
+    """Abandonne le wizard et nettoie la session (HIGH-4)."""
+    request.session.pop('wizard_exercice', None)
+    messages.info(request, "Création d'exercice annulée.")
+    return redirect('exercices_list')
+
+
+@login_required
+@role_required('admin')
+def wizard_exercice_step1(request):
+    """Étape 1 — Informations de base du nouvel exercice."""
+    exercice_actif = ExerciceBudgetaire.get_actif()
+
+    if request.method == 'POST':
+        annee_raw      = request.POST.get('annee', '').strip()
+        date_debut_raw = request.POST.get('date_debut', '').strip()
+        date_fin_raw   = request.POST.get('date_fin', '').strip()
+        seuil_raw      = request.POST.get('seuil_alerte', '80').strip()
+
+        try:
+            annee = int(annee_raw)
+        except ValueError:
+            messages.error(request, "Année invalide.")
+            return redirect('wizard_exercice_step1')
+
+        if ExerciceBudgetaire.objects.filter(annee=annee).exists():
+            messages.error(request, f"Un exercice {annee} existe déjà.")
+            return redirect('wizard_exercice_step1')
+
+        from datetime import datetime as _dt
+        try:
+            d_debut = _dt.strptime(date_debut_raw, '%Y-%m-%d').date()
+            d_fin   = _dt.strptime(date_fin_raw,   '%Y-%m-%d').date()
+        except ValueError:
+            messages.error(request, "Dates invalides.")
+            return redirect('wizard_exercice_step1')
+
+        if d_fin <= d_debut:
+            messages.error(request, "La date de fin doit être postérieure à la date de début.")
+            return redirect('wizard_exercice_step1')
+
+        request.session['wizard_exercice'] = {
+            'annee':        annee,
+            'date_debut':   date_debut_raw,
+            'date_fin':     date_fin_raw,
+            'seuil_alerte': int(seuil_raw) if seuil_raw.isdigit() else 80,
+            'taches_selectionnees': [],
+            'lignes_par_tache':     {},
+            'budgets':              {},
+            '_started_at':  timezone.now().isoformat(),
+        }
+        return redirect('wizard_exercice_step2')
+
+    annee_prop = (exercice_actif.annee + 1) if exercice_actif else 2026
+    return render(request, 'core/wizard/step1_infos.html', {
+        'exercice_actif': exercice_actif,
+        'annee_proposee': annee_prop,
+        'etape': 1,
+    })
+
+
+@login_required
+@role_required('admin')
+def wizard_exercice_step2(request):
+    """Étape 2 — Sélection des tâches depuis le répertoire."""
+    wizard = _wizard_get_session(request)
+    if wizard is None:
+        messages.warning(request, "Session du wizard expirée ou inexistante. Recommencer.")
+        return redirect('wizard_exercice_step1')
+
+    if request.method == 'POST':
+        action = request.POST.get('action', '')
+
+        if action == 'ajouter_tache':
+            numero = request.POST.get('nouveau_numero', '').strip()
+            titre  = request.POST.get('nouveau_titre', '').strip()
+            if numero and titre:
+                _, created = RepertoireTache.objects.get_or_create(
+                    numero=numero, defaults={'titre': titre}
+                )
+                if created:
+                    messages.success(request, f"Tâche {numero} ajoutée au répertoire.")
+                else:
+                    messages.warning(request, f"La tâche {numero} existe déjà dans le répertoire.")
+
+        elif action == 'suivant':
+            taches_ids = request.POST.getlist('taches_selectionnees')
+            if not taches_ids:
+                messages.error(request, "Sélectionnez au moins une tâche.")
+            else:
+                wizard['taches_selectionnees'] = taches_ids
+                request.session['wizard_exercice'] = wizard
+                return redirect('wizard_exercice_step3')
+
+    taches_repertoire = RepertoireTache.objects.filter(actif=True)
+    return render(request, 'core/wizard/step2_taches.html', {
+        'wizard': wizard,
+        'taches_repertoire': taches_repertoire,
+        'taches_selectionnees': [str(x) for x in wizard.get('taches_selectionnees', [])],
+        'etape': 2,
+    })
+
+
+@login_required
+@role_required('admin')
+def wizard_exercice_step3(request):
+    """Étape 3 — Lignes et budgets par tâche."""
+    wizard = _wizard_get_session(request)
+    if wizard is None:
+        messages.warning(request, "Session du wizard expirée ou inexistante. Recommencer.")
+        return redirect('wizard_exercice_step1')
+    taches_ids = wizard.get('taches_selectionnees', [])
+    if not taches_ids:
+        return redirect('wizard_exercice_step2')
+
+    taches_selectionnees = list(
+        RepertoireTache.objects.filter(pk__in=taches_ids).prefetch_related('lignes_repertoire')
+    )
+
+    if request.method == 'POST':
+        action = request.POST.get('action', '')
+
+        if action == 'ajouter_ligne':
+            tache_id = request.POST.get('tache_id', '').strip()
+            code     = request.POST.get('nouveau_code', '').strip()
+            libelle  = request.POST.get('nouveau_libelle', '').strip()
+            if tache_id and code and libelle:
+                tache_rep = get_object_or_404(RepertoireTache, pk=tache_id)
+                _, created = RepertoireLigne.objects.get_or_create(
+                    tache_repertoire=tache_rep,
+                    code_nature=code,
+                    defaults={'libelle_nature': libelle},
+                )
+                if created:
+                    messages.success(request, f"Ligne {code} ajoutée au répertoire.")
+                else:
+                    messages.warning(request, f"La ligne {code} existe déjà pour cette tâche.")
+
+        elif action == 'suivant':
+            lignes_par_tache = {}
+            budgets          = {}
+            erreur           = False
+            for tache in taches_selectionnees:
+                lignes_ids = request.POST.getlist(f'lignes_{tache.pk}')
+                lignes_par_tache[str(tache.pk)] = lignes_ids
+                for lid in lignes_ids:
+                    raw = request.POST.get(f'budget_{tache.pk}_{lid}', '0').replace(' ', '').replace(',', '.')
+                    try:
+                        budgets[f'{tache.pk}_{lid}'] = float(raw)
+                    except ValueError:
+                        messages.error(request, "Montant invalide détecté.")
+                        erreur = True
+            if not erreur:
+                wizard['lignes_par_tache'] = lignes_par_tache
+                wizard['budgets']          = budgets
+                request.session['wizard_exercice'] = wizard
+                return redirect('wizard_exercice_step4')
+
+    return render(request, 'core/wizard/step3_lignes_budgets.html', {
+        'wizard': wizard,
+        'taches_selectionnees': taches_selectionnees,
+        'lignes_par_tache': wizard.get('lignes_par_tache', {}),
+        'budgets': wizard.get('budgets', {}),
+        'etape': 3,
+    })
+
+
+@login_required
+@role_required('admin')
+def wizard_exercice_step4(request):
+    """Étape 4 — Confirmation et création finale."""
+    wizard = _wizard_get_session(request)
+    if wizard is None:
+        messages.warning(request, "Session du wizard expirée ou inexistante. Recommencer.")
+        return redirect('wizard_exercice_step1')
+
+    taches_ids       = wizard.get('taches_selectionnees', [])
+    taches           = list(RepertoireTache.objects.filter(pk__in=taches_ids))
+    lignes_par_tache = wizard.get('lignes_par_tache', {})
+    budgets          = wizard.get('budgets', {})
+    budget_total     = sum(float(v) for v in budgets.values())
+
+    if request.method == 'POST' and request.POST.get('action') == 'creer':
+        try:
+            with transaction.atomic():
+                # Règle R7 — lock pour empêcher race condition
+                list(ExerciceBudgetaire.objects.select_for_update().all())
+                ExerciceBudgetaire.objects.all().update(is_active=False)
+
+                exercice = ExerciceBudgetaire.objects.create(
+                    annee         = int(wizard['annee']),
+                    date_debut    = wizard['date_debut'],
+                    date_fin      = wizard['date_fin'],
+                    montant_global = Decimal(str(budget_total)),  # HIGH-5
+                    seuil_alerte  = int(wizard.get('seuil_alerte', 80)),
+                    statut        = 'actif',
+                    is_active     = True,
+                    exercice_precedent = ExerciceBudgetaire.objects.filter(
+                        is_locked=True
+                    ).order_by('-annee').first(),
+                )
+
+                for tache_rep in taches:
+                    tache = Tache.objects.create(
+                        numero   = tache_rep.numero,
+                        titre    = tache_rep.titre,
+                        exercice = exercice,
+                        actif    = True,
+                    )
+                    lignes_ids = lignes_par_tache.get(str(tache_rep.pk), [])
+                    lignes_rep = RepertoireLigne.objects.filter(pk__in=lignes_ids)
+                    for ligne_rep in lignes_rep:
+                        montant = budgets.get(f'{tache_rep.pk}_{ligne_rep.pk}', 0)
+                        LigneBudgetaire.objects.create(
+                            tache          = tache,
+                            code_nature    = ligne_rep.code_nature,
+                            libelle_nature = ligne_rep.libelle_nature,
+                            montant_initial = Decimal(str(montant)),
+                            actif          = True,
+                        )
+
+                JournalActivite.objects.create(
+                    type_action = 'Exercice.create_wizard',
+                    description = (
+                        f"Exercice {exercice.annee} créé via wizard. "
+                        f"{len(taches)} tâche(s) — budget total {budget_total:,.0f} FCFA."
+                    ),
+                    entite_type = 'ExerciceBudgetaire',
+                    entite_id   = exercice.pk,
+                    utilisateur = request.user,
+                )
+
+                del request.session['wizard_exercice']
+                messages.success(
+                    request,
+                    f"Exercice {exercice.annee} créé avec succès ! "
+                    f"{len(taches)} tâche(s) — Budget : {budget_total:,.0f} FCFA"
+                )
+                return redirect('dashboard')
+
+        except Exception as e:
+            messages.error(request, f"Erreur lors de la création : {e}")
+
+    return render(request, 'core/wizard/step4_confirmation.html', {
+        'wizard':           wizard,
+        'taches':           taches,
+        'lignes_par_tache': lignes_par_tache,
+        'budgets':          budgets,
+        'budget_total':     budget_total,
+        'etape':            4,
+        'prog_labels':      ['Infos', 'Tâches', 'Budget', 'Confirmation'],
+    })
+
+
+# ============ ANNULATION ADMIN ============
+
+@login_required
+@role_required('admin')
+@require_http_methods(['GET', 'POST'])
+def annuler_consommation_directe(request, pk):
+    """Admin — annule une consommation directe (soft-delete avec traçabilité)."""
+    conso = get_object_or_404(ConsommationDirecte.objects.select_related(
+        'ligne_budgetaire__tache__exercice', 'created_by'
+    ), pk=pk)
+
+    if conso.est_annule:
+        messages.warning(request, "Cette consommation est déjà annulée.")
+        return redirect('taches_list')
+    if conso.ligne_budgetaire.tache.exercice.is_locked:
+        messages.error(request, "Impossible : l'exercice est clôturé.")
+        return redirect('taches_list')
+
+    if request.method == 'POST':
+        motif = request.POST.get('motif', '').strip()
+        if len(motif) < 5:
+            messages.error(request, "Le motif d'annulation est obligatoire (5 caractères minimum).")
+        else:
+            with transaction.atomic():
+                # Soft-delete : on garde l'enregistrement pour préserver l'audit (MED-3)
+                conso.est_annule       = True
+                conso.annule_le        = timezone.now()
+                conso.annule_par       = request.user
+                conso.motif_annulation = motif
+                conso.save(update_fields=[
+                    'est_annule', 'annule_le', 'annule_par', 'motif_annulation',
+                ])
+                LogAnnulation.objects.create(
+                    type_entite       = 'consommation_directe',
+                    entite_id         = conso.pk,
+                    description_avant = (
+                        f"Consommation de {conso.montant:,.0f} FCFA sur "
+                        f"{conso.ligne_budgetaire.code_nature} "
+                        f"le {conso.date_consommation} — Motif initial : {conso.get_motif_display()}"
+                    ),
+                    motif_annulation  = motif,
+                    annule_par        = request.user,
+                )
+                JournalActivite.objects.create(
+                    type_action = 'Consommation.annuler',
+                    description = (
+                        f"Admin {request.user.username} a annulé la consommation de "
+                        f"{conso.montant:,.0f} FCFA sur {conso.ligne_budgetaire.code_nature}. "
+                        f"Motif : {motif}"
+                    ),
+                    entite_type = 'ConsommationDirecte',
+                    entite_id   = conso.pk,
+                    utilisateur = request.user,
+                )
+            messages.success(
+                request,
+                f"Consommation de {conso.montant:,.0f} FCFA annulée. "
+                f"Budget restitué sur la ligne {conso.ligne_budgetaire.code_nature}."
+            )
+            return redirect('taches_list')
+
+    return render(request, 'core/annulation/confirm_annulation.html', {
+        'objet': conso,
+        'type':  'consommation',
+        'titre': f"Annuler la consommation de {conso.montant:,.0f} FCFA sur {conso.ligne_budgetaire.code_nature}",
+    })
+
+
+@login_required
+@role_required('admin')
+@require_http_methods(['GET', 'POST'])
+def annuler_virement(request, pk):
+    """Admin — annule un virement via un virement inverse."""
+    virement = get_object_or_404(VirementBudgetaire.objects.select_related(
+        'ligne_source__tache__exercice', 'ligne_destination__tache', 'created_by'
+    ), pk=pk)
+
+    if virement.ligne_source.tache.exercice.is_locked:
+        messages.error(request, "Impossible : l'exercice est clôturé.")
+        return redirect('virements_list')
+
+    if request.method == 'POST':
+        motif = request.POST.get('motif', '').strip()
+        if len(motif) < 5:
+            messages.error(request, "Le motif d'annulation est obligatoire (5 caractères minimum).")
+        else:
+            # Vérifier que la ligne destination a assez de solde pour le virement inverse
+            dest_annot = LigneBudgetaire.objects.filter(
+                pk=virement.ligne_destination.pk
+            ).with_aggregates().first()
+            if (dest_annot.solde or Decimal('0')) < virement.montant:
+                messages.error(
+                    request,
+                    f"Solde insuffisant sur {virement.ligne_destination.code_nature} "
+                    f"pour annuler ce virement."
+                )
+            else:
+                VirementBudgetaire.objects.create(
+                    exercice           = virement.exercice,
+                    ligne_source       = virement.ligne_destination,
+                    ligne_destination  = virement.ligne_source,
+                    montant            = virement.montant,
+                    motif              = f"ANNULATION virement #{virement.pk} — {motif}",
+                    created_by         = request.user,
+                )
+                LogAnnulation.objects.create(
+                    type_entite       = 'virement',
+                    entite_id         = virement.pk,
+                    description_avant = (
+                        f"Virement de {virement.montant:,.0f} FCFA de "
+                        f"{virement.ligne_source.code_nature} vers "
+                        f"{virement.ligne_destination.code_nature}"
+                    ),
+                    motif_annulation  = motif,
+                    annule_par        = request.user,
+                )
+                JournalActivite.objects.create(
+                    type_action = 'Virement.annuler',
+                    description = (
+                        f"Admin {request.user.username} a annulé le virement #{virement.pk} "
+                        f"({virement.montant:,.0f} FCFA) via virement inverse. Motif : {motif}"
+                    ),
+                    entite_type = 'VirementBudgetaire',
+                    entite_id   = virement.pk,
+                    utilisateur = request.user,
+                )
+                messages.success(
+                    request,
+                    f"Virement #{virement.pk} annulé via virement inverse de "
+                    f"{virement.montant:,.0f} FCFA."
+                )
+                return redirect('virements_list')
+
+    return render(request, 'core/annulation/confirm_annulation.html', {
+        'objet': virement,
+        'type':  'virement',
+        'titre': f"Annuler le virement #{virement.pk} ({virement.montant:,.0f} FCFA)",
     })
