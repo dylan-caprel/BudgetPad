@@ -54,8 +54,12 @@ AUTHENTICATION_BACKENDS = [
 # === django-axes : anti brute-force ===
 AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = 1  # heure(s)
-# Verrouillage par username uniquement (pas IP-based, évite le contournement par rotation d'IP)
-AXES_LOCKOUT_PARAMETERS = ['username']
+# Verrouillage sur le COUPLE (ip_address, username) : compteur d'échecs par paire
+# IP↔compte. Inclure ip_address lève le warning axes.W006, tout en évitant :
+#  - un lockout IP-seul → blocage massif d'utilisateurs légitimes derrière un NAT/proxy ;
+#  - un lockout username-seul → DoS trivial (verrouiller volontairement le compte d'un tiers).
+# (liste imbriquée = combinaison ET ; une liste plate ['ip_address','username'] = OU.)
+AXES_LOCKOUT_PARAMETERS = [['ip_address', 'username']]
 AXES_RESET_ON_SUCCESS = True
 AXES_LOCKOUT_TEMPLATE = 'registration/lockout.html'
 
