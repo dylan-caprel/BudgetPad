@@ -3,7 +3,7 @@
 import logging
 from decimal import Decimal
 from django.db import transaction
-from ..models import DemandeAchat, ExerciceBudgetaire, JournalActivite, Tache
+from ..models import DemandeAchat, ExerciceBudgetaire, JournalActivite, LigneBudgetaire
 from .notification_service import NotificationService
 from .sequence_service import SequenceService
 
@@ -15,46 +15,57 @@ class DemandeAchatService:
 
     @staticmethod
     @transaction.atomic
-    def creer(tache: Tache, objet: str, montant_estime: Decimal,
-              utilisateur, exercice: ExerciceBudgetaire = None) -> DemandeAchat:
+    def creer(ligne_budgetaire: LigneBudgetaire, objet: str, montant_estime: Decimal,
+              utilisateur, reference: str = '', exercice: ExerciceBudgetaire = None,
+              nature_prestation: str = '', periode_engagement: str = '',
+              priorite: str = '') -> DemandeAchat:
         """
-        Cree une demande d'achat avec numerotation atomique et journal.
+        Crée une demande d'achat liée à une ligne budgétaire.
+        - reference : laissez vide pour auto-génération au format DAC{AAMM}DLA{NNNNN}
         """
+        exercice = exercice or ligne_budgetaire.tache.exercice
         if exercice is None:
-            exercice = ExerciceBudgetaire.get_actif()
-            if exercice is None:
-                raise ValueError("Aucun exercice budgetaire actif.")
+            raise ValueError("Aucun exercice budgétaire actif.")
 
         if montant_estime is None or montant_estime <= 0:
-            raise ValueError("Le montant estime doit etre superieur a zero.")
+            raise ValueError("Le montant estimé doit être supérieur à zéro.")
 
-        reference = SequenceService.next_da_reference(exercice.annee)
+        if not reference:
+            reference = SequenceService.next_da_reference()
+
         da = DemandeAchat.objects.create(
             reference=reference,
             exercice=exercice,
-            tache=tache,
+            ligne_budgetaire=ligne_budgetaire,
             objet=objet,
             montant_estime=montant_estime,
+            nature_prestation=nature_prestation,
+            periode_engagement=periode_engagement,
+            priorite=priorite,
             statut='cree',
             created_by=utilisateur,
         )
 
         JournalActivite.objects.create(
             type_action='DA.create',
-            description=f"Creation de {reference} - {objet}",
+            description=f"Création de {reference} — {objet}",
             entite_type='da',
             entite_id=da.id,
             utilisateur=utilisateur,
         )
 
         # Notifier les valideurs (Directeur DRH + admins)
+        tache = ligne_budgetaire.tache
         NotificationService.notifier_roles(
             roles=['directeur_drh', 'admin'],
             type_notif='da_a_valider',
-            titre=f"Nouvelle DA a valider : {reference}",
-            message=f"{objet} ({montant_estime:,.0f} FCFA) - tache {tache.numero}",
+            titre=f"Nouvelle DA à valider : {reference}",
+            message=(
+                f"{objet} ({montant_estime:,.0f} FCFA) — "
+                f"ligne {ligne_budgetaire.code_nature} / tâche {tache.numero}"
+            ),
             entite_type='da', entite_id=da.id,
         )
-        logger.info("DA creee : %s par %s", reference, utilisateur.username)
+        logger.info("DA créée : %s par %s", reference, utilisateur.username)
 
         return da

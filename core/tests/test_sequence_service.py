@@ -24,11 +24,15 @@ class TestSequenceService:
         assert SequenceService.next_value('B') == 1
 
     def test_bc_numero_format(self):
-        assert SequenceService.next_bc_numero(2025) == 'BC-2025-0001'
-        assert SequenceService.next_bc_numero(2025) == 'BC-2025-0002'
+        from datetime import date
+        yymm = date.today().strftime('%y%m')
+        assert SequenceService.next_bc_numero() == f'STD{yymm}DLA00001'
+        assert SequenceService.next_bc_numero() == f'STD{yymm}DLA00002'
 
     def test_da_reference_format(self):
-        assert SequenceService.next_da_reference(2025) == 'DA-2025-001'
+        from datetime import date
+        yymm = date.today().strftime('%y%m')
+        assert SequenceService.next_da_reference() == f'DAC{yymm}DLA00001'
 
     def test_prestataire_code_format(self):
         assert SequenceService.next_prestataire_code() == 'PREST-001'

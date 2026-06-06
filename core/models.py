@@ -1,6 +1,6 @@
 from django.db import models
 from django.db.models import (
-    Case, DecimalField, ExpressionWrapper, F, Q, Sum, Value, When,
+    Case, DecimalField, ExpressionWrapper, F, OuterRef, Q, Subquery, Sum, Value, When,
 )
 from django.db.models.functions import Coalesce
 from django.contrib.auth.models import AbstractUser
@@ -145,6 +145,27 @@ class ExerciceBudgetaire(models.Model):
 # TACHE + LigneBudgetaire
 # ─────────────────────────────────────────────────────────────
 
+def _sum_subquery(queryset, group_field, sum_field):
+    """Agrégat SUM isolé dans une sous-requête corrélée (OuterRef).
+
+    Évite le piège Django du produit cartésien : additionner plusieurs relations
+    multi-valuées dans la MÊME requête via des JOIN multiplie les lignes et fausse
+    chaque Sum dès qu'une entité porte ≥ 2 lignes liées (2 BC, 2 virements…).
+    En isolant chaque agrégat dans son propre SELECT, aucun JOIN ne se croise.
+
+    `queryset` doit déjà être filtré via OuterRef pour ne viser que l'entité courante.
+    Renvoie ``Coalesce(Subquery(SUM(sum_field) GROUP BY group_field), 0)``.
+    """
+    df = DecimalField(max_digits=15, decimal_places=2)
+    return Coalesce(
+        Subquery(
+            queryset.values(group_field).annotate(_total=Sum(sum_field)).values('_total'),
+            output_field=df,
+        ),
+        Value(Decimal('0'), output_field=df),
+    )
+
+
 class TacheQuerySet(models.QuerySet):
     def with_aggregates(self):
         df = DecimalField(max_digits=15, decimal_places=2)
@@ -152,17 +173,28 @@ class TacheQuerySet(models.QuerySet):
         return (
             self
             .annotate(
-                total_budget_initial=Coalesce(
-                    Sum('lignes__montant_initial', filter=Q(lignes__actif=True)),
-                    zero,
+                # Budget initial : somme des lignes actives de la tâche.
+                total_budget_initial=_sum_subquery(
+                    LigneBudgetaire.objects.filter(tache=OuterRef('pk'), actif=True),
+                    'tache', 'montant_initial',
                 ),
-                total_transfert_plus=Coalesce(
-                    Sum('lignes__virements_entrants__montant', filter=Q(lignes__actif=True)),
-                    zero,
+                # Transferts entrants : virements dont la ligne destination est une
+                # ligne active de la tâche.
+                total_transfert_plus=_sum_subquery(
+                    VirementBudgetaire.objects.filter(
+                        ligne_destination__tache=OuterRef('pk'),
+                        ligne_destination__actif=True,
+                    ),
+                    'ligne_destination__tache', 'montant',
                 ),
-                total_transfert_moins=Coalesce(
-                    Sum('lignes__virements_sortants__montant', filter=Q(lignes__actif=True)),
-                    zero,
+                # Transferts sortants : virements dont la ligne source est une ligne
+                # active de la tâche.
+                total_transfert_moins=_sum_subquery(
+                    VirementBudgetaire.objects.filter(
+                        ligne_source__tache=OuterRef('pk'),
+                        ligne_source__actif=True,
+                    ),
+                    'ligne_source__tache', 'montant',
                 ),
             )
             .annotate(
@@ -172,27 +204,23 @@ class TacheQuerySet(models.QuerySet):
                 ),
             )
             .annotate(
-                total_conso_bc=Coalesce(
-                    Sum(
-                        'lignes__imputations__montant',
-                        filter=(
-                            Q(lignes__actif=True)
-                            & ~Q(lignes__imputations__bon_commande__statut='annule')
-                        ),
-                    ),
-                    zero,
+                # Conso BC : imputations des lignes actives, hors BC annulés.
+                total_conso_bc=_sum_subquery(
+                    ImputationBC.objects
+                    .filter(ligne_budgetaire__tache=OuterRef('pk'), ligne_budgetaire__actif=True)
+                    .exclude(bon_commande__statut='annule'),
+                    'ligne_budgetaire__tache', 'montant',
                 ),
             )
             .annotate(
-                total_conso_directe=Coalesce(
-                    Sum(
-                        'lignes__consommations_directes__montant',
-                        filter=(
-                            Q(lignes__actif=True)
-                            & Q(lignes__consommations_directes__est_annule=False)
-                        ),
+                # Conso directe : consommations des lignes actives, hors annulées.
+                total_conso_directe=_sum_subquery(
+                    ConsommationDirecte.objects.filter(
+                        ligne_budgetaire__tache=OuterRef('pk'),
+                        ligne_budgetaire__actif=True,
+                        est_annule=False,
                     ),
-                    zero,
+                    'ligne_budgetaire__tache', 'montant',
                 ),
             )
             .annotate(
@@ -301,8 +329,18 @@ class LigneBudgetaireQuerySet(models.QuerySet):
         return (
             self
             .annotate(
-                transfert_plus=Coalesce(Sum('virements_entrants__montant'), zero),
-                transfert_moins=Coalesce(Sum('virements_sortants__montant'), zero),
+                # Chaque agrégat est isolé dans sa propre sous-requête : additionner
+                # virements + imputations + consommations dans la même requête via des
+                # JOIN multiplierait les lignes (produit cartésien) dès qu'une ligne
+                # porte ≥ 2 entités liées, faussant tous les Sum.
+                transfert_plus=_sum_subquery(
+                    VirementBudgetaire.objects.filter(ligne_destination=OuterRef('pk')),
+                    'ligne_destination', 'montant',
+                ),
+                transfert_moins=_sum_subquery(
+                    VirementBudgetaire.objects.filter(ligne_source=OuterRef('pk')),
+                    'ligne_source', 'montant',
+                ),
             )
             .annotate(
                 budget_ajuste=ExpressionWrapper(
@@ -311,21 +349,19 @@ class LigneBudgetaireQuerySet(models.QuerySet):
                 ),
             )
             .annotate(
-                consommation_bc=Coalesce(
-                    Sum(
-                        'imputations__montant',
-                        filter=~Q(imputations__bon_commande__statut='annule'),
-                    ),
-                    zero,
+                consommation_bc=_sum_subquery(
+                    ImputationBC.objects
+                    .filter(ligne_budgetaire=OuterRef('pk'))
+                    .exclude(bon_commande__statut='annule'),
+                    'ligne_budgetaire', 'montant',
                 ),
             )
             .annotate(
-                consommation_directe=Coalesce(
-                    Sum(
-                        'consommations_directes__montant',
-                        filter=Q(consommations_directes__est_annule=False),
+                consommation_directe=_sum_subquery(
+                    ConsommationDirecte.objects.filter(
+                        ligne_budgetaire=OuterRef('pk'), est_annule=False,
                     ),
-                    zero,
+                    'ligne_budgetaire', 'montant',
                 ),
             )
             .annotate(
@@ -437,20 +473,52 @@ class Prestataire(models.Model):
 class DemandeAchat(models.Model):
     STATUT_CHOICES = [
         ('cree',     'Créée'),
-        ('en_etude', 'En étude'),
+        ('en_etude', 'Transmise DAG'),
         ('validee',  'Validée'),
-        ('refusee',  'Refusée'),
         ('bc_cree',  'BC créé'),
+        ('annulee',  'Annulée'),
     ]
-    reference = models.CharField(max_length=20, unique=True)
+    reference = models.CharField(
+        max_length=30, unique=True, blank=True,
+        help_text="Laisser vide pour auto-génération au format DAC{AAMM}DLA{NNNNN}",
+    )
     exercice = models.ForeignKey(
         ExerciceBudgetaire, on_delete=models.CASCADE, related_name='demandes_achat',
     )
-    tache = models.ForeignKey(Tache, on_delete=models.CASCADE, related_name='demandes_achat')
+    # Correction encadreur : DA liée à la ligne budgétaire (pas à la tâche)
+    ligne_budgetaire = models.ForeignKey(
+        'LigneBudgetaire', on_delete=models.PROTECT,
+        related_name='demandes_achat', null=True, blank=True,
+        verbose_name="Ligne budgétaire concernée",
+    )
     objet = models.CharField(max_length=200)
     montant_estime = models.DecimalField(max_digits=15, decimal_places=2)
+    # ── Champs conformité format réel PAD (tableau engagements DRH) ──
+    nature_prestation = models.CharField(
+        max_length=20, blank=True,
+        choices=[
+            ('APPRO', 'Approvisionnement (APPRO)'),
+            ('Trx', 'Travaux (Trx)'),
+            ('Prestat.Int', 'Prestation intellectuelle (Prestat.Int)'),
+            ('Autre', 'Autre'),
+        ],
+        verbose_name="Nature de la prestation",
+    )
+    periode_engagement = models.CharField(
+        max_length=5, blank=True,
+        choices=[
+            ('P1', 'Période 1 (Mars — Juin)'),
+            ('P2', 'Période 2 (Juillet — Novembre)'),
+        ],
+        verbose_name="Période d'engagement",
+    )
+    priorite = models.CharField(
+        max_length=2, blank=True,
+        choices=[('1', 'Priorité 1'), ('2', 'Priorité 2')],
+        verbose_name="Priorité",
+    )
     statut = models.CharField(max_length=15, choices=STATUT_CHOICES, default='cree')
-    motif_refus = models.TextField(blank=True)
+    motif_refus = models.TextField(blank=True, verbose_name="Motif d'annulation")
     created_by = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -462,19 +530,36 @@ class DemandeAchat(models.Model):
     def __str__(self):
         return f"{self.reference} — {self.objet}"
 
+    def save(self, *args, **kwargs):
+        # Auto-génération de la référence au format réel PAD : DAC{AAMM}DLA{NNNNN}
+        if not self.reference:
+            from .services.sequence_service import SequenceService
+            self.reference = SequenceService.next_da_reference()
+        super().save(*args, **kwargs)
+
+    # ── Propriétés dérivées depuis la ligne budgétaire ──
+
+    @property
+    def tache(self):
+        if self.ligne_budgetaire_id:
+            return self.ligne_budgetaire.tache
+        return None
+
+    # ── Couleur statut ──
+
     @property
     def statut_couleur(self):
         return {
             'cree': 'secondary', 'en_etude': 'warning', 'validee': 'success',
-            'refusee': 'danger', 'bc_cree': 'info',
+            'bc_cree': 'info', 'annulee': 'danger',
         }.get(self.statut, 'secondary')
 
     TRANSITIONS_AUTORISEES = {
-        'cree':     ['en_etude'],
-        'en_etude': ['validee', 'refusee'],
+        'cree':     ['en_etude', 'annulee'],
+        'en_etude': ['validee', 'annulee'],
         'validee':  ['bc_cree'],
-        'refusee':  [],
         'bc_cree':  [],
+        'annulee':  [],
     }
 
     def peut_transiter_vers(self, nouveau_statut):
@@ -488,11 +573,17 @@ class DemandeAchat(models.Model):
                 return False, "Aucune offre reçue — impossible de valider la DA."
             if offres_retenues != 1:
                 return False, "Exactement 1 offre doit être retenue avant la validation."
-            pj_count = PieceJointe.objects.filter(type_entite='da', entite_id=self.pk).count()
-            if pj_count == 0:
-                return False, "Au moins 1 pièce jointe est requise pour valider une DA."
-        if nouveau_statut == 'refusee' and not self.motif_refus:
-            return False, "Motif de refus obligatoire."
+            pj_valides = PieceJointe.objects.filter(
+                type_entite='da', entite_id=self.pk,
+                type_piece__in=['facture_proforma', 'da_signee'],
+            ).exists()
+            if not pj_valides:
+                return False, (
+                    "Joignez au moins une facture proforma ou la DA signée "
+                    "avant de valider cette demande."
+                )
+        if nouveau_statut == 'annulee' and not self.motif_refus:
+            return False, "Motif d'annulation obligatoire."
         return True, "OK"
 
 
@@ -581,7 +672,10 @@ class BonCommande(models.Model):
         'execute':  [],
         'annule':   [],
     }
-    numero           = models.CharField(max_length=20, unique=True)
+    numero           = models.CharField(
+        max_length=30, unique=True, blank=True,
+        help_text="Laisser vide pour auto-génération au format STD{AAMM}DLA{NNNNN}",
+    )
     demande          = models.ForeignKey(
         DemandeAchat, on_delete=models.PROTECT, related_name='bons_commande',
         null=True, blank=True,
@@ -594,13 +688,41 @@ class BonCommande(models.Model):
         Prestataire, on_delete=models.PROTECT, related_name='bons_commande',
     )
     direction        = models.CharField(max_length=100, default='Direction des Ressources Humaines')
+    # ── Avis CAPRI (Règle R11 : toute imputation requiert un avis CAPRI préalable de la DCG) ──
+    numero_capri     = models.CharField(
+        max_length=50, blank=True, verbose_name="Numéro CAPRI",
+        help_text="Numéro de l'avis CAPRI qui autorise cette imputation",
+    )
+    date_capri       = models.DateField(
+        null=True, blank=True, verbose_name="Date d'émission CAPRI",
+    )
     date_emission    = models.DateField(auto_now_add=True)
     date_notification = models.DateField(null=True, blank=True)
     delai_execution_jours = models.PositiveIntegerField(
         null=True, blank=True,
-        help_text="Délai accordé au prestataire pour l'exécution (en jours)",
+        help_text="Délai accordé au prestataire pour l'exécution (en jours) — legacy",
+    )
+    delai_execution_semaines = models.PositiveIntegerField(
+        null=True, blank=True,
+        verbose_name="Délai d'exécution (semaines)",
+        help_text="Ex: 4 pour 4 semaines. La date d'échéance est calculée automatiquement.",
     )
     date_echeance    = models.DateField(null=True, blank=True)
+    condition_paiement = models.CharField(
+        max_length=100, default='virement_60',
+        choices=[
+            ('virement_60', 'Virement 60 jours fin de mois'),
+            ('virement_30', 'Virement 30 jours fin de mois'),
+            ('comptant', 'Paiement comptant'),
+            ('autre', 'Autre'),
+        ],
+        verbose_name="Condition de paiement",
+    )
+    rib_paiement     = models.CharField(
+        max_length=50, blank=True, verbose_name="RIB de paiement",
+        help_text="Ex: 10003 03900 06000053467 94",
+    )
+    objet            = models.TextField(blank=True, verbose_name="Objet du bon de commande")
     taux_tva         = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('19.25'))
     montant_ht       = models.DecimalField(max_digits=15, decimal_places=2, default=0)
     montant_tva      = models.DecimalField(max_digits=15, decimal_places=2, default=0)
@@ -626,8 +748,16 @@ class BonCommande(models.Model):
         return f"{self.numero} — {self.prestataire.nom}"
 
     def save(self, *args, **kwargs):
-        if self.date_notification and self.delai_execution_jours:
-            self.date_echeance = self.date_notification + timedelta(days=self.delai_execution_jours)
+        # Auto-génération du numéro au format réel PAD : STD{AAMM}DLA{NNNNN}
+        if not self.numero:
+            from .services.sequence_service import SequenceService
+            self.numero = SequenceService.next_bc_numero()
+        # Échéance auto : priorité au délai en semaines, sinon legacy jours
+        if self.date_notification:
+            if self.delai_execution_semaines:
+                self.date_echeance = self.date_notification + timedelta(weeks=self.delai_execution_semaines)
+            elif self.delai_execution_jours:
+                self.date_echeance = self.date_notification + timedelta(days=self.delai_execution_jours)
         super().save(*args, **kwargs)
 
     @property
@@ -651,6 +781,25 @@ class BonCommande(models.Model):
     def echeance_proche(self):
         jr = self.jours_restants
         return jr is not None and 0 < jr <= 7
+
+    @property
+    def delai_affichage(self):
+        """Affichage humain du délai (priorité aux semaines, format réel PAD)."""
+        if self.delai_execution_semaines:
+            return f"{self.delai_execution_semaines:02d} semaines"
+        if self.delai_execution_jours:
+            return f"{self.delai_execution_jours} jours"
+        return "—"
+
+    @property
+    def capri_manquant(self):
+        """True si l'avis CAPRI (n° + date) n'est pas renseigné — à régulariser (R11)."""
+        return not (self.numero_capri and self.date_capri)
+
+    def recalculer_montants(self):
+        """Recalcule HT/TVA/TTC depuis les lignes d'articles et sauvegarde."""
+        self.calculer_montants()
+        self.save(update_fields=['montant_ht', 'montant_tva', 'montant_ttc'])
 
     def peut_transiter(self, nouveau_statut):
         return nouveau_statut in self.TRANSITIONS.get(self.statut, [])
@@ -723,6 +872,14 @@ class ConsommationDirecte(models.Model):
     motif             = models.CharField(max_length=20, choices=MOTIF_CHOICES)
     description       = models.TextField(blank=True, help_text="Détails supplémentaires")
     date_consommation = models.DateField()
+    # ── Avis CAPRI (Règle R11) ──
+    numero_capri      = models.CharField(
+        max_length=50, blank=True, verbose_name="Numéro CAPRI",
+        help_text="Numéro de l'avis CAPRI qui autorise cette consommation",
+    )
+    date_capri        = models.DateField(
+        null=True, blank=True, verbose_name="Date d'émission CAPRI",
+    )
     created_by        = models.ForeignKey(
         'Utilisateur', on_delete=models.SET_NULL, null=True,
     )
@@ -740,6 +897,11 @@ class ConsommationDirecte(models.Model):
         ordering = ['-date_consommation', '-created_at']
         verbose_name = 'Consommation directe'
         verbose_name_plural = 'Consommations directes'
+
+    @property
+    def capri_manquant(self):
+        """True si l'avis CAPRI (n° + date) n'est pas renseigné — à régulariser (R11)."""
+        return not (self.numero_capri and self.date_capri)
 
     def __str__(self):
         flag = ' [ANNULÉE]' if self.est_annule else ''
@@ -785,11 +947,24 @@ class ProlongationBC(models.Model):
 # ─────────────────────────────────────────────────────────────
 
 class LigneBC(models.Model):
-    bon_commande     = models.ForeignKey(BonCommande, on_delete=models.CASCADE, related_name='lignes')
-    designation      = models.CharField(max_length=200)
-    quantite         = models.IntegerField(validators=[MinValueValidator(1)])
-    prix_unitaire_ht = models.DecimalField(max_digits=15, decimal_places=2)
-    ordre            = models.IntegerField(default=1)
+    UNITE_CHOICES = [
+        ('UN', 'Unité (UN)'), ('DA', 'DA'), ('KG', 'Kilogramme (KG)'),
+        ('L', 'Litre (L)'), ('M', 'Mètre (M)'), ('M2', 'Mètre carré (M²)'),
+        ('M3', 'Mètre cube (M³)'), ('FT', 'Forfait (FT)'), ('HR', 'Heure (HR)'),
+        ('JR', 'Jour (JR)'), ('MOIS', 'Mois (MOIS)'), ('LOT', 'Lot (LOT)'),
+    ]
+    bon_commande      = models.ForeignKey(BonCommande, on_delete=models.CASCADE, related_name='lignes')
+    reference_article = models.CharField(
+        max_length=30, blank=True, verbose_name="Réf. Art",
+        help_text="Code article saisi manuellement (ex: SER000072)",
+    )
+    designation       = models.CharField(max_length=200)
+    unite             = models.CharField(max_length=10, choices=UNITE_CHOICES, default='UN')
+    quantite          = models.DecimalField(
+        max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))],
+    )
+    prix_unitaire_ht  = models.DecimalField(max_digits=15, decimal_places=2)
+    ordre             = models.IntegerField(default=1)
 
     class Meta:
         ordering = ['ordre']
@@ -851,7 +1026,10 @@ class JournalActivite(models.Model):
         ('Tache.create',       'Création tâche'),
         ('Tache.edit',         'Modification tâche'),
         ('Tache.delete',       'Suppression tâche'),
+        ('DA.edit',             'Modification DA'),
+        ('BC.edit',             'Modification BC'),
         ('Prestataire.create', 'Création prestataire'),
+        ('Prestataire.edit',   'Modification prestataire'),
         ('Prestataire.delete', 'Suppression prestataire'),
         ('Exercice.create',          'Création exercice'),
         ('Exercice.create_wizard',   'Création exercice (wizard)'),
@@ -990,8 +1168,11 @@ class PieceJointe(models.Model):
         ('da',    "Demande d'achat"),
         ('bc',    'Bon de commande'),
         ('offre', 'Offre prestataire'),
+        ('conso', 'Consommation directe'),
     ]
     TYPE_PIECE_CHOICES = [
+        ('da_signee',          'DA signée par la Directrice'),
+        ('avis_capri',         'Avis CAPRI scanné'),
         ('devis',              'Devis'),
         ('facture_proforma',   'Facture proforma'),
         ('bon_commande',       'Bon de commande signé'),
@@ -1017,6 +1198,11 @@ class PieceJointe(models.Model):
         max_length=25, choices=TYPE_PIECE_CHOICES, default='autre', blank=True,
         verbose_name='Type de document',
     )
+    titre_personnalise = models.CharField(
+        max_length=100, blank=True,
+        verbose_name='Titre personnalisé',
+        help_text="Pour le type « Autre » : préciser le titre du document.",
+    )
     fichier      = models.FileField(upload_to='pieces_jointes/%Y/%m/')
     nom_original = models.CharField(max_length=255)
     taille       = models.PositiveIntegerField(default=0)
@@ -1032,7 +1218,18 @@ class PieceJointe(models.Model):
         verbose_name_plural = 'Pièces jointes'
 
     def __str__(self):
-        return self.nom_original
+        return self.titre_affiche
+
+    @property
+    def titre_affiche(self):
+        """Titre lisible. Le titre personnalisé complète n'importe quel type ;
+        pour « Autre » il le remplace."""
+        if self.type_piece == 'autre':
+            return self.titre_personnalise or self.get_type_piece_display()
+        base = self.get_type_piece_display() if self.type_piece else self.nom_original
+        if self.titre_personnalise:
+            return f"{base} — {self.titre_personnalise}"
+        return base
 
     @property
     def extension(self):

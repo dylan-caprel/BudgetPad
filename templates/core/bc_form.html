@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% load core_tags %}
+{% block title %}Modifier BC {{ bc.numero }} — BudgetPAD{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="{% url 'bc_list' %}" class="btn btn-sm btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <div>
+        <h4 style="font-weight:600;color:#1B3A5C;" class="mb-0">Modifier BC {{ bc.numero }}</h4>
+        <p class="text-muted mb-0" style="font-size:13px;">
+            {{ bc.prestataire.nom }}
+            &mdash; <span class="badge bg-{{ bc.statut_couleur }}">{{ bc.get_statut_display }}</span>
+        </p>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <div class="data-card">
+            <form method="post" action="{% url 'bc_edit' bc.pk %}">
+                {% csrf_token %}
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">{{ form.numero.label }}</label>
+                        {{ form.numero }}
+                        {% if form.numero.errors %}<div class="text-danger small mt-1">{{ form.numero.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label fw-bold">Objet</label>
+                        {{ form.objet }}
+                    </div>
+                </div>
+
+                <!-- Avis CAPRI (Règle R11) -->
+                <div class="row g-3 mb-3 p-2 rounded mx-0" style="background:#FFF8EC;border-left:4px solid #F39C12;">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Numéro CAPRI <span class="text-danger">*</span></label>
+                        {{ form.numero_capri }}
+                        {% if form.numero_capri.errors %}<div class="text-danger small mt-1">{{ form.numero_capri.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Date CAPRI <span class="text-danger">*</span></label>
+                        {{ form.date_capri }}
+                        {% if form.date_capri.errors %}<div class="text-danger small mt-1">{{ form.date_capri.errors }}</div>{% endif %}
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-7">
+                        <label class="form-label fw-bold">Montant HT (FCFA) <span class="text-danger">*</span></label>
+                        {{ form.montant_ht }}
+                        {% if form.montant_ht.errors %}<div class="text-danger small mt-1">{{ form.montant_ht.errors }}</div>{% endif %}
+                        <small class="text-muted" style="font-size:11px;">Si le BC a des articles, le montant est recalculé depuis ceux-ci.</small>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label fw-bold">TVA (%)</label>
+                        {{ form.taux_tva }}
+                        <small class="text-muted" style="font-size:11px;">Taux par défaut : 19,25 %</small>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Condition de paiement</label>
+                        {{ form.condition_paiement }}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">RIB de paiement</label>
+                        {{ form.rib_paiement }}
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-5">
+                        <label class="form-label fw-bold">Date de notification</label>
+                        {{ form.date_notification }}
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Délai (semaines)</label>
+                        {{ form.delai_execution_semaines }}
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Date d'échéance</label>
+                        {{ form.date_echeance }}
+                        <small class="text-muted" style="font-size:11px;">
+                            Auto-calculée si date + délai saisis
+                        </small>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn flex-fill"
+                            style="background:#1A5632;color:white;">
+                        <i class="bi bi-check-circle me-2"></i>Enregistrer
+                    </button>
+                    <a href="{% url 'bc_list' %}" class="btn btn-outline-secondary flex-fill">Annuler</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

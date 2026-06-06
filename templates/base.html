@@ -29,6 +29,20 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
+    <!-- Correctif global modals Bootstrap : un modal imbriqué dans un accordéon, une
+         carte ou une cellule de tableau est piégé dans un contexte d'empilement, et le
+         backdrop (ajouté au <body>) passe au-dessus → écran assombri, clics bloqués.
+         On déplace tous les modals en enfants directs de <body>. -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.modal').forEach(function (m) {
+            if (m.parentElement !== document.body) {
+                document.body.appendChild(m);
+            }
+        });
+    });
+    </script>
+
     <!-- Global offcanvas chaining helper (BC ↔ DA ↔ Prestataire ↔ Ligne) -->
     <script>
     (function () {
@@ -100,14 +114,12 @@
         </span>
         <span class="footer-sep mx-2">|</span>
         <span class="text-muted">
-          &copy; 2025 — Développé par <strong>Ngando Doumbe Dylan Caprel</strong>
+          &copy; {% now "Y" %} — Port Autonome de Douala — DRH
         </span>
       </div>
       <div class="footer-right text-muted text-center text-md-end">
-        <i class="bi bi-person-badge me-1"></i>Sous la supervision de
-        <strong>Abdul Aziz Njikam Nfomou</strong>
-        <span class="footer-sep mx-2">|</span>
-        <i class="bi bi-building me-1"></i>Port Autonome de Douala — DRH
+        <i class="bi bi-code-slash me-1"></i>Développé par
+        <strong>Abdul Aziz Njikam Nfomou</strong> &amp; <strong>Dylan Caprel Ngando</strong>
         <span class="footer-sep mx-2">|</span>Tous droits réservés
       </div>
     </div>

@@ -4,7 +4,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-start mb-4">
     <div><h4 style="font-weight:600;color:#1B3A5C;">Prestataires</h4><p class="text-muted mb-0" style="font-size:14px;">{{ page_obj.paginator.count }} fournisseurs référencés</p></div>
-    {% if request.user|has_role:"assistante_drh" %}<button class="btn btn-pad" data-bs-toggle="modal" data-bs-target="#modalPrest"><i class="bi bi-plus"></i> Nouveau</button>{% endif %}
+    {% if request.user|has_role:"admin,assistante_drh" %}<button class="btn btn-pad" data-bs-toggle="modal" data-bs-target="#modalPrest"><i class="bi bi-plus"></i> Nouveau</button>{% endif %}
 </div>
 <div class="data-card">
     <h6>Annuaire fournisseurs</h6>
@@ -21,7 +21,7 @@
         <tr class="prest-row" data-prest-id="{{ p.pk }}" style="cursor:pointer;" title="Cliquer pour voir les détails">
             <td>{{ p.code }}</td><td>{{ p.nom }}</td><td>{{ p.adresse }}</td><td>{{ p.telephone }}</td><td>{{ p.email }}</td>
             <td onclick="event.stopPropagation();">
-                {% if request.user|has_role:"assistante_drh" %}
+                {% if request.user|has_role:"admin,assistante_drh" %}
                 <form method="post" action="{% url 'prestataire_delete' p.pk %}" class="d-inline" onsubmit="return confirm('Supprimer ce prestataire ?');">{% csrf_token %}
                   <button type="submit" class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-trash"></i></button>
                 </form>

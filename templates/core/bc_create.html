@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% load core_tags %}
+{% block title %}Nouveau bon de commande — BudgetPAD{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="{% url 'bc_list' %}" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+    <div>
+        <h4 style="font-weight:600;color:#1B3A5C;" class="mb-0">Nouveau bon de commande</h4>
+        <p class="text-muted mb-0" style="font-size:13px;">Format PAD &middot; Exercice {{ exercice.annee }}</p>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+
+        <!-- Sélection de la DA (recharge la page) -->
+        <div class="data-card mb-3">
+            <form method="get" action="{% url 'bc_create' %}" id="daSelectForm">
+                <label class="form-label fw-bold">Demande d'achat validée <span class="text-danger">*</span></label>
+                <select name="da" class="form-select" onchange="document.getElementById('daSelectForm').submit()">
+                    <option value="">— Choisir une DA validée (avec offre retenue) —</option>
+                    {% for d in das_validees %}
+                    <option value="{{ d.pk }}" {% if da and da.pk == d.pk %}selected{% endif %}>
+                        {{ d.reference }} — {{ d.objet|truncatechars:55 }}
+                    </option>
+                    {% endfor %}
+                </select>
+                {% if not das_validees %}
+                <small class="text-danger d-block mt-1">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    Aucune DA validée avec offre retenue n'est disponible.
+                </small>
+                {% endif %}
+            </form>
+        </div>
+
+        {% if da %}
+        {% with offre=da.offres.all %}
+        <form method="post" action="{% url 'bc_create' %}">
+            {% csrf_token %}
+            <input type="hidden" name="da_id" value="{{ da.pk }}">
+
+            <!-- Contexte DA / ligne imputée -->
+            <div class="data-card mb-3" style="border-left:3px solid #1B3A5C;">
+                <div class="row g-3" style="font-size:13px;">
+                    <div class="col-md-3">
+                        <small class="text-muted d-block">Tâche</small>
+                        <strong>{{ da.ligne_budgetaire.tache.numero }}</strong>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted d-block">Nature (ligne)</small>
+                        <code>{{ da.ligne_budgetaire.code_nature }}</code>
+                    </div>
+                    <div class="col-md-6">
+                        <small class="text-muted d-block">Ligne budgétaire imputée</small>
+                        {{ da.ligne_budgetaire.libelle_nature|truncatechars:45 }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- En-tête BC -->
+            <div class="data-card mb-3">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Numéro BC <small class="text-muted fw-normal">(optionnel)</small></label>
+                        <input type="text" name="numero" class="form-control"
+                               placeholder="Ex: STD2406DLA00143 — vide = auto">
+                        <small class="text-muted">Saisie manuelle possible, sinon auto-généré.</small>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label fw-bold">Objet</label>
+                        <input type="text" name="objet" class="form-control" value="{{ da.objet }}"
+                               placeholder="Objet du bon de commande">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Avis CAPRI (Règle R11) -->
+            <div class="data-card mb-3" style="border-left:4px solid #F39C12;">
+                <h6 class="mb-1" style="color:#1B3A5C;">
+                    <i class="bi bi-shield-check me-2" style="color:#F39C12;"></i>Autorisation CAPRI <span class="text-danger">*</span>
+                </h6>
+                <p class="text-muted mb-3" style="font-size:12px;">
+                    Toute imputation budgétaire requiert un avis CAPRI préalable de la DCG (Règle R11).
+                </p>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Numéro CAPRI <span class="text-danger">*</span></label>
+                        <input type="text" name="numero_capri" class="form-control" required
+                               placeholder="Ex: CAPRI-2026-00143">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Date d'émission CAPRI <span class="text-danger">*</span></label>
+                        <input type="date" name="date_capri" class="form-control" required>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tableau des articles -->
+            <div class="data-card mb-3 p-0">
+                <div class="px-3 pt-3 pb-2 d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-0"><i class="bi bi-table me-2"></i>Articles / Prestations</h6>
+                        <small class="text-muted">Réf. Art saisie manuellement &middot; le montant HT se calcule tout seul.</small>
+                    </div>
+                </div>
+                {{ formset.management_form }}
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width:130px;">Réf. Art</th>
+                                <th>Désignation</th>
+                                <th style="width:110px;">Unité</th>
+                                <th style="width:95px;">Quantité</th>
+                                <th style="width:140px;">P.U. HT</th>
+                                <th style="width:140px;" class="text-end">Montant HT</th>
+                                <th style="width:38px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for f in formset %}
+                            <tr class="ligne-article">
+                                {{ f.id }}
+                                <td>{{ f.reference_article }}</td>
+                                <td>{{ f.designation }}</td>
+                                <td>{{ f.unite }}</td>
+                                <td>{{ f.quantite }}</td>
+                                <td>{{ f.prix_unitaire_ht }}</td>
+                                <td class="text-end"><span class="montant-ht">0,00</span></td>
+                                <td class="text-center">{% if formset.can_delete %}{{ f.DELETE }}{% endif %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr class="fw-bold table-light">
+                                <td colspan="5" class="text-end">Total HT</td>
+                                <td class="text-end"><span id="totalHT">0,00</span></td><td></td>
+                            </tr>
+                            <tr>
+                                <td colspan="5" class="text-end">TVA 19,25 %</td>
+                                <td class="text-end"><span id="totalTVA">0,00</span></td><td></td>
+                            </tr>
+                            <tr class="fw-bold" style="color:#1A5632;">
+                                <td colspan="5" class="text-end">Total TTC</td>
+                                <td class="text-end"><span id="totalTTC">0,00</span></td><td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                <div class="px-3 py-2 text-muted" style="font-size:12px;">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Si tu laisses les lignes vides, le BC reprend le montant de l'offre retenue
+                    {% for o in offre %}{% if o.statut == 'retenue' %}(<strong>{{ o.montant|floatformat:0 }} FCFA HT</strong>){% endif %}{% endfor %}.
+                </div>
+            </div>
+
+            <!-- Paiement / délai -->
+            <div class="data-card mb-3">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Condition de paiement</label>
+                        <select name="condition_paiement" class="form-select">
+                            {% for val, lib in condition_choices %}
+                            <option value="{{ val }}" {% if val == 'virement_60' %}selected{% endif %}>{{ lib }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">RIB de paiement</label>
+                        <input type="text" name="rib_paiement" class="form-control"
+                               placeholder="10003 03900 06000053467 94">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold">Délai</label>
+                        <div class="input-group">
+                            <input type="number" name="delai_execution_semaines" class="form-control"
+                                   min="1" max="52" placeholder="4">
+                            <span class="input-group-text">sem.</span>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold">Notifié le</label>
+                        <input type="date" name="date_notification" class="form-control">
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn flex-fill" style="background:#1A5632;color:white;">
+                    <i class="bi bi-check-circle me-2"></i>Créer le bon de commande
+                </button>
+                <a href="{% url 'bc_list' %}" class="btn btn-outline-secondary flex-fill">Annuler</a>
+            </div>
+        </form>
+        {% endwith %}
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const TVA = 0.1925;
+function fmtFCFA(n) {
+    return new Intl.NumberFormat('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}).format(n || 0);
+}
+function recalcArticles() {
+    let ht = 0;
+    document.querySelectorAll('tr.ligne-article').forEach(function (row) {
+        var qEl = row.querySelector('.ligne-qte');
+        var pEl = row.querySelector('.ligne-pu');
+        var q = parseFloat(qEl ? qEl.value : 0) || 0;
+        var pu = parseFloat(pEl ? pEl.value : 0) || 0;
+        var m = q * pu;
+        ht += m;
+        var cell = row.querySelector('.montant-ht');
+        if (cell) cell.textContent = fmtFCFA(m);
+    });
+    document.getElementById('totalHT').textContent = fmtFCFA(ht);
+    document.getElementById('totalTVA').textContent = fmtFCFA(ht * TVA);
+    document.getElementById('totalTTC').textContent = fmtFCFA(ht * (1 + TVA));
+}
+document.addEventListener('input', function (e) {
+    if (e.target.classList.contains('ligne-qte') || e.target.classList.contains('ligne-pu')) {
+        recalcArticles();
+    }
+});
+document.addEventListener('DOMContentLoaded', recalcArticles);
+</script>
+{% endblock %}

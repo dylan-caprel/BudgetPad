@@ -7,7 +7,7 @@
         <h4 style="font-weight:600;color:#1B3A5C;">Tâches budgétaires</h4>
         <p class="text-muted mb-0" style="font-size:14px;">{{ taches|length }} tâches &middot; Exercice {{ exercice.annee }}</p>
     </div>
-    {% if request.user|has_role:"assistante_drh" %}
+    {% if request.user|has_role:"admin,assistante_drh" %}
     <button class="btn btn-pad" data-bs-toggle="modal" data-bs-target="#modalTache">
         <i class="bi bi-plus"></i> Nouvelle tâche
     </button>
@@ -58,21 +58,26 @@
                     </div>
                 </button>
             </h2>
-            {% if request.user|has_role:"assistante_drh" %}
-            <form method="post" action="{% url 'tache_delete' t.pk %}" class="d-flex align-items-center px-2"
-                  onsubmit="return confirm('Supprimer cette tâche ?');">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-sm btn-link text-danger p-1" title="Supprimer la tâche">
-                    <i class="bi bi-trash"></i>
-                </button>
-            </form>
+            {% if request.user|has_role:"admin,assistante_drh" %}
+            <div class="d-flex align-items-center px-2 gap-1">
+                <a href="{% url 'tache_edit' t.pk %}" class="btn btn-sm btn-link text-secondary p-1" title="Modifier la tâche">
+                    <i class="bi bi-pencil"></i>
+                </a>
+                <form method="post" action="{% url 'tache_delete' t.pk %}" class="d-inline"
+                      onsubmit="return confirm('Supprimer cette tâche ?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-link text-danger p-1" title="Supprimer la tâche">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </form>
+            </div>
             {% endif %}
         </div>
         <div id="tache-{{ t.pk }}" class="accordion-collapse collapse" data-bs-parent="#accordionTaches">
             <div class="accordion-body pt-0 pb-2 px-3" style="background:#fafbfd;">
                 <div class="d-flex justify-content-between align-items-center mb-2 mt-2">
                     <small class="text-muted fw-bold" style="text-transform:uppercase;letter-spacing:.5px;">Lignes budgétaires</small>
-                    {% if request.user|has_role:"assistante_drh" %}
+                    {% if request.user|has_role:"admin,assistante_drh" %}
                     <button class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:11px;"
                             data-bs-toggle="modal" data-bs-target="#modalLigne{{ t.pk }}">
                         <i class="bi bi-plus"></i> Ajouter une ligne
@@ -89,7 +94,7 @@
                             <th class="montant">Consommé</th>
                             <th class="montant">Solde</th>
                             <th class="taux">Taux %</th>
-                            {% if request.user|has_role:"assistante_drh" %}<th style="width:36px;"></th>{% endif %}
+                            {% if request.user|has_role:"admin,assistante_drh" %}<th style="width:36px;"></th>{% endif %}
                         </tr>
                     </thead>
                     <tbody>
@@ -112,7 +117,7 @@
                         <td class="taux">
                             <span class="taux-badge {% if ligne.taux_consommation >= 90 %}danger{% elif ligne.taux_consommation >= 70 %}warning{% else %}success{% endif %}">{{ ligne.taux_consommation|floatformat:1 }}&nbsp;%</span>
                         </td>
-                        {% if request.user|has_role:"assistante_drh" %}
+                        {% if request.user|has_role:"admin,assistante_drh" %}
                         <td onclick="event.stopPropagation();">
                             <button class="btn btn-sm btn-link p-0 text-secondary" style="font-size:11px;"
                                     data-bs-toggle="modal" data-bs-target="#modalEditLigne{{ ligne.pk }}"
@@ -132,7 +137,7 @@
     </div>
 
     <!-- Modal ajout ligne pour cette tâche -->
-    {% if request.user|has_role:"assistante_drh" %}
+    {% if request.user|has_role:"admin,assistante_drh" %}
     <div class="modal fade" id="modalLigne{{ t.pk }}" tabindex="-1">
         <div class="modal-dialog"><div class="modal-content">
             <div class="modal-header">
@@ -174,12 +179,25 @@
             <form method="post" action="{% url 'ligne_budgetaire_edit' ligne.pk %}">
                 {% csrf_token %}
                 <div class="modal-body">
+                    {% if request.user|has_role:"admin" %}
+                    <div class="mb-3">
+                        <label class="form-label">Code nature</label>
+                        <input type="text" name="code_nature" class="form-control"
+                               value="{{ ligne.code_nature }}" maxlength="10" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Libellé</label>
+                        <input type="text" name="libelle_nature" class="form-control"
+                               value="{{ ligne.libelle_nature }}" maxlength="255" required>
+                    </div>
+                    {% endif %}
                     <div class="mb-2 small text-muted">
                         Montant actuel : <strong>{{ ligne.montant_initial|fmt_exact }}</strong>
                     </div>
                     <label class="form-label">Nouveau montant initial (FCFA)</label>
                     <input type="number" name="montant_initial" class="form-control"
-                           value="{{ ligne.montant_initial|unlocalize }}" min="0" step="1" required autofocus>
+                           value="{{ ligne.montant_initial|stringformat:'d' }}"
+                           min="0" step="1" inputmode="numeric" required>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
@@ -201,7 +219,7 @@
 </div>
 
 <!-- Modal nouvelle tâche + lignes budgétaires inline -->
-{% if request.user|has_role:"assistante_drh" %}
+{% if request.user|has_role:"admin,assistante_drh" %}
 <div class="modal fade" id="modalTache" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">

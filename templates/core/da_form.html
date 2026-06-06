@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% load core_tags %}
+{% block title %}Modifier DA {{ da.reference }} — BudgetPAD{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="{% url 'da_list' %}" class="btn btn-sm btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <div>
+        <h4 style="font-weight:600;color:#1B3A5C;" class="mb-0">
+            Modifier la DA {{ da.reference }}
+        </h4>
+        <p class="text-muted mb-0" style="font-size:13px;">Exercice {{ exercice.annee }}</p>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+
+        {% if da.statut|in_csv:"validee,bc_cree" %}
+        <div class="alert alert-warning mb-3" style="font-size:13px;">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            DA {{ da.get_statut_display }} — seuls le numéro et la ligne budgétaire restent modifiables.
+        </div>
+        {% endif %}
+
+        <div class="data-card">
+            <form method="post" action="{% url 'da_edit' da.pk %}">
+                {% csrf_token %}
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">{{ form.reference.label }}</label>
+                    {{ form.reference }}
+                    <small class="text-muted">{{ form.reference.help_text }}</small>
+                    {% if form.reference.errors %}<div class="text-danger small mt-1">{{ form.reference.errors }}</div>{% endif %}
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        Ligne budgétaire <span class="text-danger">*</span>
+                    </label>
+                    {{ form.ligne_budgetaire }}
+                    <small class="text-muted">Format : Numéro tâche › Code nature — Libellé</small>
+                    {% if form.ligne_budgetaire.errors %}<div class="text-danger small mt-1">{{ form.ligne_budgetaire.errors }}</div>{% endif %}
+                </div>
+
+                <!-- Solde dynamique de la ligne choisie -->
+                <div id="solde_info" class="d-none mb-3">
+                    <div class="row g-2 text-center" style="font-size:12px;">
+                        <div class="col-4">
+                            <div class="p-2 rounded" style="background:#f0fff4;">
+                                <div class="text-muted">Solde comptable</div>
+                                <div class="fw-bold" style="color:#1A5632;"><span id="solde_comptable">—</span></div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-2 rounded" style="background:#fff8e1;">
+                                <div class="text-muted">Déjà engagé (DA)</div>
+                                <div class="fw-bold text-warning"><span id="solde_engage">—</span></div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-2 rounded" style="background:#e8f4fd;">
+                                <div class="text-muted">Disponible réel</div>
+                                <div class="fw-bold" style="color:#1B3A5C;"><span id="solde_dispo">—</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="solde_alerte" class="alert alert-danger border-0 py-2 mt-2 mb-0 d-none" style="font-size:12px;">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        Le montant estimé dépasse le solde disponible — la DA ne pourra pas être créée.
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        {{ form.objet.label }} <span class="text-danger">*</span>
+                    </label>
+                    {{ form.objet }}
+                    {% if form.objet.errors %}<div class="text-danger small mt-1">{{ form.objet.errors }}</div>{% endif %}
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        {{ form.montant_estime.label }} <span class="text-danger">*</span>
+                    </label>
+                    {{ form.montant_estime }}
+                    {% if form.montant_estime.errors %}<div class="text-danger small mt-1">{{ form.montant_estime.errors }}</div>{% endif %}
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-5">
+                        <label class="form-label fw-bold">Nature de la prestation</label>
+                        {{ form.nature_prestation }}
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Période d'engagement</label>
+                        {{ form.periode_engagement }}
+                        <small class="text-muted">P1 : Mars–Juin &middot; P2 : Juil–Nov</small>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Priorité</label>
+                        {{ form.priorite }}
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn flex-fill"
+                            style="background:#1A5632;color:white;">
+                        <i class="bi bi-check-circle me-2"></i>Enregistrer les modifications
+                    </button>
+                    <a href="{% url 'da_list' %}" class="btn btn-outline-secondary flex-fill">Annuler</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var fmt = function(n) { return new Intl.NumberFormat('fr-FR').format(Math.round(n || 0)) + ' FCFA'; };
+var soldeDispo = null;
+
+function chargerSolde(ligneId) {
+    if (!ligneId) {
+        document.getElementById('solde_info').classList.add('d-none');
+        soldeDispo = null;
+        return;
+    }
+    fetch('/api/ligne/' + ligneId + '/solde/')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            soldeDispo = d.solde_disponible;
+            document.getElementById('solde_comptable').textContent = fmt(d.solde_comptable);
+            document.getElementById('solde_engage').textContent    = fmt(d.montant_engage);
+            document.getElementById('solde_dispo').textContent     = fmt(d.solde_disponible);
+            document.getElementById('solde_info').classList.remove('d-none');
+            verifierMontant();
+        });
+}
+
+function verifierMontant() {
+    var mInput = document.getElementById('id_montant_estime');
+    var alerte = document.getElementById('solde_alerte');
+    var btn = document.querySelector('button[type="submit"]');
+    if (soldeDispo === null || !mInput) return;
+    var montant = parseFloat(mInput.value) || 0;
+    if (montant > soldeDispo) {
+        alerte.classList.remove('d-none');
+        if (btn) btn.disabled = true;
+    } else {
+        alerte.classList.add('d-none');
+        if (btn) btn.disabled = false;
+    }
+}
+
+var sel = document.getElementById('id_ligne_budgetaire');
+sel.addEventListener('change', function() { chargerSolde(this.value); });
+var mEl = document.getElementById('id_montant_estime');
+if (mEl) { mEl.addEventListener('input', verifierMontant); }
+// Charger immédiatement si une ligne est déjà sélectionnée
+if (sel.value) { chargerSolde(sel.value); }
+</script>
+{% endblock %}

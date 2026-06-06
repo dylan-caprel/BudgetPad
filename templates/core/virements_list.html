@@ -4,7 +4,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-start mb-4">
     <div><h4 style="font-weight:600;color:#1B3A5C;">Transferts budgétaires</h4><p class="text-muted mb-0" style="font-size:14px;">Réallocation de fonds entre lignes budgétaires</p></div>
-    {% if request.user|has_role:"assistante_drh" %}<button class="btn btn-pad" data-bs-toggle="modal" data-bs-target="#modalVirement"><i class="bi bi-plus"></i> Nouveau transfert</button>{% endif %}
+    {% if request.user|has_role:"admin,assistante_drh" %}<button class="btn btn-pad" data-bs-toggle="modal" data-bs-target="#modalVirement"><i class="bi bi-plus"></i> Nouveau transfert</button>{% endif %}
 </div>
 <div class="data-card">
     <h6>Historique des virements</h6>

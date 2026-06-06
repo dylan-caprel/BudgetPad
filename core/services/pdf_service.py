@@ -72,9 +72,279 @@ def _styles():
     }
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Conversion d'un entier en toutes lettres (français) — sans dépendance externe
+# ─────────────────────────────────────────────────────────────────────────────
+
+_UNITES = [
+    'zéro', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf',
+    'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize',
+    'dix-sept', 'dix-huit', 'dix-neuf',
+]
+
+
+def _deux_chiffres(n: int) -> str:
+    if n < 20:
+        return _UNITES[n]
+    d, u = divmod(n, 10)
+    bases = {2: 'vingt', 3: 'trente', 4: 'quarante', 5: 'cinquante',
+             6: 'soixante', 7: 'soixante', 8: 'quatre-vingt', 9: 'quatre-vingt'}
+    base = bases[d]
+    if d in (7, 9):
+        reste = 10 + u  # 10..19
+        if d == 7 and reste == 11:
+            return 'soixante et onze'
+        return f"{base}-{_UNITES[reste]}"
+    if u == 0:
+        return 'quatre-vingts' if d == 8 else base
+    if u == 1 and d != 8:
+        return f"{base} et un"
+    return f"{base}-{_UNITES[u]}"
+
+
+def _trois_chiffres(n: int, plural_ok: bool = True) -> str:
+    if n < 100:
+        return _deux_chiffres(n)
+    h, r = divmod(n, 100)
+    cent = 'cent' if h == 1 else f"{_UNITES[h]} cent"
+    if r == 0:
+        if h > 1 and plural_ok:
+            cent += 's'
+        return cent
+    return f"{cent} {_deux_chiffres(r)}"
+
+
+def montant_en_lettres(montant) -> str:
+    """Convertit un entier en toutes lettres en français (jusqu'aux milliards)."""
+    n = int(montant)
+    if n == 0:
+        return 'zéro'
+    parts = []
+    milliards, n = divmod(n, 1_000_000_000)
+    millions, n = divmod(n, 1_000_000)
+    milliers, unites = divmod(n, 1000)
+    if milliards:
+        parts.append(_trois_chiffres(milliards, False) + (' milliards' if milliards > 1 else ' milliard'))
+    if millions:
+        parts.append(_trois_chiffres(millions, False) + (' millions' if millions > 1 else ' million'))
+    if milliers:
+        parts.append('mille' if milliers == 1 else _trois_chiffres(milliers, False) + ' mille')
+    if unites:
+        parts.append(_trois_chiffres(unites, True))
+    return ' '.join(parts)
+
+
+def _fmt_fcfa(value) -> str:
+    """Formate un montant en '1 234 567,00' (style document PAD)."""
+    try:
+        s = f"{Decimal(str(value)):,.2f}"
+    except Exception:
+        return str(value)
+    return s.replace(',', ' ').replace('.', ',')
+
+
+def _fmt_qte(value) -> str:
+    try:
+        return f"{Decimal(str(value)):.2f}".replace('.', ',')
+    except Exception:
+        return str(value)
+
+
 def generer_pdf_bon_commande(bc: BonCommande) -> bytes:
+    """Génère le PDF d'un bon de commande au format officiel réel du PAD (une page)."""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        leftMargin=12 * mm, rightMargin=12 * mm,
+        topMargin=10 * mm, bottomMargin=12 * mm,
+        title=f"Bon de commande {bc.numero}",
+        author='BudgetPAD — PAD/DRH',
+    )
+    base = getSampleStyleSheet()
+    st_center = ParagraphStyle('pc', parent=base['Normal'], fontSize=11, alignment=TA_CENTER,
+                               fontName='Helvetica-Bold', textColor=PAD_GREEN, leading=15)
+    st_code = ParagraphStyle('pcode', parent=base['Normal'], fontSize=7.5, leading=11)
+    st_cell = ParagraphStyle('pcell', parent=base['Normal'], fontSize=8, leading=11)
+    st_cell_b = ParagraphStyle('pcellb', parent=base['Normal'], fontSize=8, leading=11, fontName='Helvetica-Bold')
+    st_head = ParagraphStyle('phead', parent=base['Normal'], fontSize=8.5, alignment=TA_CENTER,
+                             fontName='Helvetica-Bold', textColor=colors.white)
+    st_objet = ParagraphStyle('pobj', parent=base['Normal'], fontSize=9, fontName='Helvetica-Bold',
+                              textColor=PAD_BLUE, leading=12)
+    st_num = ParagraphStyle('pnum', parent=base['Normal'], fontSize=8, alignment=TA_RIGHT, leading=11)
+    st_sig = ParagraphStyle('psig', parent=base['Normal'], fontSize=8, alignment=TA_CENTER, leading=11)
+
+    story = []
+    da = bc.demande
+    p = bc.prestataire
+    lignes = list(bc.lignes.all())
+
+    # ── En-tête : logo | titre | code document ──
+    logo = _logo_pad(width_mm=24)
+    titre = Paragraph(
+        "SYSTEME DE MANAGEMENT DE LA QUALITE<br/>ENREGISTREMENT<br/>"
+        "<font size='14'>BON DE COMMANDE</font>", st_center)
+    code = Paragraph(
+        "Code&nbsp;&nbsp;EN-QI A-41<br/>Version&nbsp;&nbsp;00<br/>"
+        "Date de création&nbsp;&nbsp;30/09/2014<br/>Page 1 sur 1", st_code)
+    header = Table([[logo or Paragraph('PAD', st_cell_b), titre, code]],
+                   colWidths=[30 * mm, 110 * mm, 46 * mm])
+    header.setStyle(TableStyle([
+        ('BOX', (0, 0), (-1, -1), 0.7, colors.black),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.black),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (0, 0), (0, 0), 'CENTER'),
+        ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    story.append(header)
+
+    # ── 3 colonnes : Demande d'achat | Commande | Destinataire ──
+    da_num = da.reference if da else '—'
+    da_date = da.created_at.strftime('%d/%m/%Y') if da else '—'
+    if da and da.ligne_budgetaire_id:
+        tache_num = da.ligne_budgetaire.tache.numero
+        nature = da.ligne_budgetaire.code_nature
+    else:
+        tache_num = bc.tache.numero if bc.tache_id else '—'
+        nature = '—'
+    da_txt = Paragraph(
+        f"<b>N° D.A. :</b> {da_num}<br/><b>Date D.A. :</b> {da_date}<br/>"
+        f"<b>Tâche :</b> {tache_num}<br/><b>Nature :</b> {nature}", st_cell)
+    bc_date = bc.date_emission.strftime('%d/%m/%Y') if bc.date_emission else '—'
+    cmd_txt = Paragraph(
+        f"<b>{bc.numero}</b><br/><br/><b>Date :</b> {bc_date}<br/><b>Par :</b> —", st_cell)
+    notif = bc.date_notification.strftime('%d/%m/%Y') if bc.date_notification else '—'
+    dest_txt = Paragraph(
+        f"<b>Code :</b> {p.code}<br/><b>Raison :</b> {p.nom}<br/>"
+        f"<b>Adresse :</b> {p.adresse or '—'}<br/><b>Téléphone :</b> {p.telephone or '—'}<br/>"
+        f"<b>Notifié le :</b> {notif}", st_cell)
+    info = Table(
+        [[Paragraph("<b>Demande d'achat</b>", st_cell_b),
+          Paragraph("<b>Commande</b>", st_cell_b),
+          Paragraph("<b>Destinataire</b>", st_cell_b)],
+         [da_txt, cmd_txt, dest_txt]],
+        colWidths=[55 * mm, 50 * mm, 81 * mm])
+    info.setStyle(TableStyle([
+        ('BOX', (0, 0), (-1, -1), 0.7, colors.black),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.black),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EAEFF3')),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    story.append(info)
+
+    # ── OBJET ──
+    objet_txt = (bc.objet or (da.objet if da else '') or '—').upper()
+    objet = Table([[Paragraph(f"<b>OBJET :</b> {objet_txt}", st_objet)]], colWidths=[186 * mm])
+    objet.setStyle(TableStyle([
+        ('BOX', (0, 0), (-1, -1), 0.7, colors.black),
+        ('TOPPADDING', (0, 0), (-1, -1), 5), ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    story.append(objet)
+
+    # ── Tableau des articles ──
+    rows = [[
+        Paragraph("Réf. Art", st_head), Paragraph("Désignation", st_head),
+        Paragraph("Unité", st_head), Paragraph("Quantité", st_head),
+        Paragraph("P.U.", st_head), Paragraph("MONTANT HT", st_head),
+    ]]
+    if lignes:
+        for l in lignes:
+            rows.append([
+                Paragraph(l.reference_article or '—', st_cell),
+                Paragraph(l.designation, st_cell),
+                Paragraph(l.unite, st_cell),
+                Paragraph(_fmt_qte(l.quantite), st_num),
+                Paragraph(_fmt_fcfa(l.prix_unitaire_ht), st_num),
+                Paragraph(_fmt_fcfa(l.montant_ht), st_num),
+            ])
+    else:
+        rows.append([
+            Paragraph('—', st_cell), Paragraph(objet_txt.title(), st_cell),
+            Paragraph('FT', st_cell), Paragraph('1,00', st_num),
+            Paragraph(_fmt_fcfa(bc.montant_ht), st_num), Paragraph(_fmt_fcfa(bc.montant_ht), st_num),
+        ])
+    for _ in range(max(0, 6 - len(lignes))):
+        rows.append(['', '', '', '', '', ''])
+    art = Table(rows, colWidths=[24 * mm, 70 * mm, 16 * mm, 22 * mm, 27 * mm, 27 * mm])
+    art.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), PAD_BLUE),
+        ('BOX', (0, 0), (-1, -1), 0.7, colors.black),
+        ('INNERGRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#999999')),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('ALIGN', (2, 0), (2, -1), 'CENTER'),
+        ('ALIGN', (3, 0), (-1, -1), 'RIGHT'),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+    ]))
+    story.append(art)
+
+    # ── Montant en toutes lettres ──
+    lettres = montant_en_lettres(bc.montant_ttc)
+    somme = Table([[Paragraph(
+        f"Le présent bon de commande est arrêté à la somme de "
+        f"<b>{lettres} Francs CFA TTC</b>.", st_cell)]], colWidths=[186 * mm])
+    somme.setStyle(TableStyle([
+        ('BOX', (0, 0), (-1, -1), 0.7, colors.black),
+        ('TOPPADDING', (0, 0), (-1, -1), 5), ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    story.append(somme)
+
+    # ── Bas : délai/condition/RIB | signature DG/DRH | montants ──
+    gauche = Paragraph(
+        f"<b>Délai d'exécution à compter de la date de notification :</b> {bc.delai_affichage}<br/><br/>"
+        f"<b>Condition de Paiement :</b> {bc.get_condition_paiement_display()}<br/><br/>"
+        f"<b>RIB Paiement :</b> {bc.rib_paiement or '—'}", st_cell)
+    centre = Paragraph(
+        "Pour le Directeur Général<br/>et par Délégation<br/><br/>"
+        "<b>Le Directeur des Ressources Humaines</b>", st_sig)
+    droite = Paragraph(
+        f"<b>Montant Total HT :</b><br/>{_fmt_fcfa(bc.montant_ht)}<br/><br/>"
+        f"<b>TVA {bc.taux_tva}% :</b><br/>{_fmt_fcfa(bc.montant_tva)}<br/><br/>"
+        f"<b>Montant Total TTC :</b><br/>{_fmt_fcfa(bc.montant_ttc)}", st_num)
+    bas = Table([[gauche, centre, droite]], colWidths=[78 * mm, 56 * mm, 52 * mm])
+    bas.setStyle(TableStyle([
+        ('BOX', (0, 0), (-1, -1), 0.7, colors.black),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.black),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING', (0, 0), (-1, -1), 6), ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    story.append(bas)
+
+    # ── Signataires ──
+    sig = Table([[Paragraph("<b>SIGNATAIRE 1</b>", st_cell), '',
+                  Paragraph("<b>SIGNATAIRE 2</b>", st_cell)]],
+                colWidths=[78 * mm, 56 * mm, 52 * mm], rowHeights=[22 * mm])
+    sig.setStyle(TableStyle([
+        ('BOX', (0, 0), (-1, -1), 0.7, colors.black),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.black),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING', (0, 0), (-1, -1), 4), ('LEFTPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    story.append(sig)
+
+    def _footer(canvas, doc_):
+        canvas.saveState()
+        canvas.setFont('Helvetica', 6.5)
+        canvas.setFillColor(colors.grey)
+        canvas.drawCentredString(
+            105 * mm, 8 * mm,
+            "P.A.D — Siège au Centre des Affaires Maritimes — BP 4020 DOUALA — "
+            "Tél: 33 43 35 00 / 33 42 01 33 — www.portdouala-cameroun.com")
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
+    return buffer.getvalue()
+
+
+def _generer_pdf_bc_legacy(bc: BonCommande) -> bytes:
     """
-    Genere le PDF officiel d'un bon de commande sur UNE SEULE PAGE et renvoie les octets.
+    [LEGACY — conservé pour référence] Ancienne mise en page BC.
+    Remplacé par generer_pdf_bon_commande (format réel PAD).
     """
     buffer = BytesIO()
     doc = SimpleDocTemplate(

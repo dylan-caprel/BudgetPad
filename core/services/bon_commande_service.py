@@ -6,7 +6,7 @@ from django.db import transaction
 from django.db.models import Sum, Q
 from ..models import (
     BonCommande, ExerciceBudgetaire, HistoriqueStatut, JournalActivite,
-    Prestataire, Tache, LigneBudgetaire, ImputationBC,
+    Prestataire, Tache, LigneBudgetaire, ImputationBC, LigneBC,
 )
 from ..constants import TVA_RATE
 from .sequence_service import SequenceService
@@ -35,7 +35,12 @@ class BonCommandeService:
     def creer(tache: Tache, prestataire: Prestataire, montant_ht: Decimal,
               utilisateur, exercice: ExerciceBudgetaire = None,
               demande=None, taux_tva: Decimal = TVA_RATE,
-              imputations: list = None) -> BonCommande:
+              imputations: list = None, ligne_imputation=None,
+              numero: str = '', objet: str = '',
+              condition_paiement: str = 'virement_60', rib_paiement: str = '',
+              delai_execution_semaines=None, date_notification=None,
+              numero_capri: str = '', date_capri=None,
+              lignes: list = None) -> BonCommande:
         """
         Cree un BC en garantissant l'integrite budgetaire :
         - lock pessimiste sur la tache (select_for_update)
@@ -101,8 +106,27 @@ class BonCommandeService:
                         f"Imputation sur {ligne.code_nature} ({montant_imp:,.0f}) "
                         f"supérieure au solde disponible ({disponible:,.0f})."
                     )
+        elif ligne_imputation is not None:
+            # Imputation unique sur la ligne de la DA : vérifie son solde
+            soldes_par_pk = {l.pk: (l.solde or Decimal('0')) for l in lignes_annotees}
+            disponible = soldes_par_pk.get(ligne_imputation.pk)
+            if disponible is None:
+                raise ValueError(
+                    f"La ligne {ligne_imputation.code_nature} n'est pas active sur la tâche {tache_locked.numero}."
+                )
+            if montant_ttc > disponible:
+                raise ValueError(
+                    f"Solde insuffisant sur la ligne {ligne_imputation.code_nature} "
+                    f"({disponible:,.0f} FCFA) pour imputer {montant_ttc:,.0f} FCFA TTC."
+                )
 
-        numero = SequenceService.next_bc_numero(exercice.annee)
+        # Numéro : saisie manuelle prioritaire, sinon auto-génération format PAD
+        numero = (numero or '').strip()
+        if numero:
+            if BonCommande.objects.filter(numero=numero).exists():
+                raise ValueError(f"Le numéro de BC « {numero} » existe déjà.")
+        else:
+            numero = SequenceService.next_bc_numero()
 
         bc = BonCommande.objects.create(
             numero=numero,
@@ -111,12 +135,32 @@ class BonCommandeService:
             exercice=exercice,
             prestataire=prestataire,
             direction='Direction des Ressources Humaines',
+            objet=objet,
+            numero_capri=numero_capri,
+            date_capri=date_capri,
+            condition_paiement=condition_paiement,
+            rib_paiement=rib_paiement,
+            delai_execution_semaines=delai_execution_semaines,
+            date_notification=date_notification,
             taux_tva=taux_tva,
             montant_ht=montant_ht,
             montant_tva=montants['montant_tva'],
             montant_ttc=montant_ttc,
             statut='cree',
         )
+
+        # Lignes d'articles (Réf. Art / Désignation / Unité / Quantité / P.U.)
+        if lignes:
+            for idx, art in enumerate(lignes, start=1):
+                LigneBC.objects.create(
+                    bon_commande=bc,
+                    reference_article=art.get('reference_article', ''),
+                    designation=art.get('designation', ''),
+                    unite=art.get('unite', 'UN'),
+                    quantite=Decimal(str(art.get('quantite', 0))),
+                    prix_unitaire_ht=Decimal(str(art.get('prix_unitaire_ht', 0))),
+                    ordre=idx,
+                )
 
         # Crée les imputations
         if imputations:
@@ -125,6 +169,11 @@ class BonCommandeService:
                     bon_commande=bc, ligne_budgetaire=ligne,
                     montant=Decimal(str(montant_imp)),
                 )
+        elif ligne_imputation is not None:
+            # Imputation unique sur la ligne budgétaire portée par la DA
+            ImputationBC.objects.create(
+                bon_commande=bc, ligne_budgetaire=ligne_imputation, montant=montant_ttc,
+            )
         else:
             # Auto : impute le montant restant sur les lignes par ordre décroissant de solde
             restant = montant_ttc
@@ -172,6 +221,12 @@ class BonCommandeService:
         Pour 'notifie', accepte date_notification (date) et delai_jours (int).
         Renvoie {'success': True, 'message': str}. Leve ValueError si invalide.
         """
+        # Le motif d'annulation doit être renseigné AVANT la validation :
+        # peut_transiter_vers() vérifie bc.motif_annulation pour le statut 'annule'.
+        # (Sinon l'annulation échoue toujours, même avec un motif fourni.)
+        if nouveau_statut == 'annule':
+            bc.motif_annulation = (motif or '').strip()
+
         peut, msg = bc.peut_transiter_vers(nouveau_statut)
         if not peut:
             raise ValueError(msg)
@@ -190,7 +245,7 @@ class BonCommandeService:
                 bc.date_echeance = bc.date_notification + _td(days=bc.delai_execution_jours)
                 update_fields.append('date_echeance')
         elif nouveau_statut == 'annule':
-            bc.motif_annulation = motif or 'Non specifie'
+            # motif_annulation déjà positionné avant la validation ci-dessus
             update_fields.append('motif_annulation')
 
         bc.statut = nouveau_statut

@@ -25,10 +25,11 @@ from .models import (
 )
 from .forms import (
     VirementForm, PrestataireForm, TacheForm, LigneBudgetaireForm,
-    DemandeAchatForm, BonCommandeForm, ProlongationBCForm,
-    OffreSolliciterForm, OffreSaisirForm, OffreRefuserForm,
-    ConsommationDirecteForm,
+    DemandeAchatForm, DemandeAchatEditForm, BonCommandeForm, BonCommandeEditForm,
+    ProlongationBCForm, OffreSolliciterForm, OffreSaisirForm, OffreRefuserForm,
+    ConsommationDirecteForm, LigneBCFormSet,
 )
+from django.http import JsonResponse
 from .filters import BonCommandeFilter, DemandeAchatFilter, JournalFilter, PrestataireFilter
 from .services import (
     BonCommandeService, DemandeAchatService, NotificationService,
@@ -437,7 +438,7 @@ def virements_list(request):
     })
 
 @login_required
-@role_required('admin', 'assistante_drh')
+@role_required('admin', 'directeur_drh')
 @require_POST
 def virement_create(request):
     exercice = ExerciceBudgetaire.get_actif()
@@ -555,18 +556,28 @@ def prestataire_detail(request, pk):
 @login_required
 def da_list(request):
     exercice = _exercice_courant(request)
-    base_qs = DemandeAchat.objects.select_related('tache', 'created_by')
+    base_qs = DemandeAchat.objects.select_related(
+        'ligne_budgetaire__tache', 'created_by',
+    )
     if exercice:
         base_qs = base_qs.filter(exercice=exercice)
     f = DemandeAchatFilter(request.GET, queryset=base_qs)
     page_obj, querystring = _paginate(request, f.qs)
-    taches = exercice.taches.all() if exercice else []
+    # Lignes actives de l'exercice pour le modal de création
+    lignes = (
+        LigneBudgetaire.objects
+        .filter(tache__exercice=exercice, actif=True)
+        .select_related('tache')
+        .order_by('tache__numero', 'code_nature')
+        if exercice else []
+    )
     return render(request, 'core/da_list.html', {
         'demandes': page_obj.object_list,
         'page_obj': page_obj,
         'querystring': querystring,
         'filter': f,
-        'taches': taches,
+        'lignes': lignes,
+        'exercice': exercice,
     })
 
 @login_required
@@ -582,10 +593,15 @@ def da_create(request):
     if form.is_valid():
         try:
             da = DemandeAchatService.creer(
-                tache=form.cleaned_data['tache'],
+                ligne_budgetaire=form.cleaned_data['ligne_budgetaire'],
                 objet=form.cleaned_data['objet'],
                 montant_estime=form.cleaned_data['montant_estime'],
+                reference=form.cleaned_data.get('reference', ''),
+                nature_prestation=form.cleaned_data.get('nature_prestation', ''),
+                periode_engagement=form.cleaned_data.get('periode_engagement', ''),
+                priorite=form.cleaned_data.get('priorite', ''),
                 utilisateur=request.user,
+                exercice=exercice,
             )
             messages.success(request, f"Demande {da.reference} créée.")
         except ValueError as e:
@@ -615,9 +631,9 @@ def da_en_etude(request, pk):
         ancien_statut=ancien, nouveau_statut='en_etude',
         utilisateur=request.user,
     )
-    log_action(request.user, 'DA.en_etude', f"Mise en étude de {da.reference}", 'da', da.id)
-    app_logger.info("DA en étude : %s par %s", da.reference, request.user.username)
-    messages.info(request, f"{da.reference} mise en étude.")
+    log_action(request.user, 'DA.en_etude', f"Transmission à la DAG de {da.reference}", 'da', da.id)
+    app_logger.info("DA transmise à la DAG : %s par %s", da.reference, request.user.username)
+    messages.info(request, f"{da.reference} transmise à la DAG.")
     return redirect('da_list')
 
 
@@ -659,44 +675,44 @@ def da_valider(request, pk):
 @require_POST
 @transaction.atomic
 def da_refuser(request, pk):
-    """Refuse une DA (uniquement depuis en_étude, motif obligatoire)."""
+    """Annule une DA (motif obligatoire). Au PAD, une DA s'annule, elle ne se « refuse » pas."""
     da = get_object_or_404(DemandeAchat, pk=pk)
     motif = request.POST.get('motif', '').strip()
     if not motif:
-        messages.error(request, "Motif de refus obligatoire.")
+        messages.error(request, "Motif d'annulation obligatoire.")
         return redirect('da_list')
     # Pré-remplir le champ pour que peut_transiter_vers() puisse le vérifier
     da.motif_refus = motif
-    peut, msg = da.peut_transiter_vers('refusee')
+    peut, msg = da.peut_transiter_vers('annulee')
     if not peut:
         messages.error(request, msg)
         return redirect('da_list')
     ancien = da.statut
-    da.statut = 'refusee'
+    da.statut = 'annulee'
     da.save(update_fields=['statut', 'motif_refus'])
     HistoriqueStatut.objects.create(
         type_entite='DA', entite_id=da.id,
-        ancien_statut=ancien, nouveau_statut='refusee',
+        ancien_statut=ancien, nouveau_statut='annulee',
         utilisateur=request.user, commentaire=motif,
     )
-    log_action(request.user, 'DA.refuse', f"Refus de {da.reference} : {motif}", 'da', da.id)
+    log_action(request.user, 'DA.annuler', f"Annulation de {da.reference} : {motif}", 'da', da.id)
     if da.created_by_id and da.created_by_id != request.user.id:
         NotificationService.notifier(
             utilisateur=da.created_by,
-            type_notif='da_refusee',
-            titre=f"{da.reference} refusée",
-            message=f"Votre demande a été refusée. Motif : {motif}",
+            type_notif='da_annulee',
+            titre=f"{da.reference} annulée",
+            message=f"Votre demande a été annulée. Motif : {motif}",
             entite_type='da', entite_id=da.id,
         )
-    app_logger.info("DA refusée : %s par %s (motif=%s)", da.reference, request.user.username, motif)
-    messages.warning(request, f"{da.reference} refusée.")
+    app_logger.info("DA annulée : %s par %s (motif=%s)", da.reference, request.user.username, motif)
+    messages.warning(request, f"{da.reference} annulée.")
     return redirect('da_list')
 
 
 @login_required
 def da_detail(request, pk):
     da = get_object_or_404(
-        DemandeAchat.objects.select_related('tache', 'created_by')
+        DemandeAchat.objects.select_related('ligne_budgetaire__tache', 'created_by')
                             .prefetch_related('offres__prestataire', 'bons_commande'),
         pk=pk
     )
@@ -732,7 +748,7 @@ def da_detail(request, pk):
 
 
 @login_required
-@role_required('admin', 'assistante_drh')
+@role_required('admin', 'directeur_drh', 'assistante_drh', 'chef_service')
 @require_POST
 def offre_solliciter(request, da_pk):
     """Sollicite un prestataire pour une DA — crée une offre en_attente sans montant."""
@@ -758,7 +774,7 @@ def offre_solliciter(request, da_pk):
 
 
 @login_required
-@role_required('admin', 'assistante_drh')
+@role_required('admin', 'directeur_drh', 'assistante_drh', 'chef_service')
 @require_POST
 def offre_saisir(request, pk):
     """Enregistre le montant d'une offre reçue et passe son statut à 'recue'."""
@@ -789,7 +805,7 @@ def offre_saisir(request, pk):
 
 
 @login_required
-@role_required('admin', 'directeur_drh')
+@role_required('admin', 'directeur_drh', 'assistante_drh')
 @require_POST
 @transaction.atomic
 def offre_retenir(request, pk):
@@ -827,7 +843,7 @@ def offre_retenir(request, pk):
 
 
 @login_required
-@role_required('admin', 'directeur_drh')
+@role_required('admin', 'directeur_drh', 'assistante_drh')
 @require_POST
 @transaction.atomic
 def offre_refuser(request, pk):
@@ -887,7 +903,7 @@ def bc_list(request):
         DemandeAchat.objects
         .filter(statut='validee', exercice=exercice_actif)
         .prefetch_related('offres__prestataire')
-        .select_related('tache')
+        .select_related('ligne_budgetaire__tache')
         .order_by('reference')
         if exercice_actif else DemandeAchat.objects.none()
     )
@@ -909,55 +925,162 @@ def bc_list(request):
 
 @login_required
 @role_required('directeur_drh')
-@require_POST
-@transaction.atomic
+@require_http_methods(['GET', 'POST'])
 def bc_create(request):
-    """Crée un BC depuis une DA validée ; prestataire + montant auto-remplis depuis l'offre retenue."""
+    """
+    Crée un BC au format réel PAD depuis une DA validée :
+    n° manuel/auto, objet, condition/RIB, délai en semaines et tableau d'articles
+    (Réf. Art saisie manuelle). L'imputation budgétaire porte sur la ligne de la DA.
+    """
     exercice_actif = ExerciceBudgetaire.get_actif()
     locked, msg = _check_exercice_non_verrouille(exercice_actif)
     if locked:
         messages.error(request, msg)
         return redirect('bc_list')
-    da_id = request.POST.get('da_id', '').strip()
-    if not da_id:
-        messages.error(request, "Veuillez sélectionner une demande d'achat validée.")
-        return redirect('bc_list')
 
-    try:
-        da = DemandeAchat.objects.select_related('tache').prefetch_related('offres__prestataire').get(pk=int(da_id))
-    except (DemandeAchat.DoesNotExist, ValueError):
-        messages.error(request, "Demande d'achat introuvable.")
-        return redirect('bc_list')
+    # DAs validées disposant d'une offre retenue
+    das = (
+        DemandeAchat.objects
+        .filter(statut='validee', exercice=exercice_actif)
+        .select_related('ligne_budgetaire__tache')
+        .prefetch_related('offres__prestataire')
+        if exercice_actif else DemandeAchat.objects.none()
+    )
+    das_validees = [d for d in das if d.offres.filter(statut='retenue').exists()]
 
-    # Vérifier que la DA peut générer un BC (validee → bc_cree)
-    peut, msg = da.peut_transiter_vers('bc_cree')
-    if not peut:
-        messages.error(request, msg)
-        return redirect('bc_list')
+    def _offre(da_obj):
+        return da_obj.offres.filter(statut='retenue').select_related('prestataire').first()
 
-    offre_retenue = da.offres.filter(statut='retenue').select_related('prestataire').first()
-    if not offre_retenue:
-        messages.error(request, f"Aucune offre retenue pour {da.reference}.")
-        return redirect('bc_list')
+    da_id = (request.GET.get('da') or request.POST.get('da_id') or '').strip()
+    da = next((d for d in das_validees if str(d.pk) == da_id), None) if da_id else None
 
-    if not offre_retenue.montant or offre_retenue.montant <= 0:
-        messages.error(request, "L'offre retenue n'a pas de montant valide.")
-        return redirect('bc_list')
+    if request.method == 'POST':
+        formset = LigneBCFormSet(request.POST, prefix='lignes')
+        if not da:
+            messages.error(request, "Sélectionnez une demande d'achat validée.")
+        elif not da.ligne_budgetaire_id:
+            messages.error(request, "Cette DA n'a pas de ligne budgétaire assignée.")
+        else:
+            offre = _offre(da)
+            peut, m = da.peut_transiter_vers('bc_cree')
+            if not offre or not offre.montant or offre.montant <= 0:
+                messages.error(request, f"Aucune offre retenue valide pour {da.reference}.")
+            elif not peut:
+                messages.error(request, m)
+            elif not formset.is_valid():
+                messages.error(request, "Vérifiez les lignes d'articles saisies.")
+            else:
+                # Construit la liste des articles non supprimés
+                lignes = []
+                for cd in formset.cleaned_data:
+                    if not cd or cd.get('DELETE'):
+                        continue
+                    designation = (cd.get('designation') or '').strip()
+                    qte = cd.get('quantite')
+                    pu = cd.get('prix_unitaire_ht')
+                    if not designation or qte is None or pu is None:
+                        continue
+                    lignes.append({
+                        'reference_article': (cd.get('reference_article') or '').strip(),
+                        'designation': designation,
+                        'unite': cd.get('unite') or 'UN',
+                        'quantite': qte,
+                        'prix_unitaire_ht': pu,
+                    })
+                # Montant HT : somme des articles, sinon montant de l'offre retenue
+                if lignes:
+                    montant_ht = sum(
+                        Decimal(str(l['quantite'])) * Decimal(str(l['prix_unitaire_ht']))
+                        for l in lignes
+                    )
+                else:
+                    montant_ht = offre.montant
 
-    try:
-        bc = BonCommandeService.creer(
-            tache=da.tache,
-            prestataire=offre_retenue.prestataire,
-            montant_ht=offre_retenue.montant,
-            utilisateur=request.user,
-            demande=da,
-        )
-        TacheService.verifier_alertes(bc.tache)
-        app_logger.info("BC %s créé depuis DA %s par %s", bc.numero, da.reference, request.user.username)
-        messages.success(request, f"Bon de commande {bc.numero} créé (DA : {da.reference}).")
-    except ValueError as e:
-        messages.error(request, str(e))
-    return redirect('bc_list')
+                # Délai (semaines) + date de notification optionnels
+                valide = True
+                semaines = None
+                raw_sem = request.POST.get('delai_execution_semaines', '').strip()
+                if raw_sem:
+                    try:
+                        semaines = int(raw_sem)
+                        if not (1 <= semaines <= 52):
+                            raise ValueError
+                    except ValueError:
+                        messages.error(request, "Le délai en semaines doit être entre 1 et 52.")
+                        valide = False
+                date_notif = None
+                raw_notif = request.POST.get('date_notification', '').strip()
+                if valide and raw_notif:
+                    from datetime import datetime as _dt
+                    try:
+                        date_notif = _dt.strptime(raw_notif, '%Y-%m-%d').date()
+                    except ValueError:
+                        messages.error(request, "Date de notification invalide.")
+                        valide = False
+
+                # Avis CAPRI obligatoire (Règle R11)
+                numero_capri = request.POST.get('numero_capri', '').strip()
+                raw_capri = request.POST.get('date_capri', '').strip()
+                date_capri = None
+                if valide:
+                    if not numero_capri or not raw_capri:
+                        messages.error(request, "Avis CAPRI obligatoire : numéro et date (Règle R11).")
+                        valide = False
+                    else:
+                        from datetime import datetime as _dt
+                        try:
+                            date_capri = _dt.strptime(raw_capri, '%Y-%m-%d').date()
+                        except ValueError:
+                            messages.error(request, "Date CAPRI invalide.")
+                            valide = False
+
+                if valide:
+                    try:
+                        bc = BonCommandeService.creer(
+                            tache=da.ligne_budgetaire.tache,
+                            prestataire=offre.prestataire,
+                            montant_ht=montant_ht,
+                            utilisateur=request.user,
+                            demande=da,
+                            ligne_imputation=da.ligne_budgetaire,
+                            numero=request.POST.get('numero', '').strip(),
+                            objet=(request.POST.get('objet', '').strip() or da.objet),
+                            numero_capri=numero_capri,
+                            date_capri=date_capri,
+                            condition_paiement=request.POST.get('condition_paiement', 'virement_60'),
+                            rib_paiement=request.POST.get('rib_paiement', '').strip(),
+                            delai_execution_semaines=semaines,
+                            date_notification=date_notif,
+                            lignes=lignes,
+                        )
+                        TacheService.verifier_alertes(bc.tache)
+                        app_logger.info("BC %s créé depuis DA %s par %s",
+                                        bc.numero, da.reference, request.user.username)
+                        messages.success(request, f"Bon de commande {bc.numero} créé (DA : {da.reference}).")
+                        return redirect('bc_list')
+                    except ValueError as e:
+                        messages.error(request, str(e))
+    else:
+        # GET : préremplir une ligne d'article depuis l'offre retenue
+        initial = []
+        if da:
+            offre = _offre(da)
+            if offre:
+                initial = [{
+                    'designation': da.objet,
+                    'unite': 'UN',
+                    'quantite': 1,
+                    'prix_unitaire_ht': offre.montant,
+                }]
+        formset = LigneBCFormSet(prefix='lignes', initial=initial)
+
+    return render(request, 'core/bc_create.html', {
+        'das_validees': das_validees,
+        'da': da,
+        'formset': formset,
+        'exercice': exercice_actif,
+        'condition_choices': BonCommande._meta.get_field('condition_paiement').choices,
+    })
 
 @login_required
 def bc_pdf(request, pk):
@@ -1219,7 +1342,7 @@ def bilans_view(request):
 
 
 @login_required
-@role_required('admin', 'directeur_drh', 'assistante_drh', 'chef_service')
+@role_required('admin')
 def bilan_csv_export(request):
     """Export CSV du bilan ligne par ligne, format Excel-FR."""
     exercice = _exercice_courant(request)
@@ -1276,7 +1399,7 @@ def bilan_csv_export(request):
 
 
 @login_required
-@role_required('admin', 'directeur_drh', 'assistante_drh', 'chef_service')
+@role_required('admin')
 def bilan_pdf_export(request):
     """Génère et télécharge le rapport PDF du bilan budgétaire — format PAD."""
     from .services.pdf_service import generer_pdf_bilan
@@ -1366,8 +1489,26 @@ def _magic_bytes_ok(fichier):
     return False
 
 
+_EXTENSIONS_PJ = ('pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'doc', 'docx', 'xls', 'xlsx')
+
+
+def _valider_fichier_pj(fichier):
+    """Valide un fichier uploadé (taille, extension, magic bytes).
+
+    Retourne (ok: bool, message_erreur: str).
+    """
+    if fichier.size > PieceJointe.TAILLE_MAX:
+        return False, "Fichier trop volumineux (max 10 Mo)."
+    ext = fichier.name.lower().rsplit('.', 1)[-1] if '.' in fichier.name else ''
+    if ext not in _EXTENSIONS_PJ:
+        return False, "Type de fichier non autorisé (PDF, images, Word, Excel uniquement)."
+    if not _magic_bytes_ok(fichier):
+        return False, "Contenu du fichier non reconnu — upload refusé."
+    return True, ""
+
+
 @login_required
-@role_required('admin', 'directeur_drh', 'assistante_drh')
+@role_required('admin')
 @require_POST
 def piece_jointe_upload(request):
     """Upload d'une pièce jointe sur une DA ou un BC (admin / directeur_drh / assistante_drh uniquement)."""
@@ -1397,21 +1538,10 @@ def piece_jointe_upload(request):
         messages.error(request, "Aucun fichier sélectionné.")
         return redirect(redirect_url)
 
-    if fichier.size > PieceJointe.TAILLE_MAX:
-        messages.error(request, f"Fichier trop volumineux (max 10 Mo).")
-        return redirect(redirect_url)
-
-    # ── 4. Validation extension
-    ext_ok = fichier.name.lower().rsplit('.', 1)[-1] in (
-        'pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'doc', 'docx', 'xls', 'xlsx'
-    )
-    if not ext_ok:
-        messages.error(request, "Type de fichier non autorisé (PDF, images, Word, Excel uniquement).")
-        return redirect(redirect_url)
-
-    # ── 5. Validation magic bytes (contrecarre le renommage d'un fichier malveillant)
-    if not _magic_bytes_ok(fichier):
-        messages.error(request, "Contenu du fichier non reconnu — upload refusé.")
+    # ── 4-5. Validation taille + extension + magic bytes (helper partagé)
+    ok, err = _valider_fichier_pj(fichier)
+    if not ok:
+        messages.error(request, err)
         return redirect(redirect_url)
 
     type_piece = request.POST.get('type_piece', 'autre').strip()
@@ -1419,10 +1549,14 @@ def piece_jointe_upload(request):
     if type_piece not in valid_types:
         type_piece = 'autre'
 
+    # Titre personnalisé : pertinent surtout pour le type « Autre »
+    titre_perso = request.POST.get('titre_personnalise', '').strip()[:100]
+
     PieceJointe.objects.create(
         type_entite=type_entite,
         entite_id=entite_id,
         type_piece=type_piece,
+        titre_personnalise=titre_perso,
         fichier=fichier,
         nom_original=fichier.name,
         taille=fichier.size,
@@ -1471,7 +1605,7 @@ def recherche_view(request):
             'bcs': BonCommande.objects.select_related('tache', 'prestataire').filter(
                 Q(numero__icontains=q) | Q(prestataire__nom__icontains=q) | Q(tache__titre__icontains=q)
             ).order_by('-created_at')[:8],
-            'das': DemandeAchat.objects.select_related('tache', 'created_by').filter(
+            'das': DemandeAchat.objects.select_related('ligne_budgetaire__tache', 'created_by').filter(
                 Q(reference__icontains=q) | Q(objet__icontains=q)
             ).order_by('-created_at')[:8],
             'prestataires': Prestataire.objects.filter(
@@ -1501,7 +1635,7 @@ def recherche_view(request):
 # ============ JOURNAL ============
 
 @login_required
-@role_required('admin', 'directeur_drh', 'assistante_drh')
+@role_required('admin')
 def journal_view(request):
     base_qs = JournalActivite.objects.select_related('utilisateur').all()
     f = JournalFilter(request.GET, queryset=base_qs)
@@ -1687,9 +1821,9 @@ def rgpd_export_view(request):
                 'montant_estime': float(d.montant_estime),
                 'statut': d.statut,
                 'created_at': d.created_at.isoformat(),
-                'tache_numero': d.tache.numero,
+                'tache_numero': d.tache.numero if d.tache else None,
             }
-            for d in DemandeAchat.objects.filter(created_by=user).select_related('tache')
+            for d in DemandeAchat.objects.filter(created_by=user).select_related('ligne_budgetaire__tache')
         ],
         'virements_crees': [
             {
@@ -2108,14 +2242,60 @@ def ligne_budgetaire_create(request, tache_pk):
 @require_POST
 def ligne_budgetaire_edit(request, pk):
     ligne = get_object_or_404(LigneBudgetaire, pk=pk)
-    montant_raw = request.POST.get('montant_initial', '').strip()
+
+    # Exercice clôturé = lecture seule
+    locked, msg = _check_exercice_non_verrouille(ligne.tache.exercice)
+    if locked:
+        messages.error(request, msg)
+        return redirect('taches_list')
+
+    montant_raw = request.POST.get('montant_initial', '')
+
+    # Parsing tolérant au format français : « 500 000,00 », « 500000,00 »,
+    # espaces (normaux/insécables) comme séparateurs de milliers, virgule décimale.
+    from decimal import Decimal as D, InvalidOperation
+    nettoye = (
+        montant_raw.strip()
+        .replace(' ', '').replace('\xa0', '').replace(' ', '')
+        .replace(',', '.')
+    )
+    if not nettoye:
+        messages.error(request, "Veuillez saisir un montant.")
+        return redirect('taches_list')
     try:
-        from decimal import Decimal as D
-        ligne.montant_initial = D(montant_raw)
-        ligne.save(update_fields=['montant_initial'])
-        messages.success(request, f"Ligne {ligne.code_nature} mise à jour.")
-    except Exception:
-        messages.error(request, "Montant invalide.")
+        montant = D(nettoye)
+    except (InvalidOperation, ValueError):
+        messages.error(request, f"Montant invalide : « {montant_raw} ».")
+        return redirect('taches_list')
+    if montant < 0:
+        messages.error(request, "Le montant ne peut pas être négatif.")
+        return redirect('taches_list')
+
+    ligne.montant_initial = montant
+    update_fields = ['montant_initial']
+
+    # Code nature + libellé : réservés à l'admin
+    if request.user.role == 'admin':
+        code = request.POST.get('code_nature', '').strip()
+        libelle = request.POST.get('libelle_nature', '').strip()
+        if code:
+            if len(code) > 10:
+                messages.error(request, "Le code nature ne doit pas dépasser 10 caractères.")
+                return redirect('taches_list')
+            ligne.code_nature = code
+            update_fields.append('code_nature')
+        if libelle:
+            ligne.libelle_nature = libelle[:255]
+            update_fields.append('libelle_nature')
+
+    ligne.save(update_fields=update_fields)
+    log_action(
+        request.user, 'Tache.edit',
+        f"Ligne {ligne.code_nature} (tâche {ligne.tache.numero}) modifiée — "
+        f"montant {montant:,.0f} FCFA",
+        'ligne', ligne.pk,
+    )
+    messages.success(request, f"Ligne {ligne.code_nature} mise à jour.")
     return redirect('taches_list')
 
 
@@ -2140,11 +2320,22 @@ def ligne_detail(request, pk):
         .select_related('ligne_destination', 'ligne_destination__tache', 'created_by')
         .order_by('-created_at')
     )
-    consommations_directes = (
+    consommations_directes = list(
         ConsommationDirecte.objects.filter(ligne_budgetaire=ligne)
         .select_related('created_by')
         .order_by('-date_consommation', '-created_at')
     )
+    # Associe la pièce jointe éventuelle à chaque consommation (1 requête)
+    if consommations_directes:
+        conso_ids = [c.pk for c in consommations_directes]
+        pj_par_conso = {
+            pj.entite_id: pj
+            for pj in PieceJointe.objects.filter(
+                type_entite='conso', entite_id__in=conso_ids,
+            )
+        }
+        for c in consommations_directes:
+            c.piece_jointe = pj_par_conso.get(c.pk)
     exercice = ligne.tache.exercice
     can_consommer = (
         request.user.role in ('admin', 'directeur_drh', 'assistante_drh')
@@ -2184,23 +2375,36 @@ def consommation_create(request, ligne_pk):
 
     if request.method == 'POST':
         form = ConsommationDirecteForm(request.POST)
+        fichier = request.FILES.get('piece_jointe')
         if form.is_valid():
             ligne_annotee = LigneBudgetaire.objects.with_aggregates().get(pk=ligne.pk)
             montant = form.cleaned_data['montant']
+            file_ok, file_err = (True, "")
+            if fichier:
+                file_ok, file_err = _valider_fichier_pj(fichier)
             if montant > ligne_annotee.solde:
                 messages.error(
                     request,
                     f"Solde insuffisant. Disponible : {ligne_annotee.solde:,.0f} FCFA",
                 )
+            elif not file_ok:
+                messages.error(request, file_err)
             else:
                 conso = form.save(commit=False)
                 conso.ligne_budgetaire = ligne
                 conso.created_by = request.user
                 conso.save()
+                if fichier:
+                    PieceJointe.objects.create(
+                        type_entite='conso', entite_id=conso.pk,
+                        type_piece='autre', fichier=fichier, nom_original=fichier.name,
+                        taille=fichier.size, uploaded_by=request.user,
+                    )
                 log_action(
                     request.user, 'Consommation.create',
                     f"Consommation directe de {montant:,.0f} FCFA sur {ligne.code_nature} "
-                    f"— Motif : {conso.get_motif_display()}",
+                    f"— Motif : {conso.get_motif_display()}"
+                    + (f" (pièce jointe : {fichier.name})" if fichier else ""),
                     'ConsommationDirecte', conso.pk,
                 )
                 messages.success(request, f"Consommation de {montant:,.0f} FCFA enregistrée.")
@@ -2340,9 +2544,15 @@ def wizard_exercice_step1(request):
         return redirect('wizard_exercice_step2')
 
     annee_prop = (exercice_actif.annee + 1) if exercice_actif else 2026
+    # Pré-remplissage si l'utilisateur revient en arrière (données déjà en session)
+    wizard = request.session.get('wizard_exercice', {})
     return render(request, 'core/wizard/step1_infos.html', {
         'exercice_actif': exercice_actif,
         'annee_proposee': annee_prop,
+        'annee_saved':      wizard.get('annee', ''),
+        'date_debut_saved': wizard.get('date_debut', ''),
+        'date_fin_saved':   wizard.get('date_fin', ''),
+        'seuil_saved':      wizard.get('seuil_alerte', 80),
         'etape': 1,
     })
 
@@ -2677,4 +2887,210 @@ def annuler_virement(request, pk):
         'objet': virement,
         'type':  'virement',
         'titre': f"Annuler le virement #{virement.pk} ({virement.montant:,.0f} FCFA)",
+    })
+
+
+# ============ API INTERNE ============
+
+@login_required
+def api_ligne_solde(request, pk):
+    """Solde disponible réel d'une ligne en JSON : solde comptable − DA déjà engagées."""
+    from decimal import Decimal as _D
+    ligne_annot = LigneBudgetaire.objects.filter(pk=pk).with_aggregates().first()
+    if not ligne_annot:
+        return JsonResponse({'error': 'Ligne introuvable'}, status=404)
+    engage = DemandeAchat.objects.filter(
+        ligne_budgetaire_id=pk, statut__in=['cree', 'en_etude', 'validee'],
+    ).aggregate(t=Sum('montant_estime'))['t'] or _D('0')
+    solde_comptable = ligne_annot.solde or _D('0')
+    return JsonResponse({
+        'solde':            float(solde_comptable),
+        'solde_comptable':  float(solde_comptable),
+        'budget_ajuste':    float(ligne_annot.budget_ajuste or 0),
+        'consommation':     float(ligne_annot.consommation or 0),
+        'montant_engage':   float(engage),
+        'solde_disponible': float(solde_comptable - engage),
+        'taux':             float(ligne_annot.taux_consommation or 0),
+        'code_nature':      ligne_annot.code_nature,
+        'libelle':          ligne_annot.libelle_nature,
+    })
+
+
+# ============ ÉDITION — DA ============
+
+@login_required
+@role_required('admin', 'directeur_drh', 'assistante_drh')
+@require_http_methods(['GET', 'POST'])
+def da_edit(request, pk):
+    da = get_object_or_404(DemandeAchat.objects.select_related(
+        'exercice', 'ligne_budgetaire__tache',
+    ), pk=pk)
+    exercice = da.exercice
+
+    locked, msg = _check_exercice_non_verrouille(exercice)
+    if locked:
+        messages.error(request, msg)
+        return redirect('da_list')
+
+    if da.statut in ('validee', 'bc_cree'):
+        messages.warning(request, "DA validée — modifications limitées (numéro + ligne uniquement).")
+
+    if request.method == 'POST':
+        form = DemandeAchatEditForm(request.POST, instance=da, exercice=exercice)
+        if form.is_valid():
+            form.save()
+            log_action(
+                request.user, 'DA.edit',
+                f"Modification de la DA {da.reference} par {request.user.username}",
+                'da', da.pk,
+            )
+            messages.success(request, f"DA {da.reference} mise à jour.")
+            return redirect('da_list')
+    else:
+        form = DemandeAchatEditForm(instance=da, exercice=exercice)
+
+    return render(request, 'core/da_form.html', {
+        'form': form, 'da': da, 'edit_mode': True, 'exercice': exercice,
+    })
+
+
+# ============ ÉDITION — BC ============
+
+@login_required
+@role_required('admin', 'directeur_drh', 'assistante_drh')
+@require_http_methods(['GET', 'POST'])
+def bc_edit(request, pk):
+    bc = get_object_or_404(BonCommande, pk=pk)
+
+    if bc.statut == 'execute':
+        messages.error(request, "Un BC exécuté est immuable (Règle R3).")
+        return redirect('bc_list')
+
+    if request.method == 'POST':
+        form = BonCommandeEditForm(request.POST, instance=bc)
+        if form.is_valid():
+            form.save()
+            log_action(
+                request.user, 'BC.edit',
+                f"Modification du BC {bc.numero} par {request.user.username}",
+                'bc', bc.pk,
+            )
+            messages.success(request, f"BC {bc.numero} mis à jour.")
+            return redirect('bc_list')
+    else:
+        form = BonCommandeEditForm(instance=bc)
+
+    return render(request, 'core/bc_form.html', {
+        'form': form, 'bc': bc, 'edit_mode': True,
+    })
+
+
+# ============ ÉDITION — TÂCHE ============
+
+@login_required
+@role_required('admin', 'assistante_drh')
+@require_http_methods(['GET', 'POST'])
+def tache_edit(request, pk):
+    tache = get_object_or_404(Tache, pk=pk)
+
+    locked, msg = _check_exercice_non_verrouille(tache.exercice)
+    if locked:
+        messages.error(request, msg)
+        return redirect('taches_list')
+
+    if request.method == 'POST':
+        form = TacheForm(request.POST, instance=tache)
+        if form.is_valid():
+            form.save()
+            log_action(
+                request.user, 'Tache.edit',
+                f"Modification de la tâche {tache.numero} — {tache.titre}",
+                'tache', tache.pk,
+            )
+            messages.success(request, f"Tâche {tache.numero} mise à jour.")
+            return redirect('taches_list')
+    else:
+        form = TacheForm(instance=tache)
+
+    return render(request, 'core/tache_form.html', {
+        'form': form, 'tache': tache, 'edit_mode': True,
+    })
+
+
+# ============ ÉDITION — PRESTATAIRE ============
+
+@login_required
+@role_required('admin', 'assistante_drh')
+@require_http_methods(['GET', 'POST'])
+def prestataire_edit(request, pk):
+    prestataire = get_object_or_404(Prestataire, pk=pk)
+
+    if request.method == 'POST':
+        form = PrestataireForm(request.POST, instance=prestataire)
+        if form.is_valid():
+            form.save()
+            log_action(
+                request.user, 'Prestataire.edit',
+                f"Modification du prestataire {prestataire.nom}",
+                'prestataire', prestataire.pk,
+            )
+            messages.success(request, f"Prestataire « {prestataire.nom} » mis à jour.")
+            return redirect('prestataires_list')
+    else:
+        form = PrestataireForm(instance=prestataire)
+
+    return render(request, 'core/prestataire_form.html', {
+        'form': form, 'prestataire': prestataire, 'edit_mode': True,
+    })
+
+
+# ============ PROLONGATION BC — PAGE DÉDIÉE ============
+
+@login_required
+@role_required('admin', 'directeur_drh')
+@require_http_methods(['GET', 'POST'])
+def bc_prolonger_page(request, pk):
+    """Page dédiée de prolongation d'un BC avec formulaire + historique."""
+    bc = get_object_or_404(BonCommande.objects.select_related('prestataire', 'tache'), pk=pk)
+
+    if bc.statut in ('execute', 'annule'):
+        messages.error(request, f"Impossible de prolonger un BC {bc.get_statut_display()}.")
+        return redirect('bc_list')
+    if not bc.date_echeance:
+        messages.error(request, "Ce BC n'a pas de date d'échéance à prolonger.")
+        return redirect('bc_list')
+
+    if request.method == 'POST':
+        form = ProlongationBCForm(request.POST)
+        if form.is_valid():
+            nouvelle_ech = form.cleaned_data['nouvelle_echeance']
+            if nouvelle_ech <= bc.date_echeance:
+                form.add_error('nouvelle_echeance',
+                               "La nouvelle échéance doit être postérieure à l'échéance actuelle.")
+            else:
+                prolong = form.save(commit=False)
+                prolong.bon_commande = bc
+                prolong.ancienne_echeance = bc.date_echeance
+                prolong.created_by = request.user
+                prolong.save()
+                log_action(
+                    request.user, 'BC.prolong',
+                    f"Prolongation {bc.numero} : {prolong.ancienne_echeance} → "
+                    f"{prolong.nouvelle_echeance} ({prolong.duree_prolongation_jours} j) — "
+                    f"{prolong.motif}",
+                    'bc', bc.pk,
+                )
+                messages.success(
+                    request,
+                    f"BC {bc.numero} prolongé jusqu'au "
+                    f"{prolong.nouvelle_echeance.strftime('%d/%m/%Y')}.",
+                )
+                return redirect('bc_list')
+    else:
+        form = ProlongationBCForm()
+
+    return render(request, 'core/bc_prolonger.html', {
+        'form': form,
+        'bc': bc,
+        'prolongations': bc.prolongations.select_related('created_by').order_by('-created_at'),
     })

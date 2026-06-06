@@ -22,8 +22,8 @@
                         {{ pj.nom_original }}
                     </a>
                     <small class="text-muted">
-                        {% if pj.type_piece and pj.type_piece != 'autre' %}
-                        <span class="badge bg-light text-dark border me-1" style="font-size:10px;">{{ pj.get_type_piece_display }}</span>
+                        {% if pj.type_piece %}
+                        <span class="badge bg-light text-dark border me-1" style="font-size:10px;">{{ pj.titre_affiche }}</span>
                         {% endif %}
                         {{ pj.taille_lisible }}
                         {% if pj.uploaded_by %}· {{ pj.uploaded_by.nom_complet|default:pj.uploaded_by.username }}{% endif %}
@@ -68,11 +68,14 @@
         <input type="hidden" name="type_entite" value="{{ type_entite }}">
         <input type="hidden" name="entite_id"   value="{{ entite_id }}">
         <select name="type_piece" class="form-select form-select-sm flex-shrink-0" style="font-size:12px;width:auto;">
+            <option value="da_signee">DA signée par la Directrice</option>
+            <option value="avis_capri">Avis CAPRI scanné</option>
             <option value="devis">Devis</option>
             <option value="facture_proforma">Facture proforma</option>
             <option value="bon_commande">BC signé</option>
             <option value="facture">Facture</option>
             <option value="pv_reception">PV de réception</option>
+            <option value="lettre_commande">Lettre de commande</option>
             <option value="autre" selected>Autre</option>
         </select>
         <input type="file" name="fichier" class="form-control form-control-sm" style="font-size:12px;flex:1;min-width:0;"
@@ -80,6 +83,10 @@
         <button type="submit" class="btn btn-sm btn-outline-secondary flex-shrink-0">
             <i class="bi bi-upload me-1"></i>Joindre
         </button>
+        <input type="text" name="titre_personnalise" maxlength="100"
+               class="pj-titre form-control form-control-sm"
+               placeholder="Précision / titre du document (optionnel — obligatoire si « Autre »)"
+               style="font-size:12px;flex-basis:100%;">
     </form>
     <small class="text-muted d-block mt-1" style="font-size:11px;">
         PDF, images, Word, Excel · 10 Mo max

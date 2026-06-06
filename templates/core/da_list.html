@@ -25,11 +25,29 @@
     </form>
 
     <table class="table table-hover mb-0">
-        <thead><tr><th>Référence</th><th>Objet</th><th>Tâche</th><th class="money">Montant estimé</th><th>Offres</th><th>Statut</th><th>Créée le</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Référence</th><th>Objet</th><th>Ligne budgétaire</th><th class="money">Montant estimé</th><th>Offres</th><th>Statut</th><th>Créée le</th><th>Actions</th></tr></thead>
         <tbody>
         {% for da in demandes %}
         <tr class="da-row" data-da-id="{{ da.pk }}" style="cursor:pointer;" title="Cliquer pour voir les détails">
-            <td><strong>{{ da.reference }}</strong></td><td>{{ da.objet }}</td><td>{{ da.tache.numero }}</td>
+            <td><strong>{{ da.reference }}</strong></td>
+            <td>
+                {{ da.objet }}
+                {% if da.nature_prestation %}
+                <span class="badge rounded-pill ms-1" style="font-size:0.62rem;{% if da.nature_prestation == 'APPRO' %}background:#1B3A5C;{% elif da.nature_prestation == 'Trx' %}background:#E67E22;{% else %}background:#6C3483;{% endif %}">{{ da.nature_prestation }}</span>
+                {% endif %}
+                {% if da.priorite %}<span class="badge bg-light text-dark border ms-1" style="font-size:0.62rem;">P{{ da.priorite }}</span>{% endif %}
+            </td>
+            <td>
+              {% if da.ligne_budgetaire %}
+              <div>
+                <span class="badge me-1" style="background:#1B3A5C;font-size:0.7rem;">{{ da.ligne_budgetaire.tache.numero }}</span>
+                <code style="font-size:0.8rem;">{{ da.ligne_budgetaire.code_nature }}</code>
+              </div>
+              <small class="text-muted">{{ da.ligne_budgetaire.libelle_nature|truncatewords:5 }}</small>
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            </td>
             <td class="money">{{ da.montant_estime|floatformat:0 }} FCFA</td>
             <td>
                 {% with total=da.offres.count %}
@@ -46,36 +64,39 @@
             <td><span class="badge bg-{{ da.statut_couleur }} badge-statut">{{ da.get_statut_display }}</span></td>
             <td>{{ da.created_at|date:"d/m/Y" }}</td>
             <td onclick="event.stopPropagation();">
+                {% if request.user|has_role:"admin,directeur_drh,assistante_drh" %}
+                <a href="{% url 'da_edit' da.pk %}" class="btn btn-sm btn-outline-secondary p-1" title="Modifier la DA"><i class="bi bi-pencil"></i></a>
+                {% endif %}
                 {% if request.user|has_role:"directeur_drh" %}
                   {% if da.statut == 'cree' %}
-                  <!-- Étape 1 : passer en étude -->
+                  <!-- Étape 1 : transmettre à la DAG -->
                   <form method="post" action="{% url 'da_en_etude' da.pk %}" class="d-inline">{% csrf_token %}
-                    <button type="submit" class="btn btn-sm btn-link text-warning p-0" title="Mettre en étude">
-                      <i class="bi bi-search"></i>
+                    <button type="submit" class="btn btn-sm btn-link text-warning p-0" title="Transmettre à la DAG">
+                      <i class="bi bi-send"></i>
                     </button>
                   </form>
                   {% elif da.statut == 'en_etude' %}
-                  <!-- Étape 2 : Valider ou Refuser (seulement depuis en_étude) -->
+                  <!-- Étape 2 : Valider ou Annuler (seulement depuis Transmise DAG) -->
                   <form method="post" action="{% url 'da_valider' da.pk %}" class="d-inline">{% csrf_token %}
                     <button type="submit" class="btn btn-sm btn-link text-success p-0" title="Valider">
                       <i class="bi bi-check-lg"></i>
                     </button>
                   </form>
-                  <button type="button" class="btn btn-sm btn-link text-danger p-0" title="Refuser"
+                  <button type="button" class="btn btn-sm btn-link text-danger p-0" title="Annuler la DA"
                           data-bs-toggle="modal" data-bs-target="#modalRefus{{ da.pk }}">
                     <i class="bi bi-x-lg"></i>
                   </button>
                   <div class="modal fade" id="modalRefus{{ da.pk }}" tabindex="-1">
                     <div class="modal-dialog"><div class="modal-content">
                       <form method="post" action="{% url 'da_refuser' da.pk %}">{% csrf_token %}
-                        <div class="modal-header"><h5 class="modal-title">Refuser {{ da.reference }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                        <div class="modal-header"><h5 class="modal-title">Annuler {{ da.reference }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
                         <div class="modal-body">
-                          <label class="form-label">Motif du refus <span class="text-danger">*</span></label>
+                          <label class="form-label">Motif d'annulation <span class="text-danger">*</span></label>
                           <textarea name="motif" class="form-control" rows="3" required placeholder="Expliquer le motif…"></textarea>
                         </div>
                         <div class="modal-footer">
-                          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
-                          <button type="submit" class="btn btn-danger">Confirmer le refus</button>
+                          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fermer</button>
+                          <button type="submit" class="btn btn-danger">Confirmer l'annulation</button>
                         </div>
                       </form>
                     </div></div>
@@ -107,9 +128,50 @@
     <div class="modal-header"><h5 class="modal-title">Nouvelle demande d'achat</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <form method="post" action="{% url 'da_create' %}">{% csrf_token %}
     <div class="modal-body">
-        <div class="mb-3"><label class="form-label">Tâche budgétaire</label><select name="tache" class="form-select" required><option value="">Choisir...</option>{% for t in taches %}<option value="{{ t.pk }}">{{ t.numero }} — {{ t.titre }}</option>{% endfor %}</select></div>
-        <div class="mb-3"><label class="form-label">Objet</label><input type="text" name="objet" class="form-control" placeholder="Ex : Achat consommables" required></div>
-        <div class="mb-3"><label class="form-label">Montant estimé (FCFA)</label><input type="number" name="montant_estime" class="form-control" value="0" required></div>
+        <div class="mb-3">
+            <label class="form-label fw-bold">Numéro DA <small class="text-muted fw-normal">(optionnel)</small></label>
+            <input type="text" name="reference" class="form-control" placeholder="Ex : DAC2406DLA00042 — laisser vide pour auto-génération">
+        </div>
+        <div class="mb-3">
+            <label class="form-label fw-bold">Ligne budgétaire <span class="text-danger">*</span></label>
+            <select name="ligne_budgetaire" class="form-select" required>
+                <option value="">Choisir une ligne…</option>
+                {% for l in lignes %}
+                <option value="{{ l.pk }}">{{ l.tache.numero }} › {{ l.code_nature }} — {{ l.libelle_nature|truncatewords:6 }}</option>
+                {% endfor %}
+            </select>
+            <small class="text-muted">Format : Tâche › Code nature — Libellé</small>
+        </div>
+        <div class="mb-3"><label class="form-label fw-bold">Objet <span class="text-danger">*</span></label><input type="text" name="objet" class="form-control" placeholder="Ex : Achat consommables" required></div>
+        <div class="mb-3"><label class="form-label fw-bold">Montant estimé (FCFA) <span class="text-danger">*</span></label><input type="number" name="montant_estime" class="form-control" step="1000" value="0" required></div>
+        <div class="row g-2">
+            <div class="col-md-5">
+                <label class="form-label fw-bold" style="font-size:13px;">Nature</label>
+                <select name="nature_prestation" class="form-select form-select-sm">
+                    <option value="">—</option>
+                    <option value="APPRO">Approvisionnement (APPRO)</option>
+                    <option value="Trx">Travaux (Trx)</option>
+                    <option value="Prestat.Int">Prestation intellectuelle</option>
+                    <option value="Autre">Autre</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-bold" style="font-size:13px;">Période</label>
+                <select name="periode_engagement" class="form-select form-select-sm">
+                    <option value="">—</option>
+                    <option value="P1">P1 (Mars–Juin)</option>
+                    <option value="P2">P2 (Juil–Nov)</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold" style="font-size:13px;">Priorité</label>
+                <select name="priorite" class="form-select form-select-sm">
+                    <option value="">—</option>
+                    <option value="1">Priorité 1</option>
+                    <option value="2">Priorité 2</option>
+                </select>
+            </div>
+        </div>
     </div>
     <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button><button type="submit" class="btn btn-pad">Créer</button></div>
     </form>

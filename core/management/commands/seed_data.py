@@ -13,8 +13,8 @@ from datetime import date, datetime, timedelta
 import random
 
 from core.models import (
-    Utilisateur, ExerciceBudgetaire, Tache, VirementBudgetaire,
-    Prestataire, DemandeAchat, Offre, BonCommande, LigneBC,
+    Utilisateur, ExerciceBudgetaire, Tache, LigneBudgetaire, VirementBudgetaire,
+    Prestataire, DemandeAchat, Offre, BonCommande, LigneBC, ImputationBC,
     HistoriqueStatut, JournalActivite, Notification, Alerte, Sequence,
 )
 
@@ -148,14 +148,15 @@ class Command(BaseCommand):
                 exercice=exercice,
                 numero=numero,
                 titre=titre,
-                code_nature=code,
-                libelle_nature=lib,
-                montant_initial=montant,
-                taux_previsionnel=D(random.choice([45, 50, 55, 60, 65, 70])),
+            )
+            # Le budget est désormais porté par la ligne budgétaire (refactor 0006)
+            LigneBudgetaire.objects.create(
+                tache=t, code_nature=code, libelle_nature=lib,
+                montant_initial=montant, actif=True,
             )
             force_created_at(t, datetime(2025, 1, 8, 10, 0))
             ts[numero] = t
-        total = sum(t.montant_initial for t in ts.values())
+        total = sum(montant for *_, montant in data)
         self.stdout.write(f"   15 taches - total initial : {total:,.0f} FCFA")
         return ts
 
@@ -178,13 +179,15 @@ class Command(BaseCommand):
              "Mission de conseil organisationnel - cabinet externe",         'assistante_drh'),
         ]
         for dt, src, dst, montant, motif, role in virements_data:
-            ts[src].transactions_moins += montant
-            ts[src].save(update_fields=['transactions_moins'])
-            ts[dst].transactions_plus += montant
-            ts[dst].save(update_fields=['transactions_plus'])
+            # Virement entre la 1ʳᵉ ligne de la tâche source et celle de la tâche dest (refactor 0006)
+            ligne_src = ts[src].lignes.first()
+            ligne_dst = ts[dst].lignes.first()
+            if not ligne_src or not ligne_dst:
+                continue
             v = VirementBudgetaire.objects.create(
-                tache_source=ts[src],
-                tache_dest=ts[dst],
+                exercice=ts[src].exercice,
+                ligne_source=ligne_src,
+                ligne_destination=ligne_dst,
                 montant=montant,
                 motif=motif,
                 created_by=users[role],
@@ -235,7 +238,7 @@ class Command(BaseCommand):
             (date(2025, 4, 12), 'T-002', "Provision heures supplementaires mars-avril 2025",        D('3800000'),  'bc_cree',  '', 'assistante_drh'),
             (date(2025, 4, 19), 'T-011', "Mission consultant organisationnel - 3 mois",             D('2500000'),  'en_etude', '', 'directeur_drh'),
             (date(2025, 5, 2),  'T-015', "Carburant flotte DRH - approvisionnement mai-juin",       D('1500000'),  'validee',  '', 'assistante_drh'),
-            (date(2025, 5, 8),  'T-009', "Refonte newsletter interne mensuelle",                    D('800000'),   'refusee',
+            (date(2025, 5, 8),  'T-009', "Refonte newsletter interne mensuelle",                    D('800000'),   'annulee',
              "Budget insuffisant en T-009, a representer apres virement.", 'assistante_drh'),
             (date(2025, 5, 14), 'T-014', "Campagne vaccinale agents - grippe saisonniere",          D('3500000'),  'cree',     '', 'assistante_drh'),
         ]
@@ -245,7 +248,7 @@ class Command(BaseCommand):
             da = DemandeAchat.objects.create(
                 reference=ref,
                 exercice=exercice,
-                tache=ts[tnum],
+                ligne_budgetaire=ts[tnum].lignes.first(),
                 objet=objet,
                 montant_estime=montant,
                 statut=statut,
@@ -260,12 +263,12 @@ class Command(BaseCommand):
             chosen = random.sample(prest_list, nb_offres)
             base = float(montant)
             for idx, prest in enumerate(chosen):
-                if statut in ('refusee', 'cree', 'en_etude'):
+                if statut in ('annulee', 'cree', 'en_etude'):
                     Offre.objects.create(
                         demande=da, prestataire=prest,
                         montant=D(round(base * random.uniform(0.92, 1.10), 0)),
                         statut='refusee',
-                        motif_refus=("Demande refusee par le DAG" if statut == 'refusee'
+                        motif_refus=("Demande annulee par le DAG" if statut == 'annulee'
                                      else "Offre en attente de selection"),
                     )
                 else:
@@ -445,6 +448,8 @@ class Command(BaseCommand):
                 exercice=exercice,
                 prestataire=prest,
                 direction='Direction des Ressources Humaines',
+                numero_capri=f"CAPRI-2025-{i:04d}",
+                date_capri=dt,
                 taux_tva=TVA,
                 montant_ht=montant_ht,
                 montant_tva=montant_tva,
@@ -463,6 +468,14 @@ class Command(BaseCommand):
                     bon_commande=bc, designation=desig, quantite=qte,
                     prix_unitaire_ht=D(pu), ordre=ordre,
                 )
+
+            # Imputation budgétaire sur la ligne de la tâche (hors BC annulé)
+            if statut_final != 'annule':
+                ligne_imp = tache.lignes.first()
+                if ligne_imp:
+                    ImputationBC.objects.create(
+                        bon_commande=bc, ligne_budgetaire=ligne_imp, montant=montant_ttc,
+                    )
 
             chain = self._transition_chain(statut_final)
             current = 'cree'
@@ -592,8 +605,8 @@ class Command(BaseCommand):
             ('bc_notifie', f"{bcs[4].numero} notifie",
              f"Le BC {bcs[4].numero} a ete notifie au prestataire.",
              'bc', bcs[4].id),
-            ('da_refusee', "DA-2025-009 refusee",
-             "La demande DA-2025-009 a ete refusee par le DAG.",
+            ('da_annulee', "DA-2025-009 annulee",
+             "La demande DA-2025-009 a ete annulee par le DAG.",
              'da', das[8].id),
             ('virement', "Nouveau virement enregistre",
              "Virement T-007 -> T-002 de 250 000 FCFA enregistre.",
@@ -612,8 +625,9 @@ class Command(BaseCommand):
     def _creer_alertes(self, ts):
         self.stdout.write("=> Alertes budgetaires...")
         nb = 0
-        for tache in ts.values():
-            tache.refresh_from_db()
+        for base in ts.values():
+            # Re-fetch annoté pour que taux_consommation reflète les imputations BC
+            tache = Tache.objects.with_aggregates().get(pk=base.pk)
             taux = float(tache.taux_consommation)
             if taux >= 80:
                 Alerte.objects.create(
