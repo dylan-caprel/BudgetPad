@@ -144,8 +144,8 @@ SCENARIOS = [
       'motif_annulation': "Séminaire reporté au second semestre suite à indisponibilité du formateur",
       'imputations': [("6266000", 1_512_605)]}, None),
 
-    # --- 1 DA refusée ---
-    ("3211037", "Acquisition logiciel SIRH - Budget insuffisant", 350_000_000, 'refusee',
+    # --- 1 DA annulée ---
+    ("3211037", "Acquisition logiciel SIRH - Budget insuffisant", 350_000_000, 'annulee',
      [("PREST-009", 340_000_000, 'recue'), ("PREST-002", 380_000_000, 'recue')],
      None, "Le montant estimé dépasse le plafond autorisé. À revoir avec la Direction Générale."),
 ]
@@ -242,7 +242,7 @@ class Command(BaseCommand):
             da, da_created = DemandeAchat.objects.get_or_create(
                 reference=ref,
                 defaults={
-                    'exercice': exercice, 'tache': tache,
+                    'exercice': exercice, 'ligne_budgetaire': tache.lignes.first(),
                     'objet': objet, 'montant_estime': Decimal(est),
                     'statut': statut_da, 'motif_refus': motif or '',
                     'created_by': assistante,
@@ -299,6 +299,8 @@ class Command(BaseCommand):
                     defaults={
                         'demande': da, 'tache': tache,
                         'exercice': exercice, 'prestataire': offre_retenue.prestataire,
+                        'numero_capri': f"CAPRI-2026-{bc_counter:04d}",
+                        'date_capri': date_emission,
                         'date_notification': date_notif,
                         'delai_execution_jours': delai,
                         'date_echeance': date_echeance,

@@ -118,8 +118,22 @@
             <div>
                 <span class="badge" style="background:rgba(243,156,18,0.15);color:#B7770D;font-size:10px;">{{ conso.get_motif_display }}</span>
                 <div class="text-muted" style="font-size:11px;margin-top:2px;">{{ conso.date_consommation|date:"d/m/Y" }}</div>
+                {% if conso.capri_manquant %}
+                <div class="text-warning" style="font-size:10px;"><i class="bi bi-shield-exclamation me-1"></i>CAPRI à régulariser</div>
+                {% else %}
+                <div class="text-muted" style="font-size:10px;"><i class="bi bi-shield-check me-1"></i>CAPRI {{ conso.numero_capri }}</div>
+                {% endif %}
                 {% if conso.description %}
                 <div class="text-muted" style="font-size:11px;">{{ conso.description|truncatewords:12 }}</div>
+                {% endif %}
+                {% if conso.piece_jointe %}
+                <a href="{{ conso.piece_jointe.fichier.url }}" target="_blank" rel="noopener"
+                   class="d-inline-flex align-items-center mt-1"
+                   style="font-size:11px;color:#1B3A5C;text-decoration:none;"
+                   title="Ouvrir la pièce jointe">
+                    <i class="bi {{ conso.piece_jointe.icone }} me-1" style="color:{{ conso.piece_jointe.couleur_icone }};"></i>
+                    {{ conso.piece_jointe.nom_original|truncatechars:24 }}
+                </a>
                 {% endif %}
             </div>
             <div class="text-end flex-shrink-0">

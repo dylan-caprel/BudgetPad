@@ -5,7 +5,7 @@ from decimal import Decimal
 from datetime import date
 from core.models import (
     Utilisateur, ExerciceBudgetaire, Tache, Prestataire,
-    DemandeAchat, BonCommande,
+    DemandeAchat, BonCommande, LigneBudgetaire,
 )
 
 
@@ -42,15 +42,37 @@ class ExerciceBudgetaireFactory(factory.django.DjangoModelFactory):
 class TacheFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Tache
+        skip_postgeneration_save = True
 
     exercice = factory.SubFactory(ExerciceBudgetaireFactory)
     numero = factory.Sequence(lambda n: f"T-{n:03d}")
     titre = factory.Faker('catch_phrase', locale='fr_FR')
-    code_nature = '60410'
-    libelle_nature = 'Fournitures'
+
+    @factory.post_generation
+    def montant_initial(obj, create, extracted, **kwargs):
+        """
+        Compat tests : le budget est désormais porté par LigneBudgetaire.
+        Crée automatiquement une ligne active dont le montant = `montant_initial`
+        (défaut 10 000 000). Permet TacheFactory(montant_initial=...) comme avant.
+        """
+        if not create:
+            return
+        montant = extracted if extracted is not None else Decimal('10000000')
+        LigneBudgetaire.objects.create(
+            tache=obj, code_nature='60410', libelle_nature='Fournitures',
+            montant_initial=montant, actif=True,
+        )
+
+
+class LigneBudgetaireFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = LigneBudgetaire
+
+    tache = factory.SubFactory(TacheFactory)
+    code_nature = factory.Sequence(lambda n: f"6041{n:03d}")
+    libelle_nature = 'Fournitures de bureau'
     montant_initial = Decimal('10000000')
-    transactions_plus = Decimal('0')
-    transactions_moins = Decimal('0')
+    actif = True
 
 
 class PrestataireFactory(factory.django.DjangoModelFactory):
@@ -68,9 +90,9 @@ class DemandeAchatFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = DemandeAchat
 
-    reference = factory.Sequence(lambda n: f"DA-2025-{n:03d}")
+    reference = factory.Sequence(lambda n: f"DA-TEST-{n:03d}")
     exercice = factory.SubFactory(ExerciceBudgetaireFactory)
-    tache = factory.SubFactory(TacheFactory)
+    ligne_budgetaire = factory.SubFactory(LigneBudgetaireFactory)
     objet = factory.Faker('sentence', nb_words=4, locale='fr_FR')
     montant_estime = Decimal('500000')
     statut = 'cree'

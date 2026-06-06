@@ -696,11 +696,12 @@ class Command(BaseCommand):
         tache_tft = taches_map.get("3212002")
         prest1 = prests.get("PREST-001")
         if tache_tft and prest1:
+            ligne_tft = lignes_map.get(("3212002", "6055010")) or tache_tft.lignes.first()
             da1, created = DemandeAchat.objects.get_or_create(
                 reference="DA-2026-0001",
                 defaults={
                     'exercice': exercice,
-                    'tache': tache_tft,
+                    'ligne_budgetaire': ligne_tft,
                     'objet': "Fournitures de bureau programme Train For Trade",
                     'montant_estime': Decimal('2500000'),
                     'statut': 'bc_cree',
@@ -716,6 +717,8 @@ class Command(BaseCommand):
                     numero="BC-2026-0001",
                     demande=da1, tache=tache_tft, exercice=exercice,
                     prestataire=prest1,
+                    numero_capri="CAPRI-2026-0001",
+                    date_capri=date(2026, 2, 10),
                     montant_ht=Decimal('2500000'),
                     montant_tva=Decimal('481250'),
                     montant_ttc=Decimal('2981250'),
@@ -743,11 +746,12 @@ class Command(BaseCommand):
         tache_sante = taches_map.get("3213003")
         prest2 = prests.get("PREST-002")
         if tache_sante and prest2:
+            ligne_sante = lignes_map.get(("3213003", "6684000")) or tache_sante.lignes.first()
             da2, created = DemandeAchat.objects.get_or_create(
                 reference="DA-2026-0002",
                 defaults={
                     'exercice': exercice,
-                    'tache': tache_sante,
+                    'ligne_budgetaire': ligne_sante,
                     'objet': "Achat médicaments et consommables médicaux",
                     'montant_estime': Decimal('15000000'),
                     'statut': 'validee',
@@ -764,11 +768,12 @@ class Command(BaseCommand):
         tache_fonct = taches_map.get("3215003")
         prest3 = prests.get("PREST-003")
         if tache_fonct and prest3:
+            ligne_fonct = tache_fonct.lignes.first()
             DemandeAchat.objects.get_or_create(
                 reference="DA-2026-0003",
                 defaults={
                     'exercice': exercice,
-                    'tache': tache_fonct,
+                    'ligne_budgetaire': ligne_fonct,
                     'objet': "Acquisition équipements informatiques DRH",
                     'montant_estime': Decimal('20000000'),
                     'statut': 'en_etude',
@@ -786,6 +791,8 @@ class Command(BaseCommand):
                     numero="BC-2026-0002",
                     tache=tache_sante, exercice=exercice,
                     prestataire=prest2,
+                    numero_capri="CAPRI-2026-0002",
+                    date_capri=date_notif,
                     montant_ht=Decimal('14800000'),
                     montant_tva=Decimal('2849000'),
                     montant_ttc=Decimal('17649000'),

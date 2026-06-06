@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% load core_tags %}
+{% block title %}Modifier {{ prestataire.nom }} — BudgetPAD{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="{% url 'prestataires_list' %}" class="btn btn-sm btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <div>
+        <h4 style="font-weight:600;color:#1B3A5C;" class="mb-0">
+            Modifier le prestataire
+        </h4>
+        <p class="text-muted mb-0" style="font-size:13px;">{{ prestataire.code }}</p>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="data-card">
+            <form method="post" action="{% url 'prestataire_edit' prestataire.pk %}">
+                {% csrf_token %}
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Nom <span class="text-danger">*</span></label>
+                    {{ form.nom }}
+                    {% if form.nom.errors %}<div class="text-danger small mt-1">{{ form.nom.errors }}</div>{% endif %}
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Adresse</label>
+                    {{ form.adresse }}
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Téléphone</label>
+                        {{ form.telephone }}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Email</label>
+                        {{ form.email }}
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn flex-fill"
+                            style="background:#1A5632;color:white;">
+                        <i class="bi bi-check-circle me-2"></i>Enregistrer
+                    </button>
+                    <a href="{% url 'prestataires_list' %}" class="btn btn-outline-secondary flex-fill">Annuler</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

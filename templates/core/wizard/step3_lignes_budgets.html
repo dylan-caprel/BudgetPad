@@ -60,7 +60,7 @@
             <tbody>
               {% for ligne in tache.lignes_repertoire.all %}
               {% with ck=tache.pk|stringformat:"s" lid=ligne.pk|stringformat:"s" %}
-              {% with sel=lignes_par_tache|get_item:ck %}
+              {% with sel=lignes_par_tache|get_item:ck bkey=ck|add:"_"|add:lid %}
               <tr>
                 <td class="text-center ps-3">
                   <input type="checkbox" class="form-check-input"
@@ -78,7 +78,7 @@
                          id="bi_{{ tache.pk }}_{{ ligne.pk }}"
                          class="form-control form-control-sm"
                          placeholder="0"
-                         value=""
+                         value="{{ budgets|get_item:bkey|default:'' }}"
                          {% if not sel or lid not in sel %}disabled{% endif %}>
                 </td>
               </tr>

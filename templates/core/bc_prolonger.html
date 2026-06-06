@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% load core_tags %}
+{% block title %}Prolongation BC {{ bc.numero }} — BudgetPAD{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="{% url 'bc_list' %}" class="btn btn-sm btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <div>
+        <h4 style="font-weight:600;color:#1B3A5C;" class="mb-0">
+            Prolongation — BC {{ bc.numero }}
+        </h4>
+        <p class="text-muted mb-0" style="font-size:13px;">{{ bc.prestataire.nom }}</p>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+
+        <!-- Récapitulatif BC -->
+        <div class="data-card mb-4">
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <small class="text-muted d-block">Prestataire</small>
+                    <span class="fw-bold">{{ bc.prestataire.nom }}</span>
+                </div>
+                <div class="col-md-4">
+                    <small class="text-muted d-block">Date notification</small>
+                    <span class="fw-bold">{{ bc.date_notification|date:"d/m/Y"|default:"—" }}</span>
+                </div>
+                <div class="col-md-4">
+                    <small class="text-muted d-block">Échéance actuelle</small>
+                    <span class="fw-bold {% if bc.est_en_retard %}text-danger{% endif %}">
+                        {{ bc.date_echeance|date:"d/m/Y"|default:"—" }}
+                        {% if bc.est_en_retard %}
+                        <span class="badge bg-danger ms-1" style="font-size:10px;">EN RETARD</span>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+
+            <!-- Formulaire -->
+            <form method="post" action="{% url 'bc_prolonger_page' bc.pk %}">
+                {% csrf_token %}
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        Nouvelle échéance <span class="text-danger">*</span>
+                    </label>
+                    {{ form.nouvelle_echeance }}
+                    <small class="text-muted">
+                        Doit être postérieure à l'échéance actuelle
+                        {% if bc.date_echeance %}({{ bc.date_echeance|date:"d/m/Y" }}){% endif %}
+                    </small>
+                    {% if form.nouvelle_echeance.errors %}
+                    <div class="text-danger small mt-1">{{ form.nouvelle_echeance.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold">
+                        Motif de la prolongation <span class="text-danger">*</span>
+                    </label>
+                    {{ form.motif }}
+                    <small class="text-muted">
+                        Justification obligatoire — enregistrée dans le journal et l'historique du BC.
+                    </small>
+                    {% if form.motif.errors %}
+                    <div class="text-danger small mt-1">{{ form.motif.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn flex-fill"
+                            style="background:#1A5632;color:white;">
+                        <i class="bi bi-check-circle me-2"></i>Confirmer la prolongation
+                    </button>
+                    <a href="{% url 'bc_list' %}" class="btn btn-outline-secondary flex-fill">Annuler</a>
+                </div>
+            </form>
+        </div>
+
+        <!-- Historique des prolongations -->
+        {% if prolongations %}
+        <div class="data-card">
+            <h6 class="mb-3">
+                <i class="bi bi-clock-history me-2 text-muted"></i>
+                Historique des prolongations ({{ prolongations.count }})
+            </h6>
+            {% for p in prolongations %}
+            <div class="{% if not forloop.last %}border-bottom{% endif %} pb-3 mb-3">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <i class="bi bi-arrow-right me-1 text-warning"></i>
+                        <strong>{{ p.ancienne_echeance|date:"d/m/Y" }}</strong>
+                        &rarr;
+                        <strong class="text-success">{{ p.nouvelle_echeance|date:"d/m/Y" }}</strong>
+                        <span class="text-muted ms-2" style="font-size:12px;">
+                            (+{{ p.duree_prolongation_jours }} jours)
+                        </span>
+                    </div>
+                    <small class="text-muted">{{ p.created_at|date:"d/m/Y H:i" }}</small>
+                </div>
+                <div class="mt-1 text-muted" style="font-size:13px;">
+                    <i class="bi bi-chat-left-text me-1"></i>{{ p.motif }}
+                </div>
+                <small class="text-muted">Par : {{ p.created_by }}</small>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}

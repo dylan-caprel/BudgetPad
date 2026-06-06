@@ -50,22 +50,30 @@ class SequenceService:
                     seq.save(update_fields=['value'])
 
     @staticmethod
-    def next_bc_numero(annee: int) -> str:
+    def next_bc_numero(annee=None) -> str:
+        """Format réel PAD : STD{AAMM}DLA{NNNNN} — séquence mensuelle (ex: STD2406DLA00143)."""
         from ..models import BonCommande
+        from datetime import date as _date
+        yymm = _date.today().strftime('%y%m')
+        prefix = f'STD{yymm}DLA'
         SequenceService._ensure_sync(
-            key=f'BC-{annee}', model=BonCommande, field='numero',
-            prefix=f'BC-{annee}-', pattern=rf'^BC-{annee}-(\d+)$',
+            key=f'BC-{yymm}', model=BonCommande, field='numero',
+            prefix=prefix, pattern=rf'^STD{yymm}DLA(\d+)$',
         )
-        return f"BC-{annee}-{SequenceService.next_value(f'BC-{annee}'):04d}"
+        return f"{prefix}{SequenceService.next_value(f'BC-{yymm}'):05d}"
 
     @staticmethod
-    def next_da_reference(annee: int) -> str:
+    def next_da_reference(annee=None) -> str:
+        """Format réel PAD : DAC{AAMM}DLA{NNNNN} — séquence mensuelle (ex: DAC2404DLA00263)."""
         from ..models import DemandeAchat
+        from datetime import date as _date
+        yymm = _date.today().strftime('%y%m')
+        prefix = f'DAC{yymm}DLA'
         SequenceService._ensure_sync(
-            key=f'DA-{annee}', model=DemandeAchat, field='reference',
-            prefix=f'DA-{annee}-', pattern=rf'^DA-{annee}-(\d+)$',
+            key=f'DA-{yymm}', model=DemandeAchat, field='reference',
+            prefix=prefix, pattern=rf'^DAC{yymm}DLA(\d+)$',
         )
-        return f"DA-{annee}-{SequenceService.next_value(f'DA-{annee}'):03d}"
+        return f"{prefix}{SequenceService.next_value(f'DA-{yymm}'):05d}"
 
     @staticmethod
     def next_prestataire_code() -> str:

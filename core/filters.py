@@ -60,6 +60,7 @@ class DemandeAchatFilter(django_filters.FilterSet):
         widget=forms.Select(attrs={'class': 'form-select form-select-sm'}),
     )
     tache = django_filters.ModelChoiceFilter(
+        field_name='ligne_budgetaire__tache',
         queryset=Tache.objects.all(),
         empty_label='Toutes les tâches',
         widget=forms.Select(attrs={'class': 'form-select form-select-sm'}),

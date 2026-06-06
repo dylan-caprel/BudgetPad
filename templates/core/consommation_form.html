@@ -26,7 +26,7 @@
     <!-- Formulaire -->
     <div class="col-lg-7">
         <div class="data-card p-4">
-            <form method="POST">
+            <form method="POST" enctype="multipart/form-data">
                 {% csrf_token %}
 
                 <div class="mb-3">
@@ -45,9 +45,40 @@
                     {{ form.date_consommation }}
                 </div>
 
-                <div class="mb-4">
+                <!-- Avis CAPRI (Règle R11) -->
+                <div class="p-3 mb-3 rounded" style="background:#FFF8EC;border-left:4px solid #F39C12;">
+                    <div class="fw-semibold mb-2" style="color:#1B3A5C;font-size:13px;">
+                        <i class="bi bi-shield-check me-1" style="color:#F39C12;"></i>Autorisation CAPRI <span class="text-danger">*</span>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label for="id_numero_capri" class="form-label small mb-1">Numéro CAPRI <span class="text-danger">*</span></label>
+                            {{ form.numero_capri }}
+                            {% if form.numero_capri.errors %}<div class="text-danger small mt-1">{{ form.numero_capri.errors }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="id_date_capri" class="form-label small mb-1">Date CAPRI <span class="text-danger">*</span></label>
+                            {{ form.date_capri }}
+                            {% if form.date_capri.errors %}<div class="text-danger small mt-1">{{ form.date_capri.errors }}</div>{% endif %}
+                        </div>
+                    </div>
+                    <small class="text-muted">Avis préalable émis par la DCG — obligatoire pour toute imputation.</small>
+                </div>
+
+                <div class="mb-3">
                     <label for="id_description" class="form-label fw-semibold">Description / Détails</label>
                     {{ form.description }}
+                </div>
+
+                <div class="mb-4">
+                    <label for="id_piece_jointe" class="form-label fw-semibold">
+                        Pièce jointe <span class="text-muted fw-normal">(facultatif)</span>
+                    </label>
+                    <input type="file" name="piece_jointe" id="id_piece_jointe" class="form-control"
+                           accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx">
+                    <div class="form-text">
+                        Justificatif : facture, reçu, note… — PDF, image, Word ou Excel (max 10 Mo).
+                    </div>
                 </div>
 
                 <div class="d-flex gap-2">

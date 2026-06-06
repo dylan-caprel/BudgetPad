@@ -473,9 +473,8 @@ class Prestataire(models.Model):
 class DemandeAchat(models.Model):
     STATUT_CHOICES = [
         ('cree',     'Créée'),
-        ('en_etude', 'En étude'),
+        ('en_etude', 'Transmise DAG'),
         ('validee',  'Validée'),
-        ('refusee',  'Refusée'),
         ('bc_cree',  'BC créé'),
         ('annulee',  'Annulée'),
     ]
@@ -519,7 +518,7 @@ class DemandeAchat(models.Model):
         verbose_name="Priorité",
     )
     statut = models.CharField(max_length=15, choices=STATUT_CHOICES, default='cree')
-    motif_refus = models.TextField(blank=True)
+    motif_refus = models.TextField(blank=True, verbose_name="Motif d'annulation")
     created_by = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -552,14 +551,13 @@ class DemandeAchat(models.Model):
     def statut_couleur(self):
         return {
             'cree': 'secondary', 'en_etude': 'warning', 'validee': 'success',
-            'refusee': 'danger', 'bc_cree': 'info', 'annulee': 'dark',
+            'bc_cree': 'info', 'annulee': 'danger',
         }.get(self.statut, 'secondary')
 
     TRANSITIONS_AUTORISEES = {
         'cree':     ['en_etude', 'annulee'],
-        'en_etude': ['validee', 'refusee', 'annulee'],
+        'en_etude': ['validee', 'annulee'],
         'validee':  ['bc_cree'],
-        'refusee':  [],
         'bc_cree':  [],
         'annulee':  [],
     }
@@ -575,11 +573,17 @@ class DemandeAchat(models.Model):
                 return False, "Aucune offre reçue — impossible de valider la DA."
             if offres_retenues != 1:
                 return False, "Exactement 1 offre doit être retenue avant la validation."
-            pj_count = PieceJointe.objects.filter(type_entite='da', entite_id=self.pk).count()
-            if pj_count == 0:
-                return False, "Au moins 1 pièce jointe est requise pour valider une DA."
-        if nouveau_statut == 'refusee' and not self.motif_refus:
-            return False, "Motif de refus obligatoire."
+            pj_valides = PieceJointe.objects.filter(
+                type_entite='da', entite_id=self.pk,
+                type_piece__in=['facture_proforma', 'da_signee'],
+            ).exists()
+            if not pj_valides:
+                return False, (
+                    "Joignez au moins une facture proforma ou la DA signée "
+                    "avant de valider cette demande."
+                )
+        if nouveau_statut == 'annulee' and not self.motif_refus:
+            return False, "Motif d'annulation obligatoire."
         return True, "OK"
 
 
@@ -684,6 +688,14 @@ class BonCommande(models.Model):
         Prestataire, on_delete=models.PROTECT, related_name='bons_commande',
     )
     direction        = models.CharField(max_length=100, default='Direction des Ressources Humaines')
+    # ── Avis CAPRI (Règle R11 : toute imputation requiert un avis CAPRI préalable de la DCG) ──
+    numero_capri     = models.CharField(
+        max_length=50, blank=True, verbose_name="Numéro CAPRI",
+        help_text="Numéro de l'avis CAPRI qui autorise cette imputation",
+    )
+    date_capri       = models.DateField(
+        null=True, blank=True, verbose_name="Date d'émission CAPRI",
+    )
     date_emission    = models.DateField(auto_now_add=True)
     date_notification = models.DateField(null=True, blank=True)
     delai_execution_jours = models.PositiveIntegerField(
@@ -779,6 +791,11 @@ class BonCommande(models.Model):
             return f"{self.delai_execution_jours} jours"
         return "—"
 
+    @property
+    def capri_manquant(self):
+        """True si l'avis CAPRI (n° + date) n'est pas renseigné — à régulariser (R11)."""
+        return not (self.numero_capri and self.date_capri)
+
     def recalculer_montants(self):
         """Recalcule HT/TVA/TTC depuis les lignes d'articles et sauvegarde."""
         self.calculer_montants()
@@ -855,6 +872,14 @@ class ConsommationDirecte(models.Model):
     motif             = models.CharField(max_length=20, choices=MOTIF_CHOICES)
     description       = models.TextField(blank=True, help_text="Détails supplémentaires")
     date_consommation = models.DateField()
+    # ── Avis CAPRI (Règle R11) ──
+    numero_capri      = models.CharField(
+        max_length=50, blank=True, verbose_name="Numéro CAPRI",
+        help_text="Numéro de l'avis CAPRI qui autorise cette consommation",
+    )
+    date_capri        = models.DateField(
+        null=True, blank=True, verbose_name="Date d'émission CAPRI",
+    )
     created_by        = models.ForeignKey(
         'Utilisateur', on_delete=models.SET_NULL, null=True,
     )
@@ -872,6 +897,11 @@ class ConsommationDirecte(models.Model):
         ordering = ['-date_consommation', '-created_at']
         verbose_name = 'Consommation directe'
         verbose_name_plural = 'Consommations directes'
+
+    @property
+    def capri_manquant(self):
+        """True si l'avis CAPRI (n° + date) n'est pas renseigné — à régulariser (R11)."""
+        return not (self.numero_capri and self.date_capri)
 
     def __str__(self):
         flag = ' [ANNULÉE]' if self.est_annule else ''
@@ -1138,8 +1168,11 @@ class PieceJointe(models.Model):
         ('da',    "Demande d'achat"),
         ('bc',    'Bon de commande'),
         ('offre', 'Offre prestataire'),
+        ('conso', 'Consommation directe'),
     ]
     TYPE_PIECE_CHOICES = [
+        ('da_signee',          'DA signée par la Directrice'),
+        ('avis_capri',         'Avis CAPRI scanné'),
         ('devis',              'Devis'),
         ('facture_proforma',   'Facture proforma'),
         ('bon_commande',       'Bon de commande signé'),
@@ -1165,6 +1198,11 @@ class PieceJointe(models.Model):
         max_length=25, choices=TYPE_PIECE_CHOICES, default='autre', blank=True,
         verbose_name='Type de document',
     )
+    titre_personnalise = models.CharField(
+        max_length=100, blank=True,
+        verbose_name='Titre personnalisé',
+        help_text="Pour le type « Autre » : préciser le titre du document.",
+    )
     fichier      = models.FileField(upload_to='pieces_jointes/%Y/%m/')
     nom_original = models.CharField(max_length=255)
     taille       = models.PositiveIntegerField(default=0)
@@ -1180,7 +1218,18 @@ class PieceJointe(models.Model):
         verbose_name_plural = 'Pièces jointes'
 
     def __str__(self):
-        return self.nom_original
+        return self.titre_affiche
+
+    @property
+    def titre_affiche(self):
+        """Titre lisible. Le titre personnalisé complète n'importe quel type ;
+        pour « Autre » il le remplace."""
+        if self.type_piece == 'autre':
+            return self.titre_personnalise or self.get_type_piece_display()
+        base = self.get_type_piece_display() if self.type_piece else self.nom_original
+        if self.titre_personnalise:
+            return f"{base} — {self.titre_personnalise}"
+        return base
 
     @property
     def extension(self):

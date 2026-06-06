@@ -16,7 +16,7 @@
     <form method="post" action="{% url 'da_en_etude' da.pk %}">
         {% csrf_token %}
         <button type="submit" class="btn btn-sm btn-outline-warning">
-            <i class="bi bi-search me-1"></i>Mettre en étude
+            <i class="bi bi-send me-1"></i>Transmettre à la DAG
         </button>
     </form>
     {% endif %}
@@ -30,14 +30,14 @@
     </form>
     <button type="button" class="btn btn-sm btn-outline-danger"
             data-bs-toggle="collapse" data-bs-target="#formRefusDA{{ da.pk }}">
-        <i class="bi bi-x-lg me-1"></i>Refuser
+        <i class="bi bi-x-lg me-1"></i>Annuler la DA
     </button>
     <div class="collapse w-100" id="formRefusDA{{ da.pk }}">
         <form method="post" action="{% url 'da_refuser' da.pk %}" class="mt-2">
             {% csrf_token %}
             <textarea name="motif" class="form-control form-control-sm mb-2" rows="2"
-                      placeholder="Motif du refus…" required style="font-size:12px;"></textarea>
-            <button type="submit" class="btn btn-sm btn-danger">Confirmer le refus</button>
+                      placeholder="Motif d'annulation…" required style="font-size:12px;"></textarea>
+            <button type="submit" class="btn btn-sm btn-danger">Confirmer l'annulation</button>
         </form>
     </div>
     {% endif %}
@@ -52,7 +52,17 @@
     </div>
     <div class="col-6">
         <div class="text-muted" style="font-size:11px;">TÂCHE</div>
-        <div><strong>{{ da.tache.numero }}</strong> — {{ da.tache.titre|truncatechars:30 }}</div>
+        {% if da.ligne_budgetaire %}
+        <div>
+            <span class="badge me-1" style="background:#1B3A5C;font-size:10px;">{{ da.ligne_budgetaire.tache.numero }}</span>
+            {{ da.ligne_budgetaire.tache.titre|truncatechars:25 }}
+        </div>
+        <div class="mt-1" style="font-size:11px;background:#f0f8ff;border-left:3px solid #1B3A5C;padding:2px 6px;border-radius:2px;">
+            <code>{{ da.ligne_budgetaire.code_nature }}</code> — {{ da.ligne_budgetaire.libelle_nature|truncatechars:30 }}
+        </div>
+        {% else %}
+        <div class="text-muted">—</div>
+        {% endif %}
     </div>
     <div class="col-6">
         <div class="text-muted" style="font-size:11px;">MONTANT ESTIMÉ</div>
@@ -69,7 +79,7 @@
 
 {% if da.motif_refus %}
 <div class="alert alert-danger py-2 px-3 mb-3" style="font-size:12px;">
-    <strong>Motif du refus :</strong> {{ da.motif_refus }}
+    <strong>Motif d'annulation :</strong> {{ da.motif_refus }}
 </div>
 {% endif %}
 

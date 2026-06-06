@@ -30,11 +30,18 @@ def assistante_user(db):
 
 @pytest.fixture
 def tache(exercice):
+    # TacheFactory crée automatiquement une ligne budgétaire active de ce montant.
     return TacheFactory(
         exercice=exercice,
         numero='T-001',
         montant_initial=Decimal('10000000'),
     )
+
+
+@pytest.fixture
+def ligne_budgetaire(tache):
+    """Ligne budgétaire active portée par la tâche (budget 10 000 000)."""
+    return tache.lignes.first()
 
 
 @pytest.fixture

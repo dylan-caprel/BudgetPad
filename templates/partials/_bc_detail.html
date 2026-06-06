@@ -34,11 +34,22 @@
         <div class="text-muted" style="font-size:11px;">DIRECTION</div>
         <div>{{ bc.direction }}</div>
     </div>
-    {% if bc.delai_execution_jours %}
+    <div class="col-6">
+        <div class="text-muted" style="font-size:11px;">AVIS CAPRI</div>
+        {% if bc.capri_manquant %}
+        <div class="text-warning" style="font-weight:600;">
+            <i class="bi bi-shield-exclamation me-1"></i>À régulariser
+        </div>
+        {% else %}
+        <div><strong>{{ bc.numero_capri }}</strong> <span class="text-muted">— {{ bc.date_capri|date:"d/m/Y" }}</span></div>
+        {% endif %}
+    </div>
+    {% if bc.delai_execution_semaines or bc.delai_execution_jours %}
     <div class="col-6">
         <div class="text-muted" style="font-size:11px;">DÉLAI D'EXÉCUTION</div>
-        <div>{{ bc.delai_execution_jours }} jours</div>
-    </div>
+        <div>{{ bc.delai_affichage }}</div>
+    </div>{% endif %}
+    {% if bc.delai_execution_semaines or bc.delai_execution_jours %}
     <div class="col-6">
         <div class="text-muted" style="font-size:11px;">DATE ÉCHÉANCE</div>
         <div>

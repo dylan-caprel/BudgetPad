@@ -2,7 +2,7 @@
 
 import pytest
 from decimal import Decimal
-from core.models import BonCommande, HistoriqueStatut, JournalActivite, Tache
+from core.models import BonCommande, HistoriqueStatut, JournalActivite, Tache, PieceJointe
 from core.services import BonCommandeService
 
 
@@ -15,18 +15,21 @@ class TestBonCommandeCreer:
             montant_ht=Decimal('1000000'), utilisateur=dag_user,
             exercice=exercice,
         )
+        from datetime import date
         assert bc.pk is not None
-        assert bc.numero == 'BC-2025-0001'
+        assert bc.numero == f"STD{date.today():%y%m}DLA00001"
         assert bc.statut == 'cree'
         assert bc.montant_ht == Decimal('1000000')
         # TVA 19.25% => TTC = 1 192 500
         assert bc.montant_ttc == Decimal('1192500.00')
 
     def test_numerotation_incrementale(self, tache, prestataire, dag_user, exercice):
+        from datetime import date
         bc1 = BonCommandeService.creer(tache, prestataire, Decimal('500000'), dag_user, exercice)
         bc2 = BonCommandeService.creer(tache, prestataire, Decimal('500000'), dag_user, exercice)
-        assert bc1.numero == 'BC-2025-0001'
-        assert bc2.numero == 'BC-2025-0002'
+        _p = f"STD{date.today():%y%m}DLA"
+        assert bc1.numero == f"{_p}00001"
+        assert bc2.numero == f"{_p}00002"
 
     def test_journal_create(self, tache, prestataire, dag_user, exercice):
         BonCommandeService.creer(tache, prestataire, Decimal('500000'), dag_user, exercice)
@@ -39,7 +42,7 @@ class TestBonCommandeCreer:
         from core.tests.factories import TacheFactory
         t = TacheFactory(exercice=exercice, montant_initial=Decimal('1000000'))
         # On essaie un BC > budget
-        with pytest.raises(ValueError, match="superieur au solde"):
+        with pytest.raises(ValueError, match="supérieur au solde"):
             BonCommandeService.creer(t, prestataire, Decimal('2000000'), dag_user, exercice)
 
     def test_refuse_montant_zero(self, tache, prestataire, dag_user, exercice):
@@ -59,7 +62,9 @@ class TestBonCommandeCreer:
         from core.tests.factories import TacheFactory
         t = TacheFactory(exercice=exercice, montant_initial=Decimal('10000000'))
         BonCommandeService.creer(t, prestataire, Decimal('1000000'), dag_user, exercice)
-        t.refresh_from_db()
+        # La conso/solde ne sont calculés que sur un queryset annoté (.with_aggregates()),
+        # pas via refresh_from_db() (les propriétés retombent à 0 sans annotation).
+        t = Tache.objects.with_aggregates().get(pk=t.pk)
         assert t.consommation == Decimal('1192500.00')
         assert t.solde == Decimal('8807500.00')
 
@@ -69,9 +74,16 @@ class TestBonCommandeTransitions:
 
     @pytest.fixture
     def bc(self, tache, prestataire, dag_user, exercice):
-        return BonCommandeService.creer(
+        bc = BonCommandeService.creer(
             tache, prestataire, Decimal('500000'), dag_user, exercice
         )
+        # Pièce jointe « bon de commande signé » requise avant la notification
+        PieceJointe.objects.create(
+            type_entite='bc', entite_id=bc.pk, type_piece='bon_commande',
+            fichier='pieces_jointes/test/bc_signe.pdf', nom_original='bc_signe.pdf',
+            uploaded_by=dag_user,
+        )
+        return bc
 
     def test_transition_cree_vers_notifie(self, bc, dag_user):
         result = BonCommandeService.changer_statut(bc, 'notifie', dag_user)
@@ -82,7 +94,7 @@ class TestBonCommandeTransitions:
 
     def test_transition_invalide_levee_value_error(self, bc, dag_user):
         # On ne peut pas passer cree -> execute directement
-        with pytest.raises(ValueError, match="non autorisee"):
+        with pytest.raises(ValueError, match="interdite"):
             BonCommandeService.changer_statut(bc, 'execute', dag_user)
 
     def test_annulation_enregistre_motif(self, bc, dag_user):

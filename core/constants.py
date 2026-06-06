@@ -60,10 +60,10 @@ STATUT_METADATA = {
 # ===== DA STATUTS =====
 DA_STATUT_METADATA = {
     'cree': {'label': 'Créée', 'color': 'secondary'},
-    'en_etude': {'label': 'En étude', 'color': 'warning'},
+    'en_etude': {'label': 'Transmise DAG', 'color': 'warning'},
     'validee': {'label': 'Validée', 'color': 'success'},
-    'refusee': {'label': 'Refusée', 'color': 'danger'},
     'bc_cree': {'label': 'BC créé', 'color': 'info'},
+    'annulee': {'label': 'Annulée', 'color': 'danger'},
 }
 
 # ===== ACTIONS LOG =====

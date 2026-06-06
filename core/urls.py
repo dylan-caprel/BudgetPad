@@ -14,7 +14,11 @@ urlpatterns = [
     path('taches/', views.taches_list, name='taches_list'),
     path('taches/creer/', views.tache_create, name='tache_create'),
     path('taches/<int:pk>/detail/', views.tache_detail, name='tache_detail'),
+    path('taches/<int:pk>/modifier/', views.tache_edit, name='tache_edit'),
     path('taches/<int:pk>/supprimer/', views.tache_delete, name='tache_delete'),
+
+    # API interne
+    path('api/ligne/<int:pk>/solde/', views.api_ligne_solde, name='api_ligne_solde'),
 
     # Transferts
     path('virements/', views.virements_list, name='virements_list'),
@@ -25,12 +29,14 @@ urlpatterns = [
     path('prestataires/', views.prestataires_list, name='prestataires_list'),
     path('prestataires/creer/', views.prestataire_create, name='prestataire_create'),
     path('prestataires/<int:pk>/detail/', views.prestataire_detail, name='prestataire_detail'),
+    path('prestataires/<int:pk>/modifier/', views.prestataire_edit, name='prestataire_edit'),
     path('prestataires/<int:pk>/supprimer/', views.prestataire_delete, name='prestataire_delete'),
 
     # Demandes d'achat
     path('demandes-achat/', views.da_list, name='da_list'),
     path('demandes-achat/creer/', views.da_create, name='da_create'),
     path('demandes-achat/<int:pk>/detail/', views.da_detail, name='da_detail'),
+    path('demandes-achat/<int:pk>/modifier/', views.da_edit, name='da_edit'),
     path('demandes-achat/<int:pk>/en-etude/', views.da_en_etude, name='da_en_etude'),
     path('demandes-achat/<int:pk>/valider/', views.da_valider, name='da_valider'),
     path('demandes-achat/<int:pk>/refuser/', views.da_refuser, name='da_refuser'),
@@ -46,6 +52,8 @@ urlpatterns = [
     path('bons-commande/<int:pk>/statut/<str:nouveau_statut>/', views.bc_change_statut, name='bc_change_statut'),
     path('bons-commande/<int:pk>/detail/', views.bc_detail, name='bc_detail'),
     path('bons-commande/<int:pk>/prolonger/', views.bc_prolong, name='bc_prolong'),
+    path('bons-commande/<int:pk>/prolonger/page/', views.bc_prolonger_page, name='bc_prolonger_page'),
+    path('bons-commande/<int:pk>/modifier/', views.bc_edit, name='bc_edit'),
 
     # Lignes budgétaires
     path('taches/<int:tache_pk>/lignes/creer/', views.ligne_budgetaire_create, name='ligne_budgetaire_create'),

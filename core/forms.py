@@ -3,9 +3,33 @@ from decimal import Decimal
 from .models import (
     Tache, LigneBudgetaire, VirementBudgetaire, Prestataire,
     DemandeAchat, BonCommande, Offre, ImputationBC, ProlongationBC,
-    ConsommationDirecte,
+    ConsommationDirecte, ExerciceBudgetaire, LigneBC,
 )
 from .constants import TVA_RATE
+
+
+def _solde_disponible_ligne(ligne, exclude_da_pk=None):
+    """Solde réellement disponible sur une ligne budgétaire :
+    solde comptable (budget ajusté − consommation) MOINS les montants déjà
+    engagés par les autres DA actives (créée / transmise DAG / validée, sans BC).
+
+    Retourne (solde_comptable, montant_engage, solde_disponible).
+    """
+    from django.db.models import Sum, Value, DecimalField
+    from django.db.models.functions import Coalesce
+    zero = Value(Decimal('0'), output_field=DecimalField(max_digits=15, decimal_places=2))
+
+    annot = LigneBudgetaire.objects.filter(pk=ligne.pk).with_aggregates().first()
+    solde_comptable = (annot.solde if annot else None) or Decimal('0')
+
+    qs = DemandeAchat.objects.filter(
+        ligne_budgetaire=ligne, statut__in=['cree', 'en_etude', 'validee'],
+    )
+    if exclude_da_pk:
+        qs = qs.exclude(pk=exclude_da_pk)
+    engage = qs.aggregate(t=Coalesce(Sum('montant_estime'), zero))['t'] or Decimal('0')
+
+    return solde_comptable, engage, (solde_comptable - engage)
 
 
 class VirementForm(forms.ModelForm):
@@ -131,27 +155,47 @@ class LigneBudgetaireForm(forms.ModelForm):
 class DemandeAchatForm(forms.ModelForm):
     class Meta:
         model = DemandeAchat
-        fields = ['tache', 'objet', 'montant_estime']
+        fields = ['reference', 'ligne_budgetaire', 'objet', 'montant_estime',
+                  'nature_prestation', 'periode_engagement', 'priorite']
         widgets = {
-            'tache': forms.Select(attrs={'class': 'form-select'}),
+            'reference': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ex: DAC2406DLA00042 (laisser vide pour auto-génération)',
+            }),
+            'ligne_budgetaire': forms.Select(attrs={'class': 'form-select'}),
             'objet': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'Ex: Achat fournitures bureau',
+                'placeholder': 'Ex: Achat consommables informatiques',
             }),
             'montant_estime': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'min': '0.01',
-                'step': '0.01',
+                'step': '1000',
+                'placeholder': '0',
             }),
+            'nature_prestation': forms.Select(attrs={'class': 'form-select'}),
+            'periode_engagement': forms.Select(attrs={'class': 'form-select'}),
+            'priorite': forms.Select(attrs={'class': 'form-select'}),
         }
 
     def __init__(self, *args, **kwargs):
         exercice = kwargs.pop('exercice', None)
         super().__init__(*args, **kwargs)
+        self.fields['reference'].required = False
+        self.fields['reference'].label = "Numéro DA (optionnel)"
+        qs = LigneBudgetaire.objects.none()
         if exercice:
-            self.fields['tache'].queryset = Tache.objects.filter(
-                exercice=exercice, actif=True,
-            ).order_by('numero')
+            qs = (
+                LigneBudgetaire.objects
+                .filter(tache__exercice=exercice, actif=True)
+                .select_related('tache')
+                .order_by('tache__numero', 'code_nature')
+            )
+        self.fields['ligne_budgetaire'].queryset = qs
+        self.fields['ligne_budgetaire'].label_from_instance = (
+            lambda obj: f"{obj.tache.numero} › {obj.code_nature} — {obj.libelle_nature}"
+        )
+        self.fields['ligne_budgetaire'].empty_label = "Choisir une ligne budgétaire…"
 
     def clean_montant_estime(self):
         montant = self.cleaned_data.get('montant_estime')
@@ -159,18 +203,91 @@ class DemandeAchatForm(forms.ModelForm):
             raise forms.ValidationError("Le montant estimé doit être supérieur à zéro.")
         return montant
 
+    def clean(self):
+        cleaned = super().clean()
+        ligne = cleaned.get('ligne_budgetaire')
+        montant = cleaned.get('montant_estime')
+        if ligne and montant:
+            comptable, engage, dispo = _solde_disponible_ligne(
+                ligne, exclude_da_pk=(self.instance.pk if self.instance and self.instance.pk else None),
+            )
+            if montant > dispo:
+                raise forms.ValidationError(
+                    f"Solde insuffisant sur la ligne {ligne.code_nature} — {ligne.libelle_nature}. "
+                    f"Disponible réel : {dispo:,.0f} FCFA "
+                    f"(solde {comptable:,.0f} − déjà engagé {engage:,.0f} par d'autres DA). "
+                    f"Montant demandé : {montant:,.0f} FCFA."
+                )
+        return cleaned
+
+
+class DemandeAchatEditForm(forms.ModelForm):
+    """Formulaire d'édition d'une DA existante."""
+    class Meta:
+        model = DemandeAchat
+        fields = ['reference', 'ligne_budgetaire', 'objet', 'montant_estime',
+                  'nature_prestation', 'periode_engagement', 'priorite']
+        widgets = {
+            'reference': forms.TextInput(attrs={'class': 'form-control'}),
+            'ligne_budgetaire': forms.Select(attrs={'class': 'form-select'}),
+            'objet': forms.TextInput(attrs={'class': 'form-control'}),
+            'montant_estime': forms.NumberInput(attrs={
+                'class': 'form-control', 'step': '1000',
+            }),
+            'nature_prestation': forms.Select(attrs={'class': 'form-select'}),
+            'periode_engagement': forms.Select(attrs={'class': 'form-select'}),
+            'priorite': forms.Select(attrs={'class': 'form-select'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        exercice = kwargs.pop('exercice', None)
+        super().__init__(*args, **kwargs)
+        qs = LigneBudgetaire.objects.none()
+        if exercice:
+            qs = (
+                LigneBudgetaire.objects
+                .filter(tache__exercice=exercice, actif=True)
+                .select_related('tache')
+                .order_by('tache__numero', 'code_nature')
+            )
+        self.fields['ligne_budgetaire'].queryset = qs
+        self.fields['ligne_budgetaire'].label_from_instance = (
+            lambda obj: f"{obj.tache.numero} › {obj.code_nature} — {obj.libelle_nature}"
+        )
+
+    def clean(self):
+        cleaned = super().clean()
+        ligne = cleaned.get('ligne_budgetaire')
+        montant = cleaned.get('montant_estime')
+        if ligne and montant:
+            comptable, engage, dispo = _solde_disponible_ligne(
+                ligne, exclude_da_pk=(self.instance.pk if self.instance and self.instance.pk else None),
+            )
+            if montant > dispo:
+                raise forms.ValidationError(
+                    f"Solde insuffisant sur la ligne {ligne.code_nature} — {ligne.libelle_nature}. "
+                    f"Disponible réel : {dispo:,.0f} FCFA "
+                    f"(solde {comptable:,.0f} − déjà engagé {engage:,.0f} par d'autres DA). "
+                    f"Montant demandé : {montant:,.0f} FCFA."
+                )
+        return cleaned
+
 
 class BonCommandeForm(forms.ModelForm):
     class Meta:
         model = BonCommande
-        fields = ['tache', 'prestataire', 'montant_ht', 'delai_execution_jours']
+        fields = ['numero', 'tache', 'prestataire', 'montant_ht', 'delai_execution_jours']
         widgets = {
+            'numero': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ex: BC-DRH-2026-042 (laisser vide pour auto-génération)',
+            }),
             'tache': forms.Select(attrs={'class': 'form-select'}),
             'prestataire': forms.Select(attrs={'class': 'form-select'}),
             'montant_ht': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'min': '0.01',
-                'step': '0.01',
+                'step': '1000',
             }),
             'delai_execution_jours': forms.NumberInput(attrs={
                 'class': 'form-control',
@@ -178,6 +295,60 @@ class BonCommandeForm(forms.ModelForm):
                 'placeholder': 'Délai en jours',
             }),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['numero'].required = False
+        self.fields['numero'].label = "Numéro BC (optionnel)"
+
+
+class BonCommandeEditForm(forms.ModelForm):
+    """Formulaire d'édition d'un BC (champs modifiables selon statut)."""
+    class Meta:
+        model = BonCommande
+        fields = ['numero', 'objet', 'numero_capri', 'date_capri',
+                  'montant_ht', 'taux_tva',
+                  'condition_paiement', 'rib_paiement',
+                  'date_notification', 'delai_execution_semaines', 'date_echeance']
+        widgets = {
+            'numero': forms.TextInput(attrs={'class': 'form-control'}),
+            'objet': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'numero_capri': forms.TextInput(attrs={
+                'class': 'form-control', 'placeholder': 'Ex : CAPRI-2026-00143',
+            }),
+            'date_capri': forms.DateInput(attrs={
+                'class': 'form-control', 'type': 'date',
+            }, format='%Y-%m-%d'),
+            'montant_ht': forms.NumberInput(attrs={'class': 'form-control', 'step': '1000'}),
+            'taux_tva': forms.NumberInput(attrs={
+                'class': 'form-control', 'step': '0.01',
+            }),
+            'condition_paiement': forms.Select(attrs={'class': 'form-select'}),
+            'rib_paiement': forms.TextInput(attrs={
+                'class': 'form-control', 'placeholder': '10003 03900 06000053467 94',
+            }),
+            'date_notification': forms.DateInput(attrs={
+                'class': 'form-control', 'type': 'date',
+            }, format='%Y-%m-%d'),
+            'delai_execution_semaines': forms.NumberInput(attrs={
+                'class': 'form-control', 'min': '1', 'max': '52', 'placeholder': 'Semaines',
+            }),
+            'date_echeance': forms.DateInput(attrs={
+                'class': 'form-control', 'type': 'date',
+            }, format='%Y-%m-%d'),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for f in ['objet', 'rib_paiement', 'date_notification',
+                  'delai_execution_semaines', 'date_echeance']:
+            self.fields[f].required = False
+        # Règle R11 : CAPRI obligatoire (n° + date)
+        self.fields['numero_capri'].required = True
+        self.fields['date_capri'].required = True
+        self.fields['date_notification'].input_formats = ['%Y-%m-%d']
+        self.fields['date_echeance'].input_formats = ['%Y-%m-%d']
+        self.fields['date_capri'].input_formats = ['%Y-%m-%d']
 
 
 class ProlongationBCForm(forms.ModelForm):
@@ -253,7 +424,8 @@ class OffreRefuserForm(forms.Form):
 class ConsommationDirecteForm(forms.ModelForm):
     class Meta:
         model = ConsommationDirecte
-        fields = ['motif', 'montant', 'description', 'date_consommation']
+        fields = ['motif', 'montant', 'description', 'date_consommation',
+                  'numero_capri', 'date_capri']
         widgets = {
             'motif': forms.Select(attrs={'class': 'form-select'}),
             'montant': forms.NumberInput(attrs={
@@ -270,5 +442,53 @@ class ConsommationDirecteForm(forms.ModelForm):
             'date_consommation': forms.DateInput(attrs={
                 'class': 'form-control',
                 'type': 'date',
+            }, format='%Y-%m-%d'),
+            'numero_capri': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ex : CAPRI-2026-00143',
             }),
+            'date_capri': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date',
+            }, format='%Y-%m-%d'),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Règle R11 : l'avis CAPRI est obligatoire pour toute imputation
+        self.fields['numero_capri'].required = True
+        self.fields['date_capri'].required = True
+        self.fields['date_consommation'].input_formats = ['%Y-%m-%d']
+        self.fields['date_capri'].input_formats = ['%Y-%m-%d']
+
+
+# ──────────────────────────────────────────────────────────────
+# FORMSET — Lignes d'articles d'un Bon de Commande (format réel PAD)
+# ──────────────────────────────────────────────────────────────
+
+LigneBCFormSet = forms.inlineformset_factory(
+    BonCommande,
+    LigneBC,
+    fields=['reference_article', 'designation', 'unite', 'quantite', 'prix_unitaire_ht'],
+    extra=4,
+    can_delete=True,
+    widgets={
+        'reference_article': forms.TextInput(attrs={
+            'class': 'form-control form-control-sm',
+            'placeholder': 'Ex: SER000072',
+        }),
+        'designation': forms.TextInput(attrs={
+            'class': 'form-control form-control-sm',
+            'placeholder': "Désignation de l'article / prestation",
+        }),
+        'unite': forms.Select(attrs={'class': 'form-select form-select-sm'}),
+        'quantite': forms.NumberInput(attrs={
+            'class': 'form-control form-control-sm ligne-qte',
+            'step': '0.01', 'min': '0',
+        }),
+        'prix_unitaire_ht': forms.NumberInput(attrs={
+            'class': 'form-control form-control-sm ligne-pu',
+            'step': '100', 'min': '0',
+        }),
+    },
+)
