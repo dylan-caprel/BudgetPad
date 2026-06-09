@@ -118,6 +118,9 @@ urlpatterns = [
     path('exercices/wizard/step4/',  views.wizard_exercice_step4, name='wizard_exercice_step4'),
     path('exercices/wizard/cancel/', views.wizard_exercice_cancel, name='wizard_exercice_cancel'),
     # Annulations admin
+    # Module Consommations directes
+    path('consommations/', views.consommations_list, name='consommations_list'),
+    path('consommations/creer/', views.consommation_create_module, name='consommation_create_module'),
     path('consommations/<int:pk>/annuler/', views.annuler_consommation_directe, name='annuler_consommation_directe'),
     path('virements/<int:pk>/annuler/', views.annuler_virement, name='annuler_virement'),
 

@@ -2474,6 +2474,124 @@ def consommation_create(request, ligne_pk):
     })
 
 
+@login_required
+def consommations_list(request):
+    """Module dédié : liste de toutes les consommations directes de l'exercice."""
+    exercice = _exercice_courant(request)
+    consos, lignes, taches = [], [], []
+    stats = {'total': 0, 'actives': 0, 'annulees': 0, 'montant_total': 0, 'sans_capri': 0}
+    statut_f = request.GET.get('statut', '')
+    tache_f = request.GET.get('tache', '')
+
+    if exercice:
+        base = (
+            ConsommationDirecte.objects
+            .filter(ligne_budgetaire__tache__exercice=exercice)
+            .select_related('ligne_budgetaire__tache', 'created_by', 'annule_par')
+        )
+        stats = {
+            'total':         base.count(),
+            'actives':       base.filter(est_annule=False).count(),
+            'annulees':      base.filter(est_annule=True).count(),
+            'montant_total': base.filter(est_annule=False).aggregate(t=Sum('montant'))['t'] or 0,
+            'sans_capri':    base.filter(est_annule=False)
+                                 .filter(Q(numero_capri='') | Q(date_capri__isnull=True)).count(),
+        }
+        consos = base
+        if statut_f == 'actif':
+            consos = consos.filter(est_annule=False)
+        elif statut_f == 'annule':
+            consos = consos.filter(est_annule=True)
+        if tache_f:
+            consos = consos.filter(ligne_budgetaire__tache__numero=tache_f)
+        consos = list(consos.order_by('-date_consommation', '-created_at'))
+
+        # Pièces jointes éventuelles (polymorphe type_entite='conso')
+        pjs = {}
+        for pj in PieceJointe.objects.filter(type_entite='conso', entite_id__in=[c.pk for c in consos]):
+            pjs.setdefault(pj.entite_id, pj)
+        for c in consos:
+            c.pj = pjs.get(c.pk)
+
+        lignes = (
+            LigneBudgetaire.objects.filter(tache__exercice=exercice)
+            .select_related('tache').order_by('tache__numero', 'code_nature')
+        )
+        taches = Tache.objects.filter(exercice=exercice).order_by('numero')
+
+    return render(request, 'core/consommations_list.html', {
+        'exercice': exercice,
+        'consommations': consos,
+        'stats': stats,
+        'lignes': lignes,
+        'taches': taches,
+        'statut_filtre': statut_f,
+        'tache_filtre': tache_f,
+        'motif_choices': ConsommationDirecte.MOTIF_CHOICES,
+    })
+
+
+@login_required
+@role_required('admin', 'directeur_drh', 'assistante_drh')
+@require_POST
+def consommation_create_module(request):
+    """Crée une consommation directe depuis le module dédié (sélection de la ligne)."""
+    exercice = _exercice_courant(request)
+    if not exercice or not exercice.is_active:
+        messages.error(request, "Aucun exercice actif — création impossible.")
+        return redirect('consommations_list')
+
+    ligne = (
+        LigneBudgetaire.objects
+        .filter(pk=request.POST.get('ligne_budgetaire'), tache__exercice=exercice)
+        .select_related('tache').first()
+    )
+    if not ligne:
+        messages.error(request, "Sélectionnez une ligne budgétaire valide.")
+        return redirect('consommations_list')
+
+    form = ConsommationDirecteForm(request.POST)
+    if not form.is_valid():
+        premier = next(iter(form.errors.values()))[0]
+        messages.error(request, f"Erreur de saisie : {premier}")
+        return redirect('consommations_list')
+
+    ligne_annotee = LigneBudgetaire.objects.with_aggregates().get(pk=ligne.pk)
+    montant = form.cleaned_data['montant']
+    if montant > ligne_annotee.solde:
+        messages.error(
+            request,
+            f"Solde insuffisant sur {ligne.code_nature}. Disponible : {ligne_annotee.solde:,.0f} FCFA",
+        )
+        return redirect('consommations_list')
+
+    fichier = request.FILES.get('piece_jointe')
+    if fichier:
+        ok, err = _valider_fichier_pj(fichier)
+        if not ok:
+            messages.error(request, err)
+            return redirect('consommations_list')
+
+    conso = form.save(commit=False)
+    conso.ligne_budgetaire = ligne
+    conso.created_by = request.user
+    conso.save()
+    if fichier:
+        PieceJointe.objects.create(
+            type_entite='conso', entite_id=conso.pk, type_piece='autre',
+            fichier=fichier, nom_original=fichier.name, taille=fichier.size,
+            uploaded_by=request.user,
+        )
+    log_action(
+        request.user, 'Consommation.create',
+        f"Consommation directe de {montant:,.0f} FCFA sur {ligne.code_nature}"
+        + (f" (pièce jointe : {fichier.name})" if fichier else ""),
+        'ConsommationDirecte', conso.pk,
+    )
+    messages.success(request, f"Consommation de {montant:,.0f} FCFA enregistrée sur {ligne.code_nature}.")
+    return redirect('consommations_list')
+
+
 # ============ JOURNAL DE PROGRAMMATION PAR BC ============
 
 @login_required
@@ -2812,12 +2930,15 @@ def annuler_consommation_directe(request, pk):
         'ligne_budgetaire__tache__exercice', 'created_by'
     ), pk=pk)
 
+    # Retour au module Consommations directes si demandé (sinon liste des tâches)
+    _next = 'consommations_list' if request.POST.get('next') == 'consommations_list' else 'taches_list'
+
     if conso.est_annule:
         messages.warning(request, "Cette consommation est déjà annulée.")
-        return redirect('taches_list')
+        return redirect(_next)
     if conso.ligne_budgetaire.tache.exercice.is_locked:
         messages.error(request, "Impossible : l'exercice est clôturé.")
-        return redirect('taches_list')
+        return redirect(_next)
 
     if request.method == 'POST':
         motif = request.POST.get('motif', '').strip()
@@ -2860,7 +2981,7 @@ def annuler_consommation_directe(request, pk):
                 f"Consommation de {conso.montant:,.0f} FCFA annulée. "
                 f"Budget restitué sur la ligne {conso.ligne_budgetaire.code_nature}."
             )
-            return redirect('taches_list')
+            return redirect(_next)
 
     return render(request, 'core/annulation/confirm_annulation.html', {
         'objet': conso,
