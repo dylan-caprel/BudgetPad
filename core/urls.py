@@ -72,6 +72,9 @@ urlpatterns = [
     # Journal de programmation (JP-BC : plan annuel des prestations)
     path('journal-programmation/', views.journal_list, name='journal_list'),
     path('journal-programmation/<int:pk>/creer-da/', views.journal_creer_da, name='journal_creer_da'),
+    path('journal-programmation/creer/', views.prestation_create, name='prestation_create'),
+    path('journal-programmation/<int:pk>/modifier/', views.prestation_edit, name='prestation_edit'),
+    path('journal-programmation/<int:pk>/supprimer/', views.prestation_delete, name='prestation_delete'),
 
     # Pièces jointes
     path('pieces-jointes/upload/', views.piece_jointe_upload, name='piece_jointe_upload'),
@@ -105,6 +108,7 @@ urlpatterns = [
     path('exercices/<int:pk>/activer/', views.exercice_activer, name='exercice_activer'),
     path('exercices/<int:pk>/cloturer/', views.exercice_cloturer, name='exercice_cloturer'),
     path('exercices/<int:pk>/reconduire/', views.exercice_reconduire, name='exercice_reconduire'),
+    path('exercices/<int:pk>/repertoire/', views.repertoire_sync, name='repertoire_sync'),
     # NB: les routes import-excel/template-excel ont été retirées (stubs non implémentés).
     path('exercice/switch/', views.exercice_switch, name='exercice_switch'),
     # Wizard création exercice
