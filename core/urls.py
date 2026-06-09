@@ -121,6 +121,7 @@ urlpatterns = [
     # Module Consommations directes
     path('consommations/', views.consommations_list, name='consommations_list'),
     path('consommations/creer/', views.consommation_create_module, name='consommation_create_module'),
+    path('consommations/<int:pk>/modifier/', views.consommation_edit, name='consommation_edit'),
     path('consommations/<int:pk>/annuler/', views.annuler_consommation_directe, name='annuler_consommation_directe'),
     path('virements/<int:pk>/annuler/', views.annuler_virement, name='annuler_virement'),
 

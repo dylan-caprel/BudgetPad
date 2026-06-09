@@ -72,13 +72,19 @@
             data-tache="{{ c.ligne_budgetaire.tache.numero }} — {{ c.ligne_budgetaire.tache.titre }}"
             data-nature="{{ c.ligne_budgetaire.code_nature }} — {{ c.ligne_budgetaire.libelle_nature }}"
             data-montant="{{ c.montant|fmt }}"
+            data-montant-val="{{ c.montant|floatformat:0 }}"
             data-motif="{{ c.get_motif_display }}"
+            data-motif-key="{{ c.motif }}"
             data-description="{{ c.description }}"
+            data-date-iso="{{ c.date_consommation|date:'Y-m-d' }}"
             data-capri="{% if not c.capri_manquant %}{{ c.numero_capri }} ({{ c.date_capri|date:'d/m/Y' }}){% endif %}"
+            data-capri-num="{{ c.numero_capri }}"
+            data-capri-iso="{{ c.date_capri|date:'Y-m-d' }}"
             data-auteur="{% if c.created_by %}{{ c.created_by.nom_complet|default:c.created_by.username }}{% endif %}"
             data-annule="{{ c.est_annule|yesno:'1,' }}"
             data-motif-annulation="{{ c.motif_annulation }}"
             data-pj-url="{% if c.pj and c.pj.fichier %}{{ c.pj.fichier.url }}{% endif %}"
+            data-edit-url="{% url 'consommation_edit' c.pk %}"
             data-annuler-url="{% url 'annuler_consommation_directe' c.pk %}">
             <td>{{ c.date_consommation|date:'d/m/Y' }}</td>
             <td><span class="badge" style="background:#1B3A5C;font-size:0.7rem;">{{ c.ligne_budgetaire.tache.numero }}</span></td>
@@ -119,28 +125,64 @@
     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
   </div>
   <div class="offcanvas-body">
-    <dl class="row mb-2" style="font-size:14px;">
-      <dt class="col-5 text-muted">Date</dt><dd class="col-7" id="c_date">—</dd>
+    <!-- Contexte (lecture seule) -->
+    <dl class="row mb-3" style="font-size:13px;">
       <dt class="col-5 text-muted">Tâche</dt><dd class="col-7" id="c_tache">—</dd>
       <dt class="col-5 text-muted">Ligne (nature)</dt><dd class="col-7" id="c_nature">—</dd>
-      <dt class="col-5 text-muted">Montant</dt><dd class="col-7"><strong id="c_montant">—</strong> FCFA</dd>
-      <dt class="col-5 text-muted">Motif</dt><dd class="col-7" id="c_motif">—</dd>
-      <dt class="col-5 text-muted">Description</dt><dd class="col-7" id="c_description">—</dd>
-      <dt class="col-5 text-muted">Avis CAPRI</dt><dd class="col-7" id="c_capri">—</dd>
       <dt class="col-5 text-muted">Enregistré par</dt><dd class="col-7" id="c_auteur">—</dd>
       <dt class="col-5 text-muted">Statut</dt><dd class="col-7" id="c_statut">—</dd>
     </dl>
-    <div id="c_pj_wrap" class="mb-2 d-none">
+
+    <!-- Détail (éditable par l'admin uniquement) -->
+    <form method="post" id="consoEditForm" action="">
+      {% csrf_token %}
+      <div class="row g-2">
+        <div class="col-6">
+          <label class="form-label small mb-1">Montant (FCFA) <span class="text-danger">*</span></label>
+          <input type="number" name="montant" id="c_f_montant" min="1" step="1" class="form-control form-control-sm" {% if not est_admin %}disabled{% endif %}>
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-1">Date <span class="text-danger">*</span></label>
+          <input type="date" name="date_consommation" id="c_f_date" class="form-control form-control-sm" {% if not est_admin %}disabled{% endif %}>
+        </div>
+        <div class="col-12">
+          <label class="form-label small mb-1">Motif <span class="text-danger">*</span></label>
+          <select name="motif" id="c_f_motif" class="form-select form-select-sm" {% if not est_admin %}disabled{% endif %}>
+            {% for val, lbl in motif_choices %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label small mb-1">Description</label>
+          <textarea name="description" id="c_f_description" rows="2" class="form-control form-control-sm" {% if not est_admin %}disabled{% endif %}></textarea>
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-1">N° CAPRI <span class="text-danger">*</span></label>
+          <input type="text" name="numero_capri" id="c_f_capri" class="form-control form-control-sm" placeholder="CAPRI-2026-…" {% if not est_admin %}disabled{% endif %}>
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-1">Date CAPRI <span class="text-danger">*</span></label>
+          <input type="date" name="date_capri" id="c_f_datecapri" class="form-control form-control-sm" {% if not est_admin %}disabled{% endif %}>
+        </div>
+      </div>
+      {% if est_admin %}
+      <button type="submit" class="btn btn-pad btn-sm w-100 mt-3" id="c_edit_save">
+        <i class="bi bi-check-lg me-1"></i>Enregistrer les modifications
+      </button>
+      <p class="text-muted small mt-1 mb-0"><i class="bi bi-shield-check me-1"></i>Avis CAPRI obligatoire (R11) ; le solde de la ligne est revérifié.</p>
+      {% endif %}
+    </form>
+
+    <div id="c_pj_wrap" class="mt-2 d-none">
       <a id="c_pj" href="#" target="_blank" class="btn btn-sm btn-outline-secondary w-100">
         <i class="bi bi-paperclip me-1"></i>Voir la pièce jointe
       </a>
     </div>
-    <div id="c_annule_wrap" class="alert alert-danger py-2 d-none" style="font-size:13px;">
+    <div id="c_annule_wrap" class="alert alert-danger py-2 mt-2 d-none" style="font-size:13px;">
       <strong>Annulée.</strong> <span id="c_motif_annulation"></span>
     </div>
 
     {% if est_admin %}
-    <div id="c_annuler_zone" class="border-top pt-3 mt-2">
+    <div id="c_annuler_zone" class="border-top pt-3 mt-3">
       <form method="post" id="consoAnnulerForm" action="">
         {% csrf_token %}
         <input type="hidden" name="next" value="consommations_list">
@@ -223,18 +265,25 @@
   const $ = id => document.getElementById(id);
   const setTxt = (id, v) => { const e = $(id); if (e) e.textContent = v || '—'; };
 
+  const setVal = (id, v) => { const e = $(id); if (e) e.value = (v == null ? '' : v); };
+
   window.consoVoir = function (tr) {
     const d = tr.dataset;
-    setTxt('c_date', d.date);
+    // Contexte (lecture seule)
     setTxt('c_tache', d.tache);
     setTxt('c_nature', d.nature);
-    setTxt('c_montant', d.montant);
-    setTxt('c_motif', d.motif);
-    setTxt('c_description', d.description);
-    setTxt('c_capri', d.capri || 'À régulariser');
     setTxt('c_auteur', d.auteur);
     const annule = d.annule === '1';
     setTxt('c_statut', annule ? 'Annulée' : 'Active');
+    // Champs éditables (admin)
+    setVal('c_f_montant', d.montantVal);
+    setVal('c_f_date', d.dateIso);
+    setVal('c_f_motif', d.motifKey);
+    setVal('c_f_description', d.description);
+    setVal('c_f_capri', d.capriNum);
+    setVal('c_f_datecapri', d.capriIso);
+    const ef = $('consoEditForm'); if (ef) ef.action = d.editUrl;
+    const es = $('c_edit_save'); if (es) es.style.display = annule ? 'none' : '';  // pas d'édition si annulée
     // Pièce jointe
     const pjWrap = $('c_pj_wrap'), pj = $('c_pj');
     if (pjWrap) {

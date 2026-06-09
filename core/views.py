@@ -2592,6 +2592,53 @@ def consommation_create_module(request):
     return redirect('consommations_list')
 
 
+@login_required
+@role_required('admin')
+@require_POST
+def consommation_edit(request, pk):
+    """Édition d'une consommation directe — réservée à l'admin (montant, motif, dates, CAPRI)."""
+    conso = get_object_or_404(
+        ConsommationDirecte.objects.select_related('ligne_budgetaire__tache__exercice'), pk=pk,
+    )
+    exercice = conso.ligne_budgetaire.tache.exercice
+    locked, msg = _check_exercice_non_verrouille(exercice, 'consommations_list')
+    if locked:
+        messages.error(request, msg)
+        return redirect('consommations_list')
+    if conso.est_annule:
+        messages.error(request, "Cette consommation est annulée — édition impossible.")
+        return redirect('consommations_list')
+
+    ancien_montant = conso.montant  # capturé avant binding du formulaire
+    form = ConsommationDirecteForm(request.POST, instance=conso)
+    if not form.is_valid():
+        premier = next(iter(form.errors.values()))[0]
+        messages.error(request, f"Erreur de saisie : {premier}")
+        return redirect('consommations_list')
+
+    # Re-vérification du solde : disponible = solde courant + ancien montant réintégré
+    ligne_annotee = LigneBudgetaire.objects.with_aggregates().get(pk=conso.ligne_budgetaire_id)
+    nouveau = form.cleaned_data['montant']
+    dispo = ligne_annotee.solde + ancien_montant
+    if nouveau > dispo:
+        messages.error(
+            request,
+            f"Solde insuffisant sur {conso.ligne_budgetaire.code_nature}. "
+            f"Disponible (ancien montant réintégré) : {dispo:,.0f} FCFA",
+        )
+        return redirect('consommations_list')
+
+    form.save()
+    log_action(
+        request.user, 'Consommation.edit',
+        f"Consommation #{conso.pk} modifiee : {ancien_montant:,.0f} -> {nouveau:,.0f} FCFA "
+        f"sur {conso.ligne_budgetaire.code_nature}",
+        'ConsommationDirecte', conso.pk,
+    )
+    messages.success(request, f"Consommation directe mise à jour ({nouveau:,.0f} FCFA).")
+    return redirect('consommations_list')
+
+
 # ============ JOURNAL DE PROGRAMMATION PAR BC ============
 
 @login_required
