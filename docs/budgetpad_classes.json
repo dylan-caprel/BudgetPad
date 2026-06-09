@@ -1,0 +1,476 @@
+{
+  "project": "BudgetPAD",
+  "description": "Application Django de suivi budgétaire de la DRH du Port Autonome de Douala : exercices, tâches et lignes budgétaires, demandes d'achat, offres, bons de commande (workflow + CAPRI), consommations directes, virements entre lignes, pièces jointes, journal d'activité à chaîne de hachage et notifications.",
+  "analysis_date": "2026-06-07",
+  "total_classes": 61,
+  "classes": [
+    {
+      "id": "CLASS_001", "name": "Utilisateur", "type": "model",
+      "description": "Utilisateur applicatif avec rôle métier (RBAC).",
+      "parent_class": "AbstractUser", "app_location": "core.models",
+      "attributes": [
+        {"name": "role", "type": "CharField", "required": true, "description": "admin|directeur_drh|chef_service|assistante_drh|lecteur"},
+        {"name": "nom_complet", "type": "CharField", "required": false},
+        {"name": "must_change_password", "type": "BooleanField", "required": false}
+      ],
+      "methods": [
+        {"name": "get_role_display_short", "params": [], "return_type": "str", "is_magic": false},
+        {"name": "__str__", "params": [], "return_type": "str", "is_magic": true}
+      ]
+    },
+    {
+      "id": "CLASS_002", "name": "ExerciceBudgetaire", "type": "model",
+      "description": "Exercice budgétaire annuel ; un seul actif (Règle R7).",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "annee", "type": "IntegerField", "required": true, "description": "unique"},
+        {"name": "date_debut", "type": "DateField", "required": true},
+        {"name": "date_fin", "type": "DateField", "required": true},
+        {"name": "montant_global", "type": "DecimalField", "required": false},
+        {"name": "statut", "type": "CharField", "required": false, "description": "actif|cloture"},
+        {"name": "is_active", "type": "BooleanField", "required": false},
+        {"name": "is_locked", "type": "BooleanField", "required": false},
+        {"name": "seuil_alerte", "type": "PositiveSmallIntegerField", "required": false},
+        {"name": "exercice_precedent", "type": "ForeignKey", "required": false, "description": "self"}
+      ],
+      "methods": [
+        {"name": "get_actif", "params": [], "return_type": "ExerciceBudgetaire|None", "is_magic": false},
+        {"name": "activer", "params": ["user"], "return_type": "None", "is_magic": false},
+        {"name": "cloturer", "params": ["user"], "return_type": "None", "is_magic": false},
+        {"name": "save", "params": ["*args", "**kwargs"], "return_type": "None", "is_magic": false}
+      ]
+    },
+    {
+      "id": "CLASS_003", "name": "Tache", "type": "model",
+      "description": "Tâche budgétaire d'un exercice ; budget porté par ses lignes.",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "exercice", "type": "ForeignKey", "required": true},
+        {"name": "numero", "type": "CharField", "required": true},
+        {"name": "titre", "type": "CharField", "required": true},
+        {"name": "actif", "type": "BooleanField", "required": false}
+      ],
+      "methods": [
+        {"name": "budget_initial", "params": [], "return_type": "Decimal (property)", "is_magic": false},
+        {"name": "budget_ajuste", "params": [], "return_type": "Decimal (property)", "is_magic": false},
+        {"name": "consommation", "params": [], "return_type": "Decimal (property)", "is_magic": false},
+        {"name": "solde", "params": [], "return_type": "Decimal (property)", "is_magic": false},
+        {"name": "taux_consommation", "params": [], "return_type": "Decimal (property)", "is_magic": false},
+        {"name": "taux_couleur", "params": [], "return_type": "str (property)", "is_magic": false}
+      ]
+    },
+    {
+      "id": "CLASS_004", "name": "LigneBudgetaire", "type": "model",
+      "description": "Ligne budgétaire (code nature) d'une tâche ; porte le montant.",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "tache", "type": "ForeignKey", "required": true},
+        {"name": "code_nature", "type": "CharField", "required": true},
+        {"name": "libelle_nature", "type": "CharField", "required": true},
+        {"name": "montant_initial", "type": "DecimalField", "required": false},
+        {"name": "actif", "type": "BooleanField", "required": false}
+      ],
+      "methods": [
+        {"name": "__str__", "params": [], "return_type": "str", "is_magic": true}
+      ]
+    },
+    {
+      "id": "CLASS_005", "name": "VirementBudgetaire", "type": "model",
+      "description": "Virement de crédit entre deux lignes budgétaires.",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "exercice", "type": "ForeignKey", "required": true},
+        {"name": "ligne_source", "type": "ForeignKey", "required": true},
+        {"name": "ligne_destination", "type": "ForeignKey", "required": true},
+        {"name": "montant", "type": "DecimalField", "required": true},
+        {"name": "motif", "type": "TextField", "required": true},
+        {"name": "created_by", "type": "ForeignKey", "required": false}
+      ],
+      "methods": [
+        {"name": "clean", "params": [], "return_type": "None", "is_magic": false}
+      ]
+    },
+    {
+      "id": "CLASS_006", "name": "Prestataire", "type": "model",
+      "description": "Fournisseur / prestataire référencé.",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "code", "type": "CharField", "required": true, "description": "unique"},
+        {"name": "nom", "type": "CharField", "required": true},
+        {"name": "adresse", "type": "TextField", "required": false},
+        {"name": "telephone", "type": "CharField", "required": false},
+        {"name": "email", "type": "EmailField", "required": false}
+      ],
+      "methods": []
+    },
+    {
+      "id": "CLASS_007", "name": "DemandeAchat", "type": "model",
+      "description": "Demande d'achat liée à une ligne budgétaire (workflow).",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "reference", "type": "CharField", "required": false, "description": "auto DAC{AAMM}DLA{NNNNN}"},
+        {"name": "exercice", "type": "ForeignKey", "required": true},
+        {"name": "ligne_budgetaire", "type": "ForeignKey", "required": false},
+        {"name": "objet", "type": "CharField", "required": true},
+        {"name": "montant_estime", "type": "DecimalField", "required": true},
+        {"name": "nature_prestation", "type": "CharField", "required": false, "description": "APPRO|Trx|Prestat.Int|Autre"},
+        {"name": "periode_engagement", "type": "CharField", "required": false, "description": "P1|P2"},
+        {"name": "priorite", "type": "CharField", "required": false},
+        {"name": "statut", "type": "CharField", "required": false, "description": "cree|en_etude(Transmise DAG)|validee|bc_cree|annulee"},
+        {"name": "motif_refus", "type": "TextField", "required": false, "description": "Motif d'annulation"},
+        {"name": "created_by", "type": "ForeignKey", "required": false}
+      ],
+      "methods": [
+        {"name": "peut_transiter_vers", "params": ["nouveau_statut"], "return_type": "(bool, str)", "is_magic": false},
+        {"name": "tache", "params": [], "return_type": "Tache|None (property)", "is_magic": false},
+        {"name": "statut_couleur", "params": [], "return_type": "str (property)", "is_magic": false},
+        {"name": "save", "params": ["*args", "**kwargs"], "return_type": "None", "is_magic": false}
+      ]
+    },
+    {
+      "id": "CLASS_008", "name": "Offre", "type": "model",
+      "description": "Offre d'un prestataire sur une demande d'achat.",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "demande", "type": "ForeignKey", "required": true},
+        {"name": "prestataire", "type": "ForeignKey", "required": true},
+        {"name": "montant", "type": "DecimalField", "required": false},
+        {"name": "statut", "type": "CharField", "required": false, "description": "en_attente|recue|retenue|refusee"},
+        {"name": "motif_refus", "type": "TextField", "required": false},
+        {"name": "date_reception", "type": "DateTimeField", "required": false}
+      ],
+      "methods": [
+        {"name": "peut_transiter_vers", "params": ["nouveau_statut"], "return_type": "(bool, str)", "is_magic": false},
+        {"name": "est_en_retard", "params": [], "return_type": "bool (property)", "is_magic": false}
+      ]
+    },
+    {
+      "id": "CLASS_009", "name": "BonCommande", "type": "model",
+      "description": "Bon de commande (format réel PAD) avec CAPRI, articles et workflow.",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "numero", "type": "CharField", "required": false, "description": "auto STD{AAMM}DLA{NNNNN}"},
+        {"name": "demande", "type": "ForeignKey", "required": false},
+        {"name": "tache", "type": "ForeignKey", "required": true},
+        {"name": "exercice", "type": "ForeignKey", "required": true},
+        {"name": "prestataire", "type": "ForeignKey", "required": true},
+        {"name": "numero_capri", "type": "CharField", "required": false, "description": "Avis CAPRI (R11)"},
+        {"name": "date_capri", "type": "DateField", "required": false},
+        {"name": "condition_paiement", "type": "CharField", "required": false},
+        {"name": "rib_paiement", "type": "CharField", "required": false},
+        {"name": "objet", "type": "TextField", "required": false},
+        {"name": "delai_execution_semaines", "type": "PositiveIntegerField", "required": false},
+        {"name": "date_notification", "type": "DateField", "required": false},
+        {"name": "date_echeance", "type": "DateField", "required": false},
+        {"name": "taux_tva", "type": "DecimalField", "required": false},
+        {"name": "montant_ht", "type": "DecimalField", "required": false},
+        {"name": "montant_tva", "type": "DecimalField", "required": false},
+        {"name": "montant_ttc", "type": "DecimalField", "required": false},
+        {"name": "statut", "type": "CharField", "required": false, "description": "cree|notifie|en_cours|execute|annule"},
+        {"name": "motif_annulation", "type": "TextField", "required": false}
+      ],
+      "methods": [
+        {"name": "calculer_montants", "params": [], "return_type": "None", "is_magic": false},
+        {"name": "recalculer_montants", "params": [], "return_type": "None", "is_magic": false},
+        {"name": "peut_transiter_vers", "params": ["nouveau_statut"], "return_type": "(bool, str)", "is_magic": false},
+        {"name": "capri_manquant", "params": [], "return_type": "bool (property)", "is_magic": false},
+        {"name": "delai_affichage", "params": [], "return_type": "str (property)", "is_magic": false},
+        {"name": "est_en_retard", "params": [], "return_type": "bool (property)", "is_magic": false},
+        {"name": "save", "params": ["*args", "**kwargs"], "return_type": "None", "is_magic": false}
+      ]
+    },
+    {
+      "id": "CLASS_010", "name": "ImputationBC", "type": "model",
+      "description": "Imputation d'un BC sur une ligne budgétaire (consommation).",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "bon_commande", "type": "ForeignKey", "required": true},
+        {"name": "ligne_budgetaire", "type": "ForeignKey", "required": true},
+        {"name": "montant", "type": "DecimalField", "required": true},
+        {"name": "description", "type": "CharField", "required": false}
+      ],
+      "methods": []
+    },
+    {
+      "id": "CLASS_011", "name": "ConsommationDirecte", "type": "model",
+      "description": "Consommation directe d'une ligne sans BC (soft-delete + CAPRI).",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "ligne_budgetaire", "type": "ForeignKey", "required": true},
+        {"name": "montant", "type": "DecimalField", "required": true},
+        {"name": "motif", "type": "CharField", "required": true},
+        {"name": "description", "type": "TextField", "required": false},
+        {"name": "date_consommation", "type": "DateField", "required": true},
+        {"name": "numero_capri", "type": "CharField", "required": false},
+        {"name": "date_capri", "type": "DateField", "required": false},
+        {"name": "created_by", "type": "ForeignKey", "required": false},
+        {"name": "est_annule", "type": "BooleanField", "required": false},
+        {"name": "annule_par", "type": "ForeignKey", "required": false}
+      ],
+      "methods": [
+        {"name": "capri_manquant", "params": [], "return_type": "bool (property)", "is_magic": false}
+      ]
+    },
+    {
+      "id": "CLASS_012", "name": "ProlongationBC", "type": "model",
+      "description": "Prolongation de l'échéance d'un BC (motif obligatoire).",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "bon_commande", "type": "ForeignKey", "required": true},
+        {"name": "ancienne_echeance", "type": "DateField", "required": true},
+        {"name": "nouvelle_echeance", "type": "DateField", "required": true},
+        {"name": "duree_prolongation_jours", "type": "PositiveIntegerField", "required": false},
+        {"name": "motif", "type": "TextField", "required": true},
+        {"name": "created_by", "type": "ForeignKey", "required": false}
+      ],
+      "methods": [
+        {"name": "save", "params": ["*args", "**kwargs"], "return_type": "None", "is_magic": false}
+      ]
+    },
+    {
+      "id": "CLASS_013", "name": "LigneBC", "type": "model",
+      "description": "Article d'un bon de commande (Réf. Art, désignation, quantité, P.U.).",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "bon_commande", "type": "ForeignKey", "required": true},
+        {"name": "reference_article", "type": "CharField", "required": false},
+        {"name": "designation", "type": "CharField", "required": true},
+        {"name": "unite", "type": "CharField", "required": false},
+        {"name": "quantite", "type": "DecimalField", "required": true},
+        {"name": "prix_unitaire_ht", "type": "DecimalField", "required": true},
+        {"name": "ordre", "type": "IntegerField", "required": false}
+      ],
+      "methods": [
+        {"name": "montant_ht", "params": [], "return_type": "Decimal (property)", "is_magic": false}
+      ]
+    },
+    {
+      "id": "CLASS_014", "name": "HistoriqueStatut", "type": "model",
+      "description": "Trace des transitions de statut (DA / BC).",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "type_entite", "type": "CharField", "required": true, "description": "DA|BC"},
+        {"name": "entite_id", "type": "IntegerField", "required": true},
+        {"name": "ancien_statut", "type": "CharField", "required": true},
+        {"name": "nouveau_statut", "type": "CharField", "required": true},
+        {"name": "utilisateur", "type": "ForeignKey", "required": false},
+        {"name": "commentaire", "type": "TextField", "required": false}
+      ],
+      "methods": []
+    },
+    {
+      "id": "CLASS_015", "name": "JournalActivite", "type": "model",
+      "description": "Journal d'audit inviolable (chaîne de hachage SHA-256).",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "type_action", "type": "CharField", "required": true},
+        {"name": "description", "type": "TextField", "required": true},
+        {"name": "entite_type", "type": "CharField", "required": false},
+        {"name": "entite_id", "type": "IntegerField", "required": false},
+        {"name": "utilisateur", "type": "ForeignKey", "required": false},
+        {"name": "prev_hash", "type": "CharField", "required": false},
+        {"name": "hash_chain", "type": "CharField", "required": false}
+      ],
+      "methods": [
+        {"name": "compute_hash", "params": [], "return_type": "str", "is_magic": false},
+        {"name": "save", "params": ["*args", "**kwargs"], "return_type": "None", "is_magic": false}
+      ]
+    },
+    {
+      "id": "CLASS_016", "name": "Notification", "type": "model",
+      "description": "Notification utilisateur.",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "utilisateur", "type": "ForeignKey", "required": true},
+        {"name": "type", "type": "CharField", "required": true},
+        {"name": "titre", "type": "CharField", "required": true},
+        {"name": "message", "type": "TextField", "required": true},
+        {"name": "entite_type", "type": "CharField", "required": false},
+        {"name": "entite_id", "type": "IntegerField", "required": false},
+        {"name": "lu", "type": "BooleanField", "required": false}
+      ],
+      "methods": []
+    },
+    {
+      "id": "CLASS_017", "name": "Alerte", "type": "model",
+      "description": "Alerte budgétaire sur une tâche (seuil de consommation).",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "tache", "type": "ForeignKey", "required": true},
+        {"name": "type_alerte", "type": "CharField", "required": true},
+        {"name": "message", "type": "TextField", "required": true},
+        {"name": "seuil_atteint", "type": "DecimalField", "required": false},
+        {"name": "lu", "type": "BooleanField", "required": false}
+      ],
+      "methods": []
+    },
+    {
+      "id": "CLASS_018", "name": "Sequence", "type": "model",
+      "description": "Compteur atomique pour numérotation (DA/BC/tâches/prestataires).",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "key", "type": "CharField", "required": true, "description": "unique"},
+        {"name": "value", "type": "IntegerField", "required": false}
+      ],
+      "methods": []
+    },
+    {
+      "id": "CLASS_019", "name": "PieceJointe", "type": "model",
+      "description": "Pièce jointe polymorphe (DA/BC/Offre/Conso) avec type et titre.",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "type_entite", "type": "CharField", "required": true, "description": "da|bc|offre|conso"},
+        {"name": "entite_id", "type": "IntegerField", "required": true},
+        {"name": "type_piece", "type": "CharField", "required": false, "description": "da_signee|avis_capri|facture_proforma|..."},
+        {"name": "titre_personnalise", "type": "CharField", "required": false},
+        {"name": "fichier", "type": "FileField", "required": true},
+        {"name": "nom_original", "type": "CharField", "required": true},
+        {"name": "taille", "type": "PositiveIntegerField", "required": false},
+        {"name": "uploaded_by", "type": "ForeignKey", "required": false}
+      ],
+      "methods": [
+        {"name": "titre_affiche", "params": [], "return_type": "str (property)", "is_magic": false},
+        {"name": "taille_lisible", "params": [], "return_type": "str", "is_magic": false}
+      ]
+    },
+    {
+      "id": "CLASS_020", "name": "RepertoireTache", "type": "model",
+      "description": "Catalogue réutilisable de tâches (entre exercices).",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "numero", "type": "CharField", "required": true, "description": "unique"},
+        {"name": "titre", "type": "CharField", "required": true},
+        {"name": "actif", "type": "BooleanField", "required": false}
+      ],
+      "methods": []
+    },
+    {
+      "id": "CLASS_021", "name": "RepertoireLigne", "type": "model",
+      "description": "Catalogue réutilisable de lignes rattachées au répertoire de tâches.",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "tache_repertoire", "type": "ForeignKey", "required": true},
+        {"name": "code_nature", "type": "CharField", "required": true},
+        {"name": "libelle_nature", "type": "CharField", "required": true},
+        {"name": "actif", "type": "BooleanField", "required": false}
+      ],
+      "methods": []
+    },
+    {
+      "id": "CLASS_022", "name": "LogAnnulation", "type": "model",
+      "description": "Trace des annulations admin (conso/virement/DA/BC).",
+      "parent_class": "models.Model", "app_location": "core.models",
+      "attributes": [
+        {"name": "type_entite", "type": "CharField", "required": true},
+        {"name": "entite_id", "type": "IntegerField", "required": true},
+        {"name": "description_avant", "type": "TextField", "required": true},
+        {"name": "motif_annulation", "type": "TextField", "required": true},
+        {"name": "annule_par", "type": "ForeignKey", "required": false}
+      ],
+      "methods": []
+    },
+
+    {"id": "CLASS_023", "name": "VirementForm", "type": "form", "description": "Création d'un virement entre lignes.", "parent_class": "ModelForm", "app_location": "core.forms", "attributes": [{"name": "Meta.model", "type": "VirementBudgetaire", "required": true}], "methods": [{"name": "clean", "params": [], "return_type": "dict", "is_magic": false}]},
+    {"id": "CLASS_024", "name": "PrestataireForm", "type": "form", "description": "Création/édition prestataire.", "parent_class": "ModelForm", "app_location": "core.forms", "attributes": [{"name": "Meta.model", "type": "Prestataire", "required": true}], "methods": []},
+    {"id": "CLASS_025", "name": "TacheForm", "type": "form", "description": "Création/édition tâche.", "parent_class": "ModelForm", "app_location": "core.forms", "attributes": [{"name": "Meta.model", "type": "Tache", "required": true}], "methods": []},
+    {"id": "CLASS_026", "name": "LigneBudgetaireForm", "type": "form", "description": "Création de ligne budgétaire.", "parent_class": "ModelForm", "app_location": "core.forms", "attributes": [{"name": "Meta.model", "type": "LigneBudgetaire", "required": true}], "methods": []},
+    {"id": "CLASS_027", "name": "DemandeAchatForm", "type": "form", "description": "Création DA + contrôle du solde de la ligne.", "parent_class": "ModelForm", "app_location": "core.forms", "attributes": [{"name": "Meta.model", "type": "DemandeAchat", "required": true}], "methods": [{"name": "clean_montant_estime", "params": [], "return_type": "Decimal", "is_magic": false}, {"name": "clean", "params": [], "return_type": "dict", "is_magic": false}]},
+    {"id": "CLASS_028", "name": "DemandeAchatEditForm", "type": "form", "description": "Édition DA + contrôle du solde.", "parent_class": "ModelForm", "app_location": "core.forms", "attributes": [{"name": "Meta.model", "type": "DemandeAchat", "required": true}], "methods": [{"name": "clean", "params": [], "return_type": "dict", "is_magic": false}]},
+    {"id": "CLASS_029", "name": "BonCommandeForm", "type": "form", "description": "Création simple de BC.", "parent_class": "ModelForm", "app_location": "core.forms", "attributes": [{"name": "Meta.model", "type": "BonCommande", "required": true}], "methods": []},
+    {"id": "CLASS_030", "name": "BonCommandeEditForm", "type": "form", "description": "Édition BC (CAPRI obligatoire R11).", "parent_class": "ModelForm", "app_location": "core.forms", "attributes": [{"name": "Meta.model", "type": "BonCommande", "required": true}], "methods": []},
+    {"id": "CLASS_031", "name": "ProlongationBCForm", "type": "form", "description": "Prolongation d'échéance de BC.", "parent_class": "ModelForm", "app_location": "core.forms", "attributes": [{"name": "Meta.model", "type": "ProlongationBC", "required": true}], "methods": [{"name": "clean_nouvelle_echeance", "params": [], "return_type": "date", "is_magic": false}]},
+    {"id": "CLASS_032", "name": "OffreSolliciterForm", "type": "form", "description": "Sollicitation d'un prestataire.", "parent_class": "forms.Form", "app_location": "core.forms", "attributes": [{"name": "prestataire", "type": "ModelChoiceField", "required": true}], "methods": []},
+    {"id": "CLASS_033", "name": "OffreSaisirForm", "type": "form", "description": "Saisie du montant d'une offre reçue.", "parent_class": "forms.Form", "app_location": "core.forms", "attributes": [{"name": "montant", "type": "DecimalField", "required": true}], "methods": [{"name": "clean_montant", "params": [], "return_type": "Decimal", "is_magic": false}]},
+    {"id": "CLASS_034", "name": "OffreRefuserForm", "type": "form", "description": "Refus d'une offre (motif).", "parent_class": "forms.Form", "app_location": "core.forms", "attributes": [{"name": "motif", "type": "CharField", "required": true}], "methods": []},
+    {"id": "CLASS_035", "name": "ConsommationDirecteForm", "type": "form", "description": "Consommation directe (CAPRI obligatoire).", "parent_class": "ModelForm", "app_location": "core.forms", "attributes": [{"name": "Meta.model", "type": "ConsommationDirecte", "required": true}], "methods": []},
+
+    {"id": "CLASS_036", "name": "AuthDashboardViews", "type": "view", "description": "Vues fonctionnelles : login, logout, changement MDP forcé, tableau de bord.", "parent_class": null, "app_location": "core.views", "attributes": [], "methods": [{"name": "login_view", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}, {"name": "logout_view", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}, {"name": "password_change_forced_view", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}, {"name": "dashboard_view", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}]},
+    {"id": "CLASS_037", "name": "TacheLigneViews", "type": "view", "description": "Tâches et lignes budgétaires (liste, détail, CRUD).", "parent_class": null, "app_location": "core.views", "attributes": [], "methods": [{"name": "taches_list", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}, {"name": "tache_create", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}, {"name": "tache_edit", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}, {"name": "tache_delete", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}, {"name": "ligne_budgetaire_create", "params": ["request", "tache_pk"], "return_type": "HttpResponse", "is_magic": false}, {"name": "ligne_budgetaire_edit", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}, {"name": "ligne_detail", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}]},
+    {"id": "CLASS_038", "name": "VirementViews", "type": "view", "description": "Virements budgétaires.", "parent_class": null, "app_location": "core.views", "attributes": [], "methods": [{"name": "virements_list", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}, {"name": "virement_create", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}, {"name": "virement_detail", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}, {"name": "annuler_virement", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}]},
+    {"id": "CLASS_039", "name": "PrestataireViews", "type": "view", "description": "Prestataires (liste, détail, CRUD).", "parent_class": null, "app_location": "core.views", "attributes": [], "methods": [{"name": "prestataires_list", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}, {"name": "prestataire_create", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}, {"name": "prestataire_edit", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}, {"name": "prestataire_delete", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}, {"name": "prestataire_detail", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}]},
+    {"id": "CLASS_040", "name": "DemandeAchatViews", "type": "view", "description": "Demandes d'achat + transitions de workflow.", "parent_class": null, "app_location": "core.views", "attributes": [], "methods": [{"name": "da_list", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}, {"name": "da_create", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}, {"name": "da_edit", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}, {"name": "da_detail", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}, {"name": "da_en_etude", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}, {"name": "da_valider", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}, {"name": "da_refuser (annuler)", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}]},
+    {"id": "CLASS_041", "name": "OffreViews", "type": "view", "description": "Offres prestataires (sollicitation, saisie, rétention, refus).", "parent_class": null, "app_location": "core.views", "attributes": [], "methods": [{"name": "offre_solliciter", "params": ["request", "da_pk"], "return_type": "HttpResponse", "is_magic": false}, {"name": "offre_saisir", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}, {"name": "offre_retenir", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}, {"name": "offre_refuser", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}]},
+    {"id": "CLASS_042", "name": "BonCommandeViews", "type": "view", "description": "Bons de commande (création formset, PDF, statuts, prolongation).", "parent_class": null, "app_location": "core.views", "attributes": [], "methods": [{"name": "bc_list", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}, {"name": "bc_create", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}, {"name": "bc_detail", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}, {"name": "bc_edit", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}, {"name": "bc_change_statut", "params": ["request", "pk", "nouveau_statut"], "return_type": "HttpResponse", "is_magic": false}, {"name": "bc_pdf", "params": ["request", "pk"], "return_type": "HttpResponse (PDF)", "is_magic": false}, {"name": "bc_prolong / bc_prolonger_page", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}]},
+    {"id": "CLASS_043", "name": "ConsommationViews", "type": "view", "description": "Consommations directes + annulation.", "parent_class": null, "app_location": "core.views", "attributes": [], "methods": [{"name": "consommation_create", "params": ["request", "ligne_pk"], "return_type": "HttpResponse", "is_magic": false}, {"name": "annuler_consommation_directe", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}]},
+    {"id": "CLASS_044", "name": "BilanViews", "type": "view", "description": "Bilans budgétaires + exports CSV/PDF.", "parent_class": null, "app_location": "core.views", "attributes": [], "methods": [{"name": "bilans_view", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}, {"name": "bilan_csv_export", "params": ["request"], "return_type": "HttpResponse (CSV)", "is_magic": false}, {"name": "bilan_pdf_export", "params": ["request"], "return_type": "HttpResponse (PDF)", "is_magic": false}]},
+    {"id": "CLASS_045", "name": "PieceJointeViews", "type": "view", "description": "Upload / suppression des pièces jointes.", "parent_class": null, "app_location": "core.views", "attributes": [], "methods": [{"name": "piece_jointe_upload", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}, {"name": "piece_jointe_delete", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}]},
+    {"id": "CLASS_046", "name": "WizardExerciceViews", "type": "view", "description": "Assistant de création d'exercice en 4 étapes (session).", "parent_class": null, "app_location": "core.views", "attributes": [], "methods": [{"name": "wizard_exercice_step1..4", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}, {"name": "wizard_exercice_cancel", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}, {"name": "exercice_activer", "params": ["request", "pk"], "return_type": "HttpResponse", "is_magic": false}, {"name": "api_ligne_solde", "params": ["request", "pk"], "return_type": "JsonResponse", "is_magic": false}]},
+    {"id": "CLASS_047", "name": "JournalAdminViews", "type": "view", "description": "Journal d'activité, recherche, utilisateurs, paramètres.", "parent_class": null, "app_location": "core.views", "attributes": [], "methods": [{"name": "journal_view / journal_bc_view", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}, {"name": "recherche", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}, {"name": "utilisateurs / parametres", "params": ["request"], "return_type": "HttpResponse", "is_magic": false}]},
+
+    {"id": "CLASS_048", "name": "SequenceService", "type": "util", "description": "Numérotation atomique (DAC/STD mensuels, prestataire, tâche).", "parent_class": null, "app_location": "core.services.sequence_service", "attributes": [], "methods": [{"name": "next_value", "params": ["key"], "return_type": "int", "is_magic": false}, {"name": "next_da_reference", "params": ["annee?"], "return_type": "str", "is_magic": false}, {"name": "next_bc_numero", "params": ["annee?"], "return_type": "str", "is_magic": false}, {"name": "next_prestataire_code", "params": [], "return_type": "str", "is_magic": false}, {"name": "next_tache_numero", "params": ["annee"], "return_type": "str", "is_magic": false}]},
+    {"id": "CLASS_049", "name": "BonCommandeService", "type": "util", "description": "Logique métier BC : création (solde, imputations, articles), transitions.", "parent_class": null, "app_location": "core.services.bon_commande_service", "attributes": [], "methods": [{"name": "creer", "params": ["tache", "prestataire", "montant_ht", "utilisateur", "..."], "return_type": "BonCommande", "is_magic": false}, {"name": "changer_statut", "params": ["bc", "nouveau_statut", "utilisateur", "motif"], "return_type": "dict", "is_magic": false}, {"name": "calculer_montants_avec_tva", "params": ["montant_ht", "taux_tva"], "return_type": "dict", "is_magic": false}]},
+    {"id": "CLASS_050", "name": "DemandeAchatService", "type": "util", "description": "Création de DA (numérotation, journal, notifications).", "parent_class": null, "app_location": "core.services.demande_achat_service", "attributes": [], "methods": [{"name": "creer", "params": ["ligne_budgetaire", "objet", "montant_estime", "utilisateur", "..."], "return_type": "DemandeAchat", "is_magic": false}]},
+    {"id": "CLASS_051", "name": "VirementService", "type": "util", "description": "Création de virement (contrôle de solde sous verrou).", "parent_class": null, "app_location": "core.services.virement_service", "attributes": [], "methods": [{"name": "creer_virement", "params": ["ligne_source", "ligne_destination", "montant", "motif", "utilisateur", "exercice"], "return_type": "VirementBudgetaire", "is_magic": false}]},
+    {"id": "CLASS_052", "name": "TacheService", "type": "util", "description": "Génération d'alertes budgétaires.", "parent_class": null, "app_location": "core.services.tache_service", "attributes": [], "methods": [{"name": "verifier_alertes", "params": ["tache"], "return_type": "None", "is_magic": false}]},
+    {"id": "CLASS_053", "name": "NotificationService", "type": "util", "description": "Création de notifications (par utilisateur / par rôle).", "parent_class": null, "app_location": "core.services.notification_service", "attributes": [], "methods": [{"name": "notifier", "params": ["utilisateur", "type_notif", "titre", "message"], "return_type": "Notification", "is_magic": false}, {"name": "notifier_roles", "params": ["roles", "..."], "return_type": "None", "is_magic": false}]},
+    {"id": "CLASS_054", "name": "pdf_service", "type": "util", "description": "Génération PDF (BC format réel PAD + bilans) — fonctions ReportLab.", "parent_class": null, "app_location": "core.services.pdf_service", "attributes": [], "methods": [{"name": "generer_pdf_bon_commande", "params": ["bc"], "return_type": "bytes", "is_magic": false}, {"name": "generer_pdf_bilan", "params": ["exercice", "..."], "return_type": "bytes", "is_magic": false}, {"name": "montant_en_lettres", "params": ["montant"], "return_type": "str", "is_magic": false}]},
+    {"id": "CLASS_055", "name": "TacheQuerySet", "type": "util", "description": "QuerySet annoté (budget/conso/solde par Subquery).", "parent_class": "models.QuerySet", "app_location": "core.models", "attributes": [], "methods": [{"name": "with_aggregates", "params": [], "return_type": "QuerySet", "is_magic": false}]},
+    {"id": "CLASS_056", "name": "LigneBudgetaireQuerySet", "type": "util", "description": "QuerySet annoté ligne (budget_ajuste, consommation, solde).", "parent_class": "models.QuerySet", "app_location": "core.models", "attributes": [], "methods": [{"name": "with_aggregates", "params": [], "return_type": "QuerySet", "is_magic": false}]},
+    {"id": "CLASS_057", "name": "BonCommandeFilter", "type": "util", "description": "FilterSet liste BC.", "parent_class": "django_filters.FilterSet", "app_location": "core.filters", "attributes": [{"name": "numero/statut/tache/prestataire/dates", "type": "Filter", "required": false}], "methods": []},
+    {"id": "CLASS_058", "name": "DemandeAchatFilter", "type": "util", "description": "FilterSet liste DA.", "parent_class": "django_filters.FilterSet", "app_location": "core.filters", "attributes": [{"name": "reference/objet/statut/tache/dates", "type": "Filter", "required": false}], "methods": []},
+    {"id": "CLASS_059", "name": "JournalFilter", "type": "util", "description": "FilterSet journal d'activité.", "parent_class": "django_filters.FilterSet", "app_location": "core.filters", "attributes": [], "methods": []},
+    {"id": "CLASS_060", "name": "PrestataireFilter", "type": "util", "description": "FilterSet annuaire prestataires.", "parent_class": "django_filters.FilterSet", "app_location": "core.filters", "attributes": [], "methods": []},
+    {"id": "CLASS_061", "name": "SequenceService.Sequence (Sequence model)", "type": "util", "description": "Note : voir CLASS_018 (modèle Sequence) — service associé SequenceService (CLASS_048).", "parent_class": null, "app_location": "core.models", "attributes": [], "methods": []}
+  ],
+  "relationships": [
+    {"from_class": "Utilisateur", "to_class": "AbstractUser", "type": "inheritance", "cardinality": "1:1", "label": "extends"},
+    {"from_class": "Tache", "to_class": "ExerciceBudgetaire", "type": "foreign_key", "cardinality": "1:N", "label": "exercice"},
+    {"from_class": "ExerciceBudgetaire", "to_class": "ExerciceBudgetaire", "type": "foreign_key", "cardinality": "1:1", "label": "exercice_precedent"},
+    {"from_class": "LigneBudgetaire", "to_class": "Tache", "type": "composition", "cardinality": "1:N", "label": "lignes"},
+    {"from_class": "VirementBudgetaire", "to_class": "ExerciceBudgetaire", "type": "foreign_key", "cardinality": "1:N", "label": "exercice"},
+    {"from_class": "VirementBudgetaire", "to_class": "LigneBudgetaire", "type": "foreign_key", "cardinality": "1:N", "label": "ligne_source"},
+    {"from_class": "VirementBudgetaire", "to_class": "LigneBudgetaire", "type": "foreign_key", "cardinality": "1:N", "label": "ligne_destination"},
+    {"from_class": "VirementBudgetaire", "to_class": "Utilisateur", "type": "foreign_key", "cardinality": "1:N", "label": "created_by"},
+    {"from_class": "DemandeAchat", "to_class": "ExerciceBudgetaire", "type": "foreign_key", "cardinality": "1:N", "label": "exercice"},
+    {"from_class": "DemandeAchat", "to_class": "LigneBudgetaire", "type": "foreign_key", "cardinality": "1:N", "label": "ligne_budgetaire"},
+    {"from_class": "DemandeAchat", "to_class": "Utilisateur", "type": "foreign_key", "cardinality": "1:N", "label": "created_by"},
+    {"from_class": "Offre", "to_class": "DemandeAchat", "type": "composition", "cardinality": "1:N", "label": "offres"},
+    {"from_class": "Offre", "to_class": "Prestataire", "type": "foreign_key", "cardinality": "1:N", "label": "prestataire"},
+    {"from_class": "BonCommande", "to_class": "DemandeAchat", "type": "foreign_key", "cardinality": "1:N", "label": "demande"},
+    {"from_class": "BonCommande", "to_class": "Tache", "type": "foreign_key", "cardinality": "1:N", "label": "tache"},
+    {"from_class": "BonCommande", "to_class": "ExerciceBudgetaire", "type": "foreign_key", "cardinality": "1:N", "label": "exercice"},
+    {"from_class": "BonCommande", "to_class": "Prestataire", "type": "foreign_key", "cardinality": "1:N", "label": "prestataire"},
+    {"from_class": "LigneBC", "to_class": "BonCommande", "type": "composition", "cardinality": "1:N", "label": "lignes"},
+    {"from_class": "ImputationBC", "to_class": "BonCommande", "type": "composition", "cardinality": "1:N", "label": "imputations"},
+    {"from_class": "ImputationBC", "to_class": "LigneBudgetaire", "type": "foreign_key", "cardinality": "1:N", "label": "ligne_budgetaire"},
+    {"from_class": "ConsommationDirecte", "to_class": "LigneBudgetaire", "type": "foreign_key", "cardinality": "1:N", "label": "ligne_budgetaire"},
+    {"from_class": "ConsommationDirecte", "to_class": "Utilisateur", "type": "foreign_key", "cardinality": "1:N", "label": "created_by / annule_par"},
+    {"from_class": "ProlongationBC", "to_class": "BonCommande", "type": "composition", "cardinality": "1:N", "label": "prolongations"},
+    {"from_class": "ProlongationBC", "to_class": "Utilisateur", "type": "foreign_key", "cardinality": "1:N", "label": "created_by"},
+    {"from_class": "Alerte", "to_class": "Tache", "type": "composition", "cardinality": "1:N", "label": "alertes"},
+    {"from_class": "Notification", "to_class": "Utilisateur", "type": "composition", "cardinality": "1:N", "label": "notifications"},
+    {"from_class": "HistoriqueStatut", "to_class": "Utilisateur", "type": "foreign_key", "cardinality": "1:N", "label": "utilisateur"},
+    {"from_class": "JournalActivite", "to_class": "Utilisateur", "type": "foreign_key", "cardinality": "1:N", "label": "utilisateur"},
+    {"from_class": "PieceJointe", "to_class": "Utilisateur", "type": "foreign_key", "cardinality": "1:N", "label": "uploaded_by"},
+    {"from_class": "PieceJointe", "to_class": "DemandeAchat", "type": "composition", "cardinality": "1:N", "label": "polymorphe (type_entite='da')"},
+    {"from_class": "PieceJointe", "to_class": "BonCommande", "type": "composition", "cardinality": "1:N", "label": "polymorphe (type_entite='bc')"},
+    {"from_class": "PieceJointe", "to_class": "ConsommationDirecte", "type": "composition", "cardinality": "1:N", "label": "polymorphe (type_entite='conso')"},
+    {"from_class": "RepertoireLigne", "to_class": "RepertoireTache", "type": "composition", "cardinality": "1:N", "label": "lignes_repertoire"},
+    {"from_class": "LogAnnulation", "to_class": "Utilisateur", "type": "foreign_key", "cardinality": "1:N", "label": "annule_par"},
+    {"from_class": "DemandeAchatForm", "to_class": "DemandeAchat", "type": "composition", "cardinality": "1:1", "label": "ModelForm"},
+    {"from_class": "BonCommandeEditForm", "to_class": "BonCommande", "type": "composition", "cardinality": "1:1", "label": "ModelForm"},
+    {"from_class": "ConsommationDirecteForm", "to_class": "ConsommationDirecte", "type": "composition", "cardinality": "1:1", "label": "ModelForm"},
+    {"from_class": "VirementForm", "to_class": "VirementBudgetaire", "type": "composition", "cardinality": "1:1", "label": "ModelForm"},
+    {"from_class": "ProlongationBCForm", "to_class": "ProlongationBC", "type": "composition", "cardinality": "1:1", "label": "ModelForm"},
+    {"from_class": "BonCommandeService", "to_class": "BonCommande", "type": "composition", "cardinality": "1:N", "label": "crée"},
+    {"from_class": "DemandeAchatService", "to_class": "DemandeAchat", "type": "composition", "cardinality": "1:N", "label": "crée"},
+    {"from_class": "VirementService", "to_class": "VirementBudgetaire", "type": "composition", "cardinality": "1:N", "label": "crée"},
+    {"from_class": "SequenceService", "to_class": "Sequence", "type": "composition", "cardinality": "1:N", "label": "incrémente"},
+    {"from_class": "TacheService", "to_class": "Alerte", "type": "composition", "cardinality": "1:N", "label": "génère"},
+    {"from_class": "NotificationService", "to_class": "Notification", "type": "composition", "cardinality": "1:N", "label": "crée"},
+    {"from_class": "TacheQuerySet", "to_class": "models.QuerySet", "type": "inheritance", "cardinality": "1:1", "label": "extends"},
+    {"from_class": "LigneBudgetaireQuerySet", "to_class": "models.QuerySet", "type": "inheritance", "cardinality": "1:1", "label": "extends"},
+    {"from_class": "BonCommandeFilter", "to_class": "BonCommande", "type": "composition", "cardinality": "1:1", "label": "FilterSet"},
+    {"from_class": "DemandeAchatFilter", "to_class": "DemandeAchat", "type": "composition", "cardinality": "1:1", "label": "FilterSet"}
+  ],
+  "statistics": {
+    "models_count": 22,
+    "forms_count": 13,
+    "views_count": 56,
+    "views_controllers_count": 12,
+    "utils_count": 14,
+    "total_classes": 61,
+    "total_attributes": 159,
+    "total_methods": 92
+  }
+}

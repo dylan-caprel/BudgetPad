@@ -21,7 +21,7 @@ from .models import (
     VirementBudgetaire, Prestataire, DemandeAchat, Offre, BonCommande,
     LigneBC, ImputationBC, ProlongationBC, JournalActivite, Notification,
     Alerte, HistoriqueStatut, PieceJointe, ConsommationDirecte,
-    RepertoireTache, RepertoireLigne, LogAnnulation,
+    RepertoireTache, RepertoireLigne, LogAnnulation, PrestationProgrammee,
 )
 from .forms import (
     VirementForm, PrestataireForm, TacheForm, LigneBudgetaireForm,
@@ -3094,3 +3094,111 @@ def bc_prolonger_page(request, pk):
         'bc': bc,
         'prolongations': bc.prolongations.select_related('created_by').order_by('-created_at'),
     })
+
+
+# ============ JOURNAL DE PROGRAMMATION (JP-BC) ============
+
+# Correspondances entre la nomenclature du journal et celle de la DA
+_JP_NATURE_VERS_DA = {'APPRO': 'APPRO', 'TRAVAUX': 'Trx', 'PRESTATION_INT': 'Prestat.Int'}
+_JP_PERIODE_VERS_DA = {'quad': 'P1', 'penta': 'P2'}
+
+
+@login_required
+def journal_list(request):
+    """Journal de programmation par bon de commande de l'exercice actif."""
+    exercice = _exercice_courant(request)
+    prestations = PrestationProgrammee.objects.none()
+    stats = {'total': 0, 'programmees': 0, 'en_cours': 0, 'executees': 0,
+             'annulees': 0, 'budget_total': 0, 'montant_total': 0}
+
+    periode_f = request.GET.get('periode', '')
+    priorite_f = request.GET.get('priorite', '')
+    statut_f = request.GET.get('statut', '')
+
+    if exercice:
+        prestations = (
+            PrestationProgrammee.objects
+            .filter(exercice=exercice)
+            .select_related('ligne_budgetaire__tache', 'demande_achat')
+        )
+        base = prestations
+        stats = {
+            'total':        base.count(),
+            'programmees':  base.filter(statut='programmee').count(),
+            'en_cours':     base.filter(statut='en_cours').count(),
+            'executees':    base.filter(statut='executee').count(),
+            'annulees':     base.filter(statut='annulee').count(),
+            'budget_total': base.aggregate(t=Sum('budget_previsionnel'))['t'] or 0,
+            'montant_total': base.aggregate(t=Sum('montant_ht'))['t'] or 0,
+        }
+        if periode_f:
+            prestations = prestations.filter(periode=periode_f)
+        if priorite_f:
+            prestations = prestations.filter(priorite=priorite_f)
+        if statut_f:
+            prestations = prestations.filter(statut=statut_f)
+
+    return render(request, 'core/journal_programmation.html', {
+        'exercice': exercice,
+        'prestations': prestations,
+        'stats': stats,
+        'periode_filtre': periode_f,
+        'priorite_filtre': priorite_f,
+        'statut_filtre': statut_f,
+    })
+
+
+@login_required
+@role_required('admin', 'directeur_drh', 'chef_service', 'assistante_drh')
+@require_POST
+@transaction.atomic
+def journal_creer_da(request, pk):
+    """Génère une Demande d'Achat pré-remplie depuis une prestation du journal."""
+    prestation = get_object_or_404(
+        PrestationProgrammee.objects.select_related('ligne_budgetaire__tache', 'exercice'), pk=pk,
+    )
+    if not prestation.est_disponible:
+        messages.error(
+            request,
+            f"Prestation « {prestation.get_statut_display()} » — elle ne peut plus générer de DA.",
+        )
+        return redirect('journal_list')
+    if not prestation.ligne_budgetaire_id:
+        messages.error(
+            request,
+            "Cette prestation n'est pas reliée à une ligne budgétaire. "
+            "Importez l'exercice ou liez-la à une ligne avant de créer la DA.",
+        )
+        return redirect('journal_list')
+
+    exercice = prestation.exercice
+    locked, msg = _check_exercice_non_verrouille(exercice)
+    if locked:
+        messages.error(request, msg)
+        return redirect('journal_list')
+
+    try:
+        da = DemandeAchatService.creer(
+            ligne_budgetaire=prestation.ligne_budgetaire,
+            objet=prestation.objet_prestation[:200],
+            montant_estime=prestation.montant_ht,
+            utilisateur=request.user,
+            exercice=exercice,
+            nature_prestation=_JP_NATURE_VERS_DA.get(prestation.nature_prestation, ''),
+            periode_engagement=_JP_PERIODE_VERS_DA.get(prestation.periode, ''),
+            priorite=prestation.priorite,
+        )
+    except ValueError as e:
+        messages.error(request, str(e))
+        return redirect('journal_list')
+
+    prestation.demande_achat = da
+    prestation.statut = 'en_cours'
+    prestation.save(update_fields=['demande_achat', 'statut', 'updated_at'])
+    log_action(
+        request.user, 'DA.create',
+        f"DA {da.reference} créée depuis le journal de programmation (prestation #{prestation.pk})",
+        'da', da.pk,
+    )
+    messages.success(request, f"DA {da.reference} créée depuis le journal de programmation.")
+    return redirect('da_list')
