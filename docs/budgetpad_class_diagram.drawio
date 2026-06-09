@@ -1,0 +1,196 @@
+<mxfile host="app.diagrams.net" agent="BudgetPAD class diagram" version="24.0.0">
+  <diagram name="BudgetPAD - Diagramme de classes" id="budgetpad-classes">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1700" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ===== Titre + légende ===== -->
+        <mxCell id="title" value="BudgetPAD — Diagramme de classes (Django / app core)" style="text;html=1;fontSize=20;fontStyle=1;align=left;fontColor=#1B3A5C;" vertex="1" parent="1">
+          <mxGeometry x="40" y="10" width="900" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="lg_model" value="Model" style="rounded=0;html=1;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1280" y="12" width="90" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="lg_form" value="Form" style="rounded=0;html=1;fillColor=#E6F0E9;strokeColor=#1A5632;fontColor=#0E3A20;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1380" y="12" width="90" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="lg_service" value="Service" style="rounded=0;html=1;fillColor=#FBEAD9;strokeColor=#E67E22;fontColor=#7A4410;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1480" y="12" width="90" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="lg_filter" value="Filter" style="rounded=0;html=1;fillColor=#EFE6F3;strokeColor=#6C3483;fontColor=#3F1E50;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1580" y="12" width="90" height="26" as="geometry" />
+        </mxCell>
+
+        <!-- ===== MODELS — colonne Budget ===== -->
+        <mxCell id="exercice" value="&lt;b&gt;ExerciceBudgetaire&lt;/b&gt;&lt;br&gt;&lt;i&gt;model&lt;/i&gt;&lt;hr&gt;+ annee: int (uniq)&lt;br&gt;+ montant_global: Decimal&lt;br&gt;+ statut: str&lt;br&gt;+ is_active: bool&lt;br&gt;+ is_locked: bool&lt;br&gt;+ seuil_alerte: int&lt;br&gt;+ exercice_precedent: FK self&lt;hr&gt;+ get_actif() [cls]&lt;br&gt;+ activer(user)&lt;br&gt;+ cloturer(user)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="210" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="tache" value="&lt;b&gt;Tache&lt;/b&gt;&lt;br&gt;&lt;i&gt;model&lt;/i&gt;&lt;hr&gt;+ exercice: FK&lt;br&gt;+ numero: str&lt;br&gt;+ titre: str&lt;br&gt;+ actif: bool&lt;hr&gt;+ budget_ajuste: Decimal&lt;br&gt;+ consommation: Decimal&lt;br&gt;+ solde: Decimal&lt;br&gt;+ taux_consommation: Decimal" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="40" y="310" width="210" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="ligne" value="&lt;b&gt;LigneBudgetaire&lt;/b&gt;&lt;br&gt;&lt;i&gt;model&lt;/i&gt;&lt;hr&gt;+ tache: FK&lt;br&gt;+ code_nature: str&lt;br&gt;+ libelle_nature: str&lt;br&gt;+ montant_initial: Decimal&lt;br&gt;+ actif: bool&lt;hr&gt;+ budget_ajuste / solde (annot.)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="40" y="530" width="210" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="virement" value="&lt;b&gt;VirementBudgetaire&lt;/b&gt;&lt;br&gt;&lt;i&gt;model&lt;/i&gt;&lt;hr&gt;+ exercice: FK&lt;br&gt;+ ligne_source: FK&lt;br&gt;+ ligne_destination: FK&lt;br&gt;+ montant: Decimal&lt;br&gt;+ motif: str&lt;br&gt;+ created_by: FK&lt;hr&gt;+ clean()" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="40" y="730" width="210" height="180" as="geometry" />
+        </mxCell>
+
+        <!-- ===== MODELS — colonne Achats ===== -->
+        <mxCell id="da" value="&lt;b&gt;DemandeAchat&lt;/b&gt;&lt;br&gt;&lt;i&gt;model&lt;/i&gt;&lt;hr&gt;+ reference: str&lt;br&gt;+ exercice: FK&lt;br&gt;+ ligne_budgetaire: FK&lt;br&gt;+ objet: str&lt;br&gt;+ montant_estime: Decimal&lt;br&gt;+ nature_prestation: str&lt;br&gt;+ statut: str&lt;br&gt;+ motif_refus: str&lt;br&gt;+ created_by: FK&lt;hr&gt;+ peut_transiter_vers(s)&lt;br&gt;+ tache (prop)&lt;br&gt;+ save()" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="300" y="60" width="220" height="270" as="geometry" />
+        </mxCell>
+        <mxCell id="offre" value="&lt;b&gt;Offre&lt;/b&gt;&lt;br&gt;&lt;i&gt;model&lt;/i&gt;&lt;hr&gt;+ demande: FK&lt;br&gt;+ prestataire: FK&lt;br&gt;+ montant: Decimal&lt;br&gt;+ statut: str&lt;hr&gt;+ peut_transiter_vers(s)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="300" y="360" width="220" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="bc" value="&lt;b&gt;BonCommande&lt;/b&gt;&lt;br&gt;&lt;i&gt;model&lt;/i&gt;&lt;hr&gt;+ numero: str&lt;br&gt;+ demande: FK&lt;br&gt;+ tache: FK&lt;br&gt;+ prestataire: FK&lt;br&gt;+ numero_capri: str&lt;br&gt;+ date_capri: date&lt;br&gt;+ montant_ht/tva/ttc: Decimal&lt;br&gt;+ statut: str&lt;hr&gt;+ calculer_montants()&lt;br&gt;+ peut_transiter_vers(s)&lt;br&gt;+ capri_manquant (prop)&lt;br&gt;+ save()" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="300" y="540" width="220" height="300" as="geometry" />
+        </mxCell>
+        <mxCell id="imputation" value="&lt;b&gt;ImputationBC&lt;/b&gt;&lt;br&gt;&lt;i&gt;model&lt;/i&gt;&lt;hr&gt;+ bon_commande: FK&lt;br&gt;+ ligne_budgetaire: FK&lt;br&gt;+ montant: Decimal&lt;br&gt;+ description: str" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="300" y="870" width="220" height="120" as="geometry" />
+        </mxCell>
+
+        <!-- ===== MODELS — colonne 3 ===== -->
+        <mxCell id="lignebc" value="&lt;b&gt;LigneBC&lt;/b&gt;&lt;br&gt;&lt;i&gt;model&lt;/i&gt;&lt;hr&gt;+ bon_commande: FK&lt;br&gt;+ reference_article: str&lt;br&gt;+ designation: str&lt;br&gt;+ unite: str&lt;br&gt;+ quantite: Decimal&lt;br&gt;+ prix_unitaire_ht: Decimal&lt;hr&gt;+ montant_ht (prop)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="560" y="60" width="220" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="conso" value="&lt;b&gt;ConsommationDirecte&lt;/b&gt;&lt;br&gt;&lt;i&gt;model&lt;/i&gt;&lt;hr&gt;+ ligne_budgetaire: FK&lt;br&gt;+ montant: Decimal&lt;br&gt;+ motif: str&lt;br&gt;+ numero_capri: str&lt;br&gt;+ date_capri: date&lt;br&gt;+ est_annule: bool&lt;br&gt;+ created_by: FK&lt;hr&gt;+ capri_manquant (prop)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="560" y="270" width="220" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="prolong" value="&lt;b&gt;ProlongationBC&lt;/b&gt;&lt;br&gt;&lt;i&gt;model&lt;/i&gt;&lt;hr&gt;+ bon_commande: FK&lt;br&gt;+ ancienne_echeance: date&lt;br&gt;+ nouvelle_echeance: date&lt;br&gt;+ motif: str&lt;br&gt;+ created_by: FK&lt;hr&gt;+ save()" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="560" y="500" width="220" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="prestataire" value="&lt;b&gt;Prestataire&lt;/b&gt;&lt;br&gt;&lt;i&gt;model&lt;/i&gt;&lt;hr&gt;+ code: str (uniq)&lt;br&gt;+ nom: str&lt;br&gt;+ adresse: str&lt;br&gt;+ telephone: str&lt;br&gt;+ email: str" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="560" y="690" width="220" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- ===== MODELS — colonne Référentiel / Users ===== -->
+        <mxCell id="utilisateur" value="&lt;b&gt;Utilisateur&lt;/b&gt;&lt;br&gt;&lt;i&gt;model : AbstractUser&lt;/i&gt;&lt;hr&gt;+ username: str&lt;br&gt;+ role: str&lt;br&gt;+ nom_complet: str&lt;br&gt;+ must_change_password: bool&lt;hr&gt;+ get_role_display_short()" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="820" y="60" width="210" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="notification" value="&lt;b&gt;Notification&lt;/b&gt;&lt;br&gt;&lt;i&gt;model&lt;/i&gt;&lt;hr&gt;+ utilisateur: FK&lt;br&gt;+ type: str&lt;br&gt;+ titre: str&lt;br&gt;+ lu: bool" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="820" y="250" width="210" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="alerte" value="&lt;b&gt;Alerte&lt;/b&gt;&lt;br&gt;&lt;i&gt;model&lt;/i&gt;&lt;hr&gt;+ tache: FK&lt;br&gt;+ type_alerte: str&lt;br&gt;+ message: str&lt;br&gt;+ seuil_atteint: Decimal&lt;br&gt;+ lu: bool" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="820" y="410" width="210" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="reptache" value="&lt;b&gt;RepertoireTache&lt;/b&gt;&lt;br&gt;&lt;i&gt;model&lt;/i&gt;&lt;hr&gt;+ numero: str (uniq)&lt;br&gt;+ titre: str&lt;br&gt;+ actif: bool" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="820" y="580" width="210" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="repligne" value="&lt;b&gt;RepertoireLigne&lt;/b&gt;&lt;br&gt;&lt;i&gt;model&lt;/i&gt;&lt;hr&gt;+ tache_repertoire: FK&lt;br&gt;+ code_nature: str&lt;br&gt;+ libelle_nature: str&lt;br&gt;+ actif: bool" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="820" y="720" width="210" height="130" as="geometry" />
+        </mxCell>
+
+        <!-- ===== MODELS — colonne Audit / support ===== -->
+        <mxCell id="journal" value="&lt;b&gt;JournalActivite&lt;/b&gt;&lt;br&gt;&lt;i&gt;model (hash chain)&lt;/i&gt;&lt;hr&gt;+ type_action: str&lt;br&gt;+ description: str&lt;br&gt;+ utilisateur: FK&lt;br&gt;+ prev_hash: str&lt;br&gt;+ hash_chain: str&lt;hr&gt;+ compute_hash()&lt;br&gt;+ save()" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="1070" y="60" width="220" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="historique" value="&lt;b&gt;HistoriqueStatut&lt;/b&gt;&lt;br&gt;&lt;i&gt;model&lt;/i&gt;&lt;hr&gt;+ type_entite: str&lt;br&gt;+ entite_id: int&lt;br&gt;+ ancien_statut: str&lt;br&gt;+ nouveau_statut: str&lt;br&gt;+ utilisateur: FK" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="1070" y="280" width="220" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="pj" value="&lt;b&gt;PieceJointe&lt;/b&gt;&lt;br&gt;&lt;i&gt;model (polymorphe)&lt;/i&gt;&lt;hr&gt;+ type_entite: str&lt;br&gt;+ entite_id: int&lt;br&gt;+ type_piece: str&lt;br&gt;+ titre_personnalise: str&lt;br&gt;+ fichier: File&lt;br&gt;+ uploaded_by: FK&lt;hr&gt;+ titre_affiche (prop)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="1070" y="460" width="220" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="sequence" value="&lt;b&gt;Sequence&lt;/b&gt;&lt;br&gt;&lt;i&gt;model&lt;/i&gt;&lt;hr&gt;+ key: str (uniq)&lt;br&gt;+ value: int" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="1070" y="680" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="logannul" value="&lt;b&gt;LogAnnulation&lt;/b&gt;&lt;br&gt;&lt;i&gt;model&lt;/i&gt;&lt;hr&gt;+ type_entite: str&lt;br&gt;+ entite_id: int&lt;br&gt;+ description_avant: str&lt;br&gt;+ motif_annulation: str&lt;br&gt;+ annule_par: FK" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E8EEF5;strokeColor=#1B3A5C;fontColor=#10243B;" vertex="1" parent="1">
+          <mxGeometry x="1070" y="800" width="220" height="140" as="geometry" />
+        </mxCell>
+
+        <!-- ===== FORMS ===== -->
+        <mxCell id="f_da" value="&lt;b&gt;DemandeAchatForm&lt;/b&gt;&lt;br&gt;&lt;i&gt;form&lt;/i&gt;&lt;hr&gt;ModelForm(DemandeAchat)&lt;br&gt;+ clean() : solde ligne" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E6F0E9;strokeColor=#1A5632;fontColor=#0E3A20;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="70" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="f_da_edit" value="&lt;b&gt;DemandeAchatEditForm&lt;/b&gt;&lt;br&gt;&lt;i&gt;form&lt;/i&gt;&lt;hr&gt;ModelForm(DemandeAchat)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E6F0E9;strokeColor=#1A5632;fontColor=#0E3A20;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="165" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="f_bc" value="&lt;b&gt;BonCommandeForm&lt;/b&gt;&lt;br&gt;&lt;i&gt;form&lt;/i&gt;&lt;hr&gt;ModelForm(BonCommande)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E6F0E9;strokeColor=#1A5632;fontColor=#0E3A20;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="240" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="f_bc_edit" value="&lt;b&gt;BonCommandeEditForm&lt;/b&gt;&lt;br&gt;&lt;i&gt;form&lt;/i&gt;&lt;hr&gt;ModelForm(BonCommande)&lt;br&gt;CAPRI requis (R11)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E6F0E9;strokeColor=#1A5632;fontColor=#0E3A20;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="315" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="f_conso" value="&lt;b&gt;ConsommationDirecteForm&lt;/b&gt;&lt;br&gt;&lt;i&gt;form&lt;/i&gt;&lt;hr&gt;ModelForm(ConsommationDirecte)&lt;br&gt;CAPRI requis (R11)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E6F0E9;strokeColor=#1A5632;fontColor=#0E3A20;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="410" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="f_virement" value="&lt;b&gt;VirementForm&lt;/b&gt;&lt;br&gt;&lt;i&gt;form&lt;/i&gt;&lt;hr&gt;ModelForm(VirementBudgetaire)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E6F0E9;strokeColor=#1A5632;fontColor=#0E3A20;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="505" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="f_prolong" value="&lt;b&gt;ProlongationBCForm&lt;/b&gt;&lt;br&gt;&lt;i&gt;form&lt;/i&gt;&lt;hr&gt;ModelForm(ProlongationBC)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E6F0E9;strokeColor=#1A5632;fontColor=#0E3A20;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="580" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="f_autres" value="&lt;b&gt;Autres forms&lt;/b&gt;&lt;br&gt;&lt;i&gt;form&lt;/i&gt;&lt;hr&gt;TacheForm · LigneBudgetaireForm&lt;br&gt;PrestataireForm&lt;br&gt;OffreSolliciter/Saisir/RefuserForm&lt;br&gt;LigneBCFormSet (inline)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#E6F0E9;strokeColor=#1A5632;fontColor=#0E3A20;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="655" width="200" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- ===== SERVICES ===== -->
+        <mxCell id="s_bc" value="&lt;b&gt;BonCommandeService&lt;/b&gt;&lt;br&gt;&lt;i&gt;service&lt;/i&gt;&lt;hr&gt;+ creer(tache, prestataire, montant_ht, ...)&lt;br&gt;+ changer_statut(bc, statut, user, motif)&lt;br&gt;+ calculer_montants_avec_tva(ht, tva)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#FBEAD9;strokeColor=#E67E22;fontColor=#7A4410;" vertex="1" parent="1">
+          <mxGeometry x="1600" y="70" width="240" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="s_da" value="&lt;b&gt;DemandeAchatService&lt;/b&gt;&lt;br&gt;&lt;i&gt;service&lt;/i&gt;&lt;hr&gt;+ creer(ligne_budgetaire, objet, montant_estime, user, ...)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#FBEAD9;strokeColor=#E67E22;fontColor=#7A4410;" vertex="1" parent="1">
+          <mxGeometry x="1600" y="205" width="240" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="s_vir" value="&lt;b&gt;VirementService&lt;/b&gt;&lt;br&gt;&lt;i&gt;service&lt;/i&gt;&lt;hr&gt;+ creer_virement(ligne_source, ligne_destination, montant, motif, user)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#FBEAD9;strokeColor=#E67E22;fontColor=#7A4410;" vertex="1" parent="1">
+          <mxGeometry x="1600" y="310" width="240" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="s_seq" value="&lt;b&gt;SequenceService&lt;/b&gt;&lt;br&gt;&lt;i&gt;service&lt;/i&gt;&lt;hr&gt;+ next_value(key)&lt;br&gt;+ next_da_reference() : DAC...&lt;br&gt;+ next_bc_numero() : STD...&lt;br&gt;+ next_prestataire_code()&lt;br&gt;+ next_tache_numero(annee)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#FBEAD9;strokeColor=#E67E22;fontColor=#7A4410;" vertex="1" parent="1">
+          <mxGeometry x="1600" y="415" width="240" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="s_tache" value="&lt;b&gt;TacheService&lt;/b&gt;&lt;br&gt;&lt;i&gt;service&lt;/i&gt;&lt;hr&gt;+ verifier_alertes(tache)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#FBEAD9;strokeColor=#E67E22;fontColor=#7A4410;" vertex="1" parent="1">
+          <mxGeometry x="1600" y="560" width="240" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="s_notif" value="&lt;b&gt;NotificationService&lt;/b&gt;&lt;br&gt;&lt;i&gt;service&lt;/i&gt;&lt;hr&gt;+ notifier(user, type, titre, message)&lt;br&gt;+ notifier_roles(roles, ...)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#FBEAD9;strokeColor=#E67E22;fontColor=#7A4410;" vertex="1" parent="1">
+          <mxGeometry x="1600" y="645" width="240" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- ===== FILTERS ===== -->
+        <mxCell id="fl_bc" value="&lt;b&gt;BonCommandeFilter&lt;/b&gt;&lt;br&gt;&lt;i&gt;filter&lt;/i&gt;&lt;hr&gt;numero · statut · tache&lt;br&gt;prestataire · dates" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#EFE6F3;strokeColor=#6C3483;fontColor=#3F1E50;" vertex="1" parent="1">
+          <mxGeometry x="1890" y="70" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="fl_da" value="&lt;b&gt;DemandeAchatFilter&lt;/b&gt;&lt;br&gt;&lt;i&gt;filter&lt;/i&gt;&lt;hr&gt;reference · objet · statut&lt;br&gt;tache · dates" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#EFE6F3;strokeColor=#6C3483;fontColor=#3F1E50;" vertex="1" parent="1">
+          <mxGeometry x="1890" y="170" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="fl_journal" value="&lt;b&gt;JournalFilter&lt;/b&gt;&lt;br&gt;&lt;i&gt;filter&lt;/i&gt;&lt;hr&gt;type_action · dates" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#EFE6F3;strokeColor=#6C3483;fontColor=#3F1E50;" vertex="1" parent="1">
+          <mxGeometry x="1890" y="270" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="fl_prest" value="&lt;b&gt;PrestataireFilter&lt;/b&gt;&lt;br&gt;&lt;i&gt;filter&lt;/i&gt;&lt;hr&gt;nom · code" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=6;spacingTop=4;fillColor=#EFE6F3;strokeColor=#6C3483;fontColor=#3F1E50;" vertex="1" parent="1">
+          <mxGeometry x="1890" y="350" width="200" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ===== RELATIONS (FK = flèche ouverte, composition = losange plein) ===== -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;" edge="1" parent="1" source="tache" target="exercice"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;endArrow=none;" edge="1" parent="1" source="ligne" target="tache"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;" edge="1" parent="1" source="virement" target="ligne"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;" edge="1" parent="1" source="virement" target="exercice"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;" edge="1" parent="1" source="da" target="exercice"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;" edge="1" parent="1" source="da" target="ligne"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;dashed=1;" edge="1" parent="1" source="da" target="utilisateur"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;endArrow=none;" edge="1" parent="1" source="offre" target="da"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;" edge="1" parent="1" source="offre" target="prestataire"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;" edge="1" parent="1" source="bc" target="da"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;" edge="1" parent="1" source="bc" target="tache"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;" edge="1" parent="1" source="bc" target="prestataire"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;endArrow=none;" edge="1" parent="1" source="lignebc" target="bc"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;endArrow=none;" edge="1" parent="1" source="imputation" target="bc"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;" edge="1" parent="1" source="imputation" target="ligne"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;" edge="1" parent="1" source="conso" target="ligne"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;endArrow=none;" edge="1" parent="1" source="prolong" target="bc"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;endArrow=none;" edge="1" parent="1" source="alerte" target="tache"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;endArrow=none;" edge="1" parent="1" source="notification" target="utilisateur"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=diamondThin;startFill=1;endArrow=none;" edge="1" parent="1" source="repligne" target="reptache"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e21" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;dashed=1;" edge="1" parent="1" source="pj" target="utilisateur"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;dashed=1;" edge="1" parent="1" source="historique" target="utilisateur"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;dashed=1;" edge="1" parent="1" source="journal" target="utilisateur"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- ===== Dépendances Form/Service -> Model (pointillés) ===== -->
+        <mxCell id="d1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;dashed=1;strokeColor=#1A5632;" edge="1" parent="1" source="f_da" target="da"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;dashed=1;strokeColor=#1A5632;" edge="1" parent="1" source="f_bc_edit" target="bc"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;dashed=1;strokeColor=#1A5632;" edge="1" parent="1" source="f_conso" target="conso"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;dashed=1;strokeColor=#E67E22;" edge="1" parent="1" source="s_bc" target="bc"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;dashed=1;strokeColor=#E67E22;" edge="1" parent="1" source="s_da" target="da"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;dashed=1;strokeColor=#E67E22;" edge="1" parent="1" source="s_seq" target="sequence"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

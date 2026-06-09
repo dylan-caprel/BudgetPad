@@ -1,0 +1,1390 @@
+[
+ {
+  "numero": "3101069",
+  "titre": "REVISION DE LA CONVENTION COLLECTIVE",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "686054.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3101070",
+  "titre": "ELABORATION D'UN RECUEIL DE TEXTES RH ET MISE A JOUR PERIODIQUE DU RECUEIL",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6266000",
+    "libelle_nature": "DOCUMENTATION GENERALE ET TECHNIQUE",
+    "montant_initial": "5000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "3500000.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3112006",
+  "titre": "ASSISTANCE SOCIALE",
+  "lignes": [
+   {
+    "code_nature": "6581111",
+    "libelle_nature": "DONS",
+    "montant_initial": "20000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "10000000.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3202030",
+  "titre": "ELABORATION DU BILAN SOCIAL DU GROUPE PAD",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211001",
+  "titre": "ACTIVITES AVEC LES PARTENAIRES SOCIAUX",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "189800.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6271020",
+    "libelle_nature": "EPI SPECIALISES",
+    "montant_initial": "270000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6588000",
+    "libelle_nature": "AUTRES CHARGES DIVERSES",
+    "montant_initial": "5000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211004",
+  "titre": "GESTION DES OBSEQUES",
+  "lignes": [
+   {
+    "code_nature": "6588000",
+    "libelle_nature": "AUTRES CHARGES DIVERSES",
+    "montant_initial": "20000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "16500000.00",
+    "consommation": "2150000.00"
+   },
+   {
+    "code_nature": "6641100",
+    "libelle_nature": "AUTRES CHARGES SOCIALES",
+    "montant_initial": "2000000.00",
+    "transfert_plus": "16500000.00",
+    "transfert_moins": "0.00",
+    "consommation": "2700000.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211009",
+  "titre": "RECOMPENSES ET DISTINCTIONSHONORIFIQUES (Y COMPRIS MEDAILLES)",
+  "lignes": [
+   {
+    "code_nature": "6612500",
+    "libelle_nature": "GRATIFICATIONS",
+    "montant_initial": "0.00",
+    "transfert_plus": "3319458.00",
+    "transfert_moins": "0.00",
+    "consommation": "3319458.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211010",
+  "titre": "LIQUIDATION DES DROITS DU PERSONNEL",
+  "lignes": [
+   {
+    "code_nature": "6614000",
+    "libelle_nature": "DROITS ET PRIMES SEPARATION",
+    "montant_initial": "1479000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "579147816.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211015",
+  "titre": "RESTAURATION, CLASSEMENT ET CONSERVATION DES DOCUMENTS  DE LA PAIE",
+  "lignes": [
+   {
+    "code_nature": "6043000",
+    "libelle_nature": "PRODUITS D'ENTRETIEN SUR STOCK",
+    "montant_initial": "160260.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "205716.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211018",
+  "titre": "CHARGES PATRONALES",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211022",
+  "titre": "GESTION DE LA DISCIPLINE",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211024",
+  "titre": "SUIVI DES OPERATIONS RELATIVES A L'ASSAINISSEMENT DE L'ENVIRONNEMENT DU TRAVAIL",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6271020",
+    "libelle_nature": "EPI SPECIALISES",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211025",
+  "titre": "ORGANISATION DES ELECTIONS DES DELEGUES DU PERSONNEL",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "748154.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "400000.00",
+    "consommation": "309160.00"
+   },
+   {
+    "code_nature": "6058000",
+    "libelle_nature": "ACHATS MATERIELS ET EQUIPEMENTS",
+    "montant_initial": "1000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "1000000.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6588000",
+    "libelle_nature": "AUTRES CHARGES DIVERSES",
+    "montant_initial": "3650000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "3619458.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211026",
+  "titre": "ORGANISATION DES  ELECTIONS DU REPRESENTANT DU PERSONNEL AU CONSEIL D'ADMINISTRATION",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "748154.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6588000",
+    "libelle_nature": "AUTRES CHARGES DIVERSES",
+    "montant_initial": "2300000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211029",
+  "titre": "PROCESSUS DE SELECTION DES CANDIDATS PRESSENTIS AU RECRUTEMENT AU PAD",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6588000",
+    "libelle_nature": "AUTRES CHARGES DIVERSES",
+    "montant_initial": "1000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211030",
+  "titre": "ANALYSES ET REQUETES",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "207259.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211036",
+  "titre": "SUIVI DES PRESENCES ET REQUETTES DU PERSONNEL",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "250000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "100477.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211037",
+  "titre": "MODERNISATION DE LA GESTION DES RESSOURCES HUMAINES",
+  "lignes": [
+   {
+    "code_nature": "2131000",
+    "libelle_nature": "LOGICIELS INFORMATIQUES",
+    "montant_initial": "400000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211038",
+  "titre": "ANALYSE ET EVALUATION DES RISQUES PROFESSIONNELS AU PAD",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6324130",
+    "libelle_nature": "HONORAIRES / CONSEILS / COMMISSIONS",
+    "montant_initial": "5000000.00",
+    "transfert_plus": "5000000.00",
+    "transfert_moins": "7000000.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6588000",
+    "libelle_nature": "AUTRES CHARGES DIVERSES",
+    "montant_initial": "1000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "1000000.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211039",
+  "titre": "ASSISTANCE DANS L'ELABORATION D'UNE DEMARCHE ET DES OUTILS DE MISE EN OEUVRE DE LA GESTION PREVISIONNELLE DES EMPL",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "1500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "1500000.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211040",
+  "titre": "GESTION DE LA PAIE",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211044",
+  "titre": "TRAITEMENT ET REPROGRAPHIE DES COURRIERS : FOURNITURES DE BUREAU SUR STOCK ET PRODUCTION DES RAPPORTS",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "1000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "497972.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211047",
+  "titre": "FORMATION LONGUE DUREE : ADMISSION DU PERSONNEL AUX PROGRAMMES DE FORMATIONS ACADEMIQUES ET APPLICATIONS DE C",
+  "lignes": [
+   {
+    "code_nature": "6588103",
+    "libelle_nature": "ALLOCATION FORMATION",
+    "montant_initial": "5000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "4918974.00"
+   },
+   {
+    "code_nature": "6588104",
+    "libelle_nature": "FRAIS D'INSCRIPTION",
+    "montant_initial": "5000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "166265.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211051",
+  "titre": "KINESITHERAPIE ET REHABILITATION FONCTIONNELLE",
+  "lignes": [
+   {
+    "code_nature": "2441000",
+    "libelle_nature": "MATERIELS DE BUREAU",
+    "montant_initial": "3200000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6684000",
+    "libelle_nature": "PRODUITS PHARMACEUTIQUES",
+    "montant_initial": "5000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3211055",
+  "titre": "DROITS SOCIAUX DUS AUX EMPLOYES TRANSFERES AU PAK",
+  "lignes": [
+   {
+    "code_nature": "6614000",
+    "libelle_nature": "DROITS ET PRIMES SEPARATION",
+    "montant_initial": "197921900.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3212002",
+  "titre": "PROGRAMME TRAIN FOR TRADE DE LA CNUCED",
+  "lignes": [
+   {
+    "code_nature": "6055010",
+    "libelle_nature": "ACHAT DIRECT FOURNITURES DE BUREAU",
+    "montant_initial": "2500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6228000",
+    "libelle_nature": "AUTRES LOCATIONS",
+    "montant_initial": "200000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6271010",
+    "libelle_nature": "CONCEPTION ET PRODUCTION GADGET",
+    "montant_initial": "1200000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6351100",
+    "libelle_nature": "COTISATIONS",
+    "montant_initial": "17000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "16955400.00"
+   },
+   {
+    "code_nature": "6383001",
+    "libelle_nature": "LOCATIONS SERVICES HOTELS",
+    "montant_initial": "6000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6383100",
+    "libelle_nature": "RECEPTIONS",
+    "montant_initial": "4500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6384000",
+    "libelle_nature": "MISSIONS",
+    "montant_initial": "40000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "22937000.00"
+   },
+   {
+    "code_nature": "6585100",
+    "libelle_nature": "INDEMNITE DES FORMATEURS INTERNES",
+    "montant_initial": "60000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "39334750.00"
+   },
+   {
+    "code_nature": "6588000",
+    "libelle_nature": "AUTRES CHARGES DIVERSES",
+    "montant_initial": "35000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "10000000.00",
+    "consommation": "8856656.00"
+   }
+  ]
+ },
+ {
+  "numero": "3212004",
+  "titre": "FORMATION DU PERSONNEL PAD",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6330100",
+    "libelle_nature": "FRAIS DE FORMATION",
+    "montant_initial": "60000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "30600000.00"
+   },
+   {
+    "code_nature": "6585100",
+    "libelle_nature": "INDEMNITE DES FORMATEURS INTERNES",
+    "montant_initial": "120000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "12280000.00"
+   }
+  ]
+ },
+ {
+  "numero": "3212008",
+  "titre": "STAGES ACADEMIQUES ET VACANCES",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6585200",
+    "libelle_nature": "PECULES DES STAGIAIRES",
+    "montant_initial": "33600000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "9395000.00"
+   }
+  ]
+ },
+ {
+  "numero": "3212019",
+  "titre": "EVALUATION DES ACTIONS DE FORMATION",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "250642.00"
+   }
+  ]
+ },
+ {
+  "numero": "3212022",
+  "titre": "EVALUATION DES COMPETENCES DU PERSONNEL DU PAD",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3212031",
+  "titre": "MISE EN OEUVRE DU REFERENTIEL METIER COMPETENCE",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6271010",
+    "libelle_nature": "CONCEPTION ET PRODUCTION GADGET",
+    "montant_initial": "1000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3212032",
+  "titre": "MISE EN PLACE DE LA GESTION PREVISIONNELLE DES EMPLOIS ET DES COMPETENCES",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "201670.00"
+   }
+  ]
+ },
+ {
+  "numero": "3212034",
+  "titre": "ORGANISATION DES COACHING, ATELIERS ET SEMINAIRES EN INTERNE",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6266000",
+    "libelle_nature": "DOCUMENTATION GENERALE ET TECHNIQUE",
+    "montant_initial": "1000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3212035",
+  "titre": "ANALYSE DES TRAVAUX DE RECHERCHE",
+  "lignes": [
+   {
+    "code_nature": "6043000",
+    "libelle_nature": "PRODUITS D'ENTRETIEN SUR STOCK",
+    "montant_initial": "100000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6588000",
+    "libelle_nature": "AUTRES CHARGES DIVERSES",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3212036",
+  "titre": "SUIVI DES APPRENANTS EN FORMATION TRAIN FOR TRADE DE LA CNUCED ET STAGIAIRES PROFESSIONNELS",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3212038",
+  "titre": "CONVENTION DE FORMATION AVEC LE CONSUPE",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "100000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6330100",
+    "libelle_nature": "FRAIS DE FORMATION",
+    "montant_initial": "25000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3212039",
+  "titre": "CONVENTION DE FORMATION AVEC L'ENAM",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "100000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6330100",
+    "libelle_nature": "FRAIS DE FORMATION",
+    "montant_initial": "25000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3212040",
+  "titre": "CONVENTION DE FORMATION AVEC L'ISMP",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "100000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6330100",
+    "libelle_nature": "FRAIS DE FORMATION",
+    "montant_initial": "20000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3212044",
+  "titre": "CONVENTION DE FORMATION AVEC L'ISTA",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "100000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6330100",
+    "libelle_nature": "FRAIS DE FORMATION",
+    "montant_initial": "25000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "11900000.00"
+   }
+  ]
+ },
+ {
+  "numero": "3213003",
+  "titre": "GESTION SANTE",
+  "lignes": [
+   {
+    "code_nature": "6055030",
+    "libelle_nature": "REACTIFS DE LABORATOIRE",
+    "montant_initial": "16000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6058000",
+    "libelle_nature": "ACHATS MATERIELS ET EQUIPEMENTS",
+    "montant_initial": "9700000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6272010",
+    "libelle_nature": "MAGAZINE ET IMPRIME PUBLICITAIRE",
+    "montant_initial": "10000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6684000",
+    "libelle_nature": "PRODUITS PHARMACEUTIQUES",
+    "montant_initial": "150000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "39799625.00"
+   },
+   {
+    "code_nature": "6684200",
+    "libelle_nature": "SOINS ET HOSPITALISATION",
+    "montant_initial": "900000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "224390941.00"
+   },
+   {
+    "code_nature": "6684300",
+    "libelle_nature": "FRAIS MEDICAUX",
+    "montant_initial": "150000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "65930114.00"
+   }
+  ]
+ },
+ {
+  "numero": "3213004",
+  "titre": "MAINTENANCE APPAREILS MEDICAUX",
+  "lignes": [
+   {
+    "code_nature": "6242102",
+    "libelle_nature": "MAINTENANCE AUTRES MATERIELS ET ENGINS",
+    "montant_initial": "4000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3213006",
+  "titre": "EVACUATION SANITAIRE ET RAPATRIEMENT DES DEPOUILLES",
+  "lignes": [
+   {
+    "code_nature": "6588000",
+    "libelle_nature": "AUTRES CHARGES DIVERSES",
+    "montant_initial": "75000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "39463736.00"
+   },
+   {
+    "code_nature": "6684200",
+    "libelle_nature": "SOINS ET HOSPITALISATION",
+    "montant_initial": "300000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "18156070.00"
+   }
+  ]
+ },
+ {
+  "numero": "3213007",
+  "titre": "PROMOTION DE LA SANTE",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "200000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6271010",
+    "libelle_nature": "CONCEPTION ET PRODUCTION GADGET",
+    "montant_initial": "3000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "875000.00"
+   },
+   {
+    "code_nature": "6274010",
+    "libelle_nature": "FOIRES ET EXPOSITIONS",
+    "montant_initial": "1000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "780000.00"
+   },
+   {
+    "code_nature": "6324130",
+    "libelle_nature": "HONORAIRES / CONSEILS / COMMISSIONS",
+    "montant_initial": "1000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6588000",
+    "libelle_nature": "AUTRES CHARGES DIVERSES",
+    "montant_initial": "5000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "1125000.00"
+   },
+   {
+    "code_nature": "6684000",
+    "libelle_nature": "PRODUITS PHARMACEUTIQUES",
+    "montant_initial": "3000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "600000.00"
+   }
+  ]
+ },
+ {
+  "numero": "3213009",
+  "titre": "MAINTENANCE ET HYGIENE HOSPITALIERE",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "100000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6058000",
+    "libelle_nature": "ACHATS MATERIELS ET EQUIPEMENTS",
+    "montant_initial": "8250000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6588000",
+    "libelle_nature": "AUTRES CHARGES DIVERSES",
+    "montant_initial": "5000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3213010",
+  "titre": "LOGISTIQUE HOSPITALIERE",
+  "lignes": [
+   {
+    "code_nature": "6058000",
+    "libelle_nature": "ACHATS MATERIELS ET EQUIPEMENTS",
+    "montant_initial": "8000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3213011",
+  "titre": "SANTE AU TRAVAIL",
+  "lignes": [
+   {
+    "code_nature": "6324130",
+    "libelle_nature": "HONORAIRES / CONSEILS / COMMISSIONS",
+    "montant_initial": "10000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6588000",
+    "libelle_nature": "AUTRES CHARGES DIVERSES",
+    "montant_initial": "2500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3213012",
+  "titre": "GESTION DES MENACES ET DES URGENCES SANITAIRES ( EPIDEMIES ET CATASTROPHES SANITAIRES)",
+  "lignes": [
+   {
+    "code_nature": "6041000",
+    "libelle_nature": "MATIERES CONSOMMABLES SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6248100",
+    "libelle_nature": "DERATISATION/DESINSECTISATION ET DESINFECTION",
+    "montant_initial": "10000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3213013",
+  "titre": "EQUIPEMENTS HOSPITALIERS",
+  "lignes": [
+   {
+    "code_nature": "2488000",
+    "libelle_nature": "AUTRES MATERIELS ET EQUIPEMENTS",
+    "montant_initial": "15000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3213017",
+  "titre": "SANTE NUMERIQUE",
+  "lignes": [
+   {
+    "code_nature": "2488030",
+    "libelle_nature": "MATERIEL MEDICAL",
+    "montant_initial": "342551631.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3213018",
+  "titre": "OPTIMISATION DES COMPETENCES MEDICALES ET INITIATION A L'EXPLOITATION DES DONNEES DU CMS",
+  "lignes": [
+   {
+    "code_nature": "6277000",
+    "libelle_nature": "FRAIS DE PARTICIPATION SEMINAIRES, CONFERENCE, COLLOQUE, CONGRES",
+    "montant_initial": "6000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3214002",
+  "titre": "ART, CULTURE ET LOISIRS",
+  "lignes": [
+   {
+    "code_nature": "6058000",
+    "libelle_nature": "ACHATS MATERIELS ET EQUIPEMENTS",
+    "montant_initial": "8000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6228000",
+    "libelle_nature": "AUTRES LOCATIONS",
+    "montant_initial": "2000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6383001",
+    "libelle_nature": "LOCATIONS SERVICES HOTELS",
+    "montant_initial": "5000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "2000000.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6588000",
+    "libelle_nature": "AUTRES CHARGES DIVERSES",
+    "montant_initial": "5000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6684000",
+    "libelle_nature": "PRODUITS PHARMACEUTIQUES",
+    "montant_initial": "400000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3214003",
+  "titre": "AUTRES ACTIVITES SOCIALES (ARBRE DE NOEL)",
+  "lignes": [
+   {
+    "code_nature": "6588000",
+    "libelle_nature": "AUTRES CHARGES DIVERSES",
+    "montant_initial": "10000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6641100",
+    "libelle_nature": "AUTRES CHARGES SOCIALES",
+    "montant_initial": "90000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3214005",
+  "titre": "GESTION DES ACTIVITES SPORTIVES ET CULTURELLES (TOURNOI DIVERS)",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "200000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6058000",
+    "libelle_nature": "ACHATS MATERIELS ET EQUIPEMENTS",
+    "montant_initial": "10000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6228000",
+    "libelle_nature": "AUTRES LOCATIONS",
+    "montant_initial": "5000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "1750000.00"
+   },
+   {
+    "code_nature": "6271010",
+    "libelle_nature": "CONCEPTION ET PRODUCTION GADGET",
+    "montant_initial": "10000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "828200.00"
+   },
+   {
+    "code_nature": "6588000",
+    "libelle_nature": "AUTRES CHARGES DIVERSES",
+    "montant_initial": "10000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "2000000.00",
+    "consommation": "1500000.00"
+   },
+   {
+    "code_nature": "6684000",
+    "libelle_nature": "PRODUITS PHARMACEUTIQUES",
+    "montant_initial": "440000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "100000.00"
+   }
+  ]
+ },
+ {
+  "numero": "3214006",
+  "titre": "RESTAURATION DU PERSONNEL",
+  "lignes": [
+   {
+    "code_nature": "6688200",
+    "libelle_nature": "RESTAURATION DU PERSONNEL",
+    "montant_initial": "100000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3214009",
+  "titre": "ACTIONS SOCIALES",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "200000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6581111",
+    "libelle_nature": "DONS",
+    "montant_initial": "5000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "3000000.00"
+   },
+   {
+    "code_nature": "6588000",
+    "libelle_nature": "AUTRES CHARGES DIVERSES",
+    "montant_initial": "3000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   }
+  ]
+ },
+ {
+  "numero": "3214010",
+  "titre": "CELEBRATIONS ET CEREMONIES SOCIALES",
+  "lignes": [
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "200000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6228000",
+    "libelle_nature": "AUTRES LOCATIONS",
+    "montant_initial": "10000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6588000",
+    "libelle_nature": "AUTRES CHARGES DIVERSES",
+    "montant_initial": "5000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "1650000.00"
+   }
+  ]
+ },
+ {
+  "numero": "3215003",
+  "titre": "FONCTIONNEMENT COURANT DRH",
+  "lignes": [
+   {
+    "code_nature": "2441000",
+    "libelle_nature": "MATERIELS DE BUREAU",
+    "montant_initial": "4000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "2442000",
+    "libelle_nature": "MATERIELS ET EQUIPEMENTS INFORMATIQUES",
+    "montant_initial": "20000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6042101",
+    "libelle_nature": "CARBURANT SUR STOCK",
+    "montant_initial": "10380000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "2545000.00"
+   },
+   {
+    "code_nature": "6047210",
+    "libelle_nature": "FOURNITURES DE BUREAU SUR STOCK",
+    "montant_initial": "500000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6055010",
+    "libelle_nature": "ACHAT DIRECT FOURNITURES DE BUREAU",
+    "montant_initial": "8000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6055020",
+    "libelle_nature": "ACHAT DIRECT CONSOMMABLES INFORMATIQUES",
+    "montant_initial": "20000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6266000",
+    "libelle_nature": "DOCUMENTATION GENERALE ET TECHNIQUE",
+    "montant_initial": "5000000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "1000000.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6272010",
+    "libelle_nature": "MAGAZINE ET IMPRIME PUBLICITAIRE",
+    "montant_initial": "4200000.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6330100",
+    "libelle_nature": "FRAIS DE FORMATION",
+    "montant_initial": "25000000.00",
+    "transfert_plus": "2000000.00",
+    "transfert_moins": "0.00",
+    "consommation": "0.00"
+   },
+   {
+    "code_nature": "6384000",
+    "libelle_nature": "MISSIONS",
+    "montant_initial": "40000000.00",
+    "transfert_plus": "27700000.00",
+    "transfert_moins": "5000000.00",
+    "consommation": "47026000.00"
+   }
+  ]
+ },
+ {
+  "numero": "3215004",
+  "titre": "SALAIRES DRH",
+  "lignes": [
+   {
+    "code_nature": "6611000",
+    "libelle_nature": "SALAIRES PERSONNELS",
+    "montant_initial": "1468757694.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "441602861.00"
+   },
+   {
+    "code_nature": "6641101",
+    "libelle_nature": "COTISATIONS PATRONNALES",
+    "montant_initial": "161563346.00",
+    "transfert_plus": "0.00",
+    "transfert_moins": "0.00",
+    "consommation": "55320683.00"
+   }
+  ]
+ }
+]

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% load core_tags budget_filters %}
+{% block title %}Journal de programmation — BudgetPAD{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h4 style="font-weight:600;color:#1B3A5C;">
+            <i class="bi bi-journal-bookmark me-2"></i>Journal de programmation
+        </h4>
+        <p class="text-muted mb-0" style="font-size:14px;">
+            Plan annuel des prestations par bon de commande &middot; Exercice {{ exercice.annee|default:"—" }}
+        </p>
+    </div>
+</div>
+
+{% if not exercice %}
+<div class="alert alert-warning">Aucun exercice actif.</div>
+{% else %}
+
+<!-- KPI -->
+<div class="row g-3 mb-4">
+    <div class="col"><div class="kpi-card"><div class="kpi-label">Total</div><div class="kpi-value">{{ stats.total }}</div></div></div>
+    <div class="col"><div class="kpi-card"><div class="kpi-label">Programmées</div><div class="kpi-value" style="color:#1A5632;">{{ stats.programmees }}</div></div></div>
+    <div class="col"><div class="kpi-card"><div class="kpi-label">En cours</div><div class="kpi-value" style="color:#E67E22;">{{ stats.en_cours }}</div></div></div>
+    <div class="col"><div class="kpi-card"><div class="kpi-label">Exécutées</div><div class="kpi-value text-muted">{{ stats.executees }}</div></div></div>
+    <div class="col"><div class="kpi-card"><div class="kpi-label">Budget prévisionnel</div><div class="kpi-value" style="font-size:18px;color:#1B3A5C;">{{ stats.budget_total|fmt }}</div></div></div>
+    <div class="col"><div class="kpi-card"><div class="kpi-label">Total HT planifié</div><div class="kpi-value" style="font-size:18px;color:#1B3A5C;">{{ stats.montant_total|fmt }}</div></div></div>
+</div>
+
+<div class="data-card">
+    <h6>Engagements par bons de commande de la DRH</h6>
+
+    <!-- Filtres -->
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3">
+            <select name="periode" class="form-select form-select-sm">
+                <option value="">Toutes les périodes</option>
+                <option value="quad" {% if periode_filtre == 'quad' %}selected{% endif %}>Quadrimestre (Mars–Juin)</option>
+                <option value="penta" {% if periode_filtre == 'penta' %}selected{% endif %}>Pentamestre (Juil–Nov)</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select name="priorite" class="form-select form-select-sm">
+                <option value="">Toutes priorités</option>
+                <option value="1" {% if priorite_filtre == '1' %}selected{% endif %}>Priorité 1</option>
+                <option value="2" {% if priorite_filtre == '2' %}selected{% endif %}>Priorité 2</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select name="statut" class="form-select form-select-sm">
+                <option value="">Tous les statuts</option>
+                <option value="programmee" {% if statut_filtre == 'programmee' %}selected{% endif %}>Programmée</option>
+                <option value="en_cours" {% if statut_filtre == 'en_cours' %}selected{% endif %}>En cours</option>
+                <option value="executee" {% if statut_filtre == 'executee' %}selected{% endif %}>Exécutée</option>
+                <option value="annulee" {% if statut_filtre == 'annulee' %}selected{% endif %}>Annulée</option>
+            </select>
+        </div>
+        <div class="col-md-1"><button type="submit" class="btn btn-sm btn-pad w-100">Filtrer</button></div>
+        <div class="col-md-1"><a href="{% url 'journal_list' %}" class="btn btn-sm btn-link text-muted">Reset</a></div>
+    </form>
+
+    <div class="table-responsive">
+    <table class="table table-hover table-sm mb-0" style="font-size:13px;">
+        <thead>
+            <tr>
+                <th>N°</th><th>Tâche</th><th>Code nature</th><th>Objet</th><th>Nature</th>
+                <th class="money">Montant HT</th><th>Période</th><th>Prio.</th><th>Statut</th><th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for p in prestations %}
+        <tr class="{% if not p.est_disponible %}table-light{% endif %}">
+            <td>{{ p.numero_ligne }}</td>
+            <td><span class="badge" style="background:#1B3A5C;font-size:0.7rem;">{{ p.code_tache }}</span></td>
+            <td><code style="font-size:0.78rem;">{{ p.code_nature }}</code></td>
+            <td>{{ p.objet_prestation|truncatewords:8 }}
+                {% if p.demande_achat %}<br><small class="text-muted"><i class="bi bi-link-45deg"></i> {{ p.demande_achat.reference }}</small>{% endif %}
+            </td>
+            <td><span class="badge rounded-pill" style="background:{{ p.nature_couleur }};font-size:0.65rem;">{{ p.get_nature_prestation_display }}</span></td>
+            <td class="money">{{ p.montant_ht|fmt }}</td>
+            <td><small>{% if p.periode == 'quad' %}Quad.{% else %}Penta.{% endif %}</small></td>
+            <td class="text-center">{{ p.priorite }}</td>
+            <td><span class="badge bg-{{ p.statut_couleur }}">{{ p.get_statut_display }}</span></td>
+            <td onclick="event.stopPropagation();">
+                {% if p.est_disponible and request.user|has_role:"admin,directeur_drh,chef_service,assistante_drh" %}
+                <form method="post" action="{% url 'journal_creer_da' p.pk %}" class="d-inline"
+                      onsubmit="return confirm('Créer une DA depuis cette prestation ?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-pad px-2 py-0" title="Créer une DA depuis cette prestation">
+                        <i class="bi bi-plus-circle me-1"></i>Créer DA
+                    </button>
+                </form>
+                {% elif p.demande_achat %}
+                <a href="{% url 'da_list' %}" class="btn btn-sm btn-outline-secondary px-2 py-0"><i class="bi bi-eye me-1"></i>Voir DA</a>
+                {% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="10">
+            <div class="empty-state">
+                <i class="bi bi-journal-x"></i>
+                <p class="empty-title">Aucune prestation programmée</p>
+                <p class="empty-sub">Importez le journal de programmation (JP-BC) pour cet exercice.</p>
+            </div>
+        </td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

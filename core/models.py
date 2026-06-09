@@ -1328,3 +1328,93 @@ class LogAnnulation(models.Model):
 
     def __str__(self):
         return f"Annulation {self.type_entite} #{self.entite_id} — {self.annule_le:%d/%m/%Y}"
+
+
+# ─────────────────────────────────────────────────────────────
+# JOURNAL DE PROGRAMMATION PAR BON DE COMMANDE (JP-BC)
+# ─────────────────────────────────────────────────────────────
+
+class PrestationProgrammee(models.Model):
+    """Ligne du Journal de Programmation par Bon de Commande (JP-BC) de la DRH.
+
+    Plan annuel des prestations à réaliser par BC, chargé en début d'exercice.
+    Point de départ d'une Demande d'Achat : on sélectionne une prestation
+    « programmée » qui pré-remplit la DA, puis la prestation passe « en cours ».
+    """
+    STATUT_CHOICES = [
+        ('programmee', 'Programmée'),
+        ('en_cours',   'En cours'),
+        ('executee',   'Exécutée'),
+        ('annulee',    'Annulée'),
+    ]
+    PERIODE_CHOICES = [
+        ('quad',  'Quadrimestre (Mars – Juin)'),
+        ('penta', 'Pentamestre (Juil. – Nov.)'),
+    ]
+    PRIORITE_CHOICES = [('1', 'Priorité 1'), ('2', 'Priorité 2')]
+    NATURE_CHOICES = [
+        ('APPRO',          'Approvisionnement (APPRO)'),
+        ('TRAVAUX',        'Travaux'),
+        ('PRESTATION_INT', 'Prestations intellectuelles'),
+    ]
+
+    exercice          = models.ForeignKey(
+        'ExerciceBudgetaire', on_delete=models.CASCADE, related_name='prestations_programmees',
+    )
+    numero_ligne      = models.PositiveIntegerField(default=0, verbose_name="N° au journal")
+    code_tache        = models.CharField(max_length=20, verbose_name="Code tâche")
+    libelle_tache     = models.CharField(max_length=500, blank=True)
+    code_nature       = models.CharField(max_length=10, blank=True)
+    libelle_nature    = models.CharField(max_length=255, blank=True)
+    objet_prestation  = models.TextField(verbose_name="Objet de la prestation")
+    nature_prestation = models.CharField(max_length=20, choices=NATURE_CHOICES, default='APPRO')
+    montant_ht        = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name="Montant HT")
+    budget_previsionnel = models.DecimalField(
+        max_digits=15, decimal_places=2, null=True, blank=True,
+        verbose_name="Budget prévisionnel",
+    )
+    periode           = models.CharField(max_length=6, choices=PERIODE_CHOICES, default='quad')
+    priorite          = models.CharField(max_length=2, choices=PRIORITE_CHOICES, default='1')
+    statut            = models.CharField(max_length=12, choices=STATUT_CHOICES, default='programmee')
+    # Lien optionnel vers la ligne budgétaire réelle (si l'exercice est chargé)
+    ligne_budgetaire  = models.ForeignKey(
+        'LigneBudgetaire', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='prestations_programmees',
+    )
+    # DA générée à partir de cette prestation
+    demande_achat     = models.OneToOneField(
+        'DemandeAchat', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='prestation_source',
+    )
+    created_at        = models.DateTimeField(auto_now_add=True)
+    updated_at        = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['periode', 'priorite', 'code_tache', 'numero_ligne']
+        verbose_name = 'Prestation programmée'
+        verbose_name_plural = 'Journal de programmation'
+
+    def __str__(self):
+        return f"[{self.get_periode_display()}] {self.code_tache} › {self.code_nature} — {self.objet_prestation[:40]}"
+
+    @property
+    def est_disponible(self):
+        """Disponible pour générer une DA seulement si encore 'programmée'."""
+        return self.statut == 'programmee'
+
+    @property
+    def montant_ttc_prevu(self):
+        return (self.montant_ht * Decimal('1.1925')).quantize(Decimal('0.01'))
+
+    @property
+    def statut_couleur(self):
+        return {
+            'programmee': 'success', 'en_cours': 'warning',
+            'executee': 'secondary', 'annulee': 'danger',
+        }.get(self.statut, 'secondary')
+
+    @property
+    def nature_couleur(self):
+        return {
+            'APPRO': '#1B3A5C', 'TRAVAUX': '#E67E22', 'PRESTATION_INT': '#6C3483',
+        }.get(self.nature_prestation, '#6c757d')

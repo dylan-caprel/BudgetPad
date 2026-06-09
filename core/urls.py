@@ -66,8 +66,12 @@ urlpatterns = [
     path('bilans/export/csv/', views.bilan_csv_export, name='bilan_csv_export'),
     path('bilans/export/pdf/', views.bilan_pdf_export, name='bilan_pdf_export'),
 
-    # Journal de programmation par BC
+    # Journal de programmation par BC (imputations)
     path('journal-bc/', views.journal_bc_view, name='journal_bc'),
+
+    # Journal de programmation (JP-BC : plan annuel des prestations)
+    path('journal-programmation/', views.journal_list, name='journal_list'),
+    path('journal-programmation/<int:pk>/creer-da/', views.journal_creer_da, name='journal_creer_da'),
 
     # Pièces jointes
     path('pieces-jointes/upload/', views.piece_jointe_upload, name='piece_jointe_upload'),

@@ -20,6 +20,9 @@
         <li><a href="{% url 'taches_list' %}" class="{% if 'tache' in request.resolver_match.url_name %}active{% endif %}">
             <i class="bi bi-list-check"></i> Tâches budgétaires
         </a></li>
+        <li><a href="{% url 'journal_list' %}" class="{% if request.resolver_match.url_name == 'journal_list' or request.resolver_match.url_name == 'journal_creer_da' %}active{% endif %}">
+            <i class="bi bi-journal-bookmark"></i> Journal de programmation
+        </a></li>
         <li><a href="{% url 'virements_list' %}" class="{% if 'virement' in request.resolver_match.url_name %}active{% endif %}">
             <i class="bi bi-arrow-left-right"></i> Transferts
         </a></li>
