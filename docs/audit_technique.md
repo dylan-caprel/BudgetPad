@@ -186,3 +186,35 @@ ce qui a généré le bug du bilan.
 **Aucune des améliorations proposées ne modifie le comportement** : ce sont des extractions et
 des déplacements, couverts par la suite de 65 tests. Ordre d'application recommandé :
 **R1 → R3 → R2 → R6** (faible risque), puis **R7 → R4 → R5** (structurels).
+
+---
+
+## 6. Journal d'application des refactors
+
+### Appliqués (tests verts à chaque étape — 65/65)
+
+| Refactor | Détail | Fichiers |
+|----------|--------|----------|
+| **R1 — solde unifié** | `BudgetService.solde_disponible()` remplace **5** calculs dupliqués (création conso ×2, édition conso, annulation virement, formulaire de saisie). Messages utilisateurs conservés à l'identique. | `core/services/budget_service.py` (nouveau), `core/views.py` |
+| **R3 — consommation globale unifiée** | `_consommation_globale(exercice, bcs, dates)` remplace **3** duplications (dashboard, bilans, export PDF). | `core/views.py` |
+| **N+1 export PDF** | `bilan_pdf_export` faisait 1 requête annotée **par tâche** (58 requêtes) ; remplacé par une requête groupée en mémoire. | `core/views.py` |
+| **R6 — index** | 9 index ajoutés : DA (exercice+statut, statut), BC (date_emission, date_echeance), ConsommationDirecte (ligne+est_annule, date), JournalActivite (entite_type+entite_id, type_action), PrestationProgrammee (exercice+statut). Migration `0013`. | `core/models.py`, migration 0013 |
+| **Code mort** | Tags `all_prestataires` (requête depuis la couche template) et `type_choices` supprimés — jamais appelés. | `core/templatetags/core_tags.py` |
+
+### Constats favorables (déjà corrects, aucune action)
+
+- `SequenceService` : `select_for_update` + atomic + self-healing → **pas de race condition** sur la numérotation DA/BC.
+- Upload : `_valider_fichier_pj` contrôle taille (10 Mo), extension **et** magic bytes.
+- Pagination : helper `_paginate` utilisé sur toutes les listes principales.
+- `taches_list` : `Prefetch` avec lignes annotées → pas de N+1.
+- Verrouillage exercice : helper centralisé `_check_exercice_non_verrouille` (14 usages).
+- Services notifications/tâches : déjà typés.
+
+### Restant à planifier (structurels, hors périmètre de cette passe)
+
+- **R4** — découpage de `views.py` (~3600 lignes) en package par domaine.
+- **Stratégie B** — migration des chaînes magiques de statuts vers `TextChoices`
+  (toucherait ~50 occurrences dans views + models + templates).
+- **R2** — unification des deux résolveurs de période (sémantiques GET différentes,
+  nécessite une décision UX).
+- **R7** — `request.exercice` via context processor (-15 répétitions).

@@ -32,7 +32,7 @@ from .forms import (
 from django.http import JsonResponse
 from .filters import BonCommandeFilter, DemandeAchatFilter, JournalFilter, PrestataireFilter
 from .services import (
-    BonCommandeService, DemandeAchatService, NotificationService,
+    BonCommandeService, BudgetService, DemandeAchatService, NotificationService,
     SequenceService, TacheService, VirementService,
 )
 import logging
@@ -50,6 +50,34 @@ def _paginate(request, queryset, page_size=PAGE_SIZE):
     qd.pop('page', None)
     querystring = urlencode(qd, doseq=True)
     return page_obj, querystring
+
+
+def _consommation_globale(exercice, bcs, date_debut=None, date_fin=None):
+    """Consommation totale de l'exercice = BC (TTC, hors annulés) + consommations
+    directes (hors annulées), optionnellement bornées sur une période.
+
+    REFACTOR: point de vérité unique — ce calcul était dupliqué dans dashboard_view,
+    bilans_view et bilan_pdf_export (l'oubli des consommations directes dans le bilan
+    avait causé un bug réel, cf. docs/audit_technique.md C3).
+
+    Args:
+        exercice: ExerciceBudgetaire courant.
+        bcs: queryset BonCommande déjà filtré (exercice et/ou période).
+        date_debut / date_fin: bornes optionnelles sur date_consommation.
+
+    Returns:
+        (total, total_bc, total_conso_directe) — Decimals (ou 0).
+    """
+    total_bc = bcs.exclude(statut='annule').aggregate(t=Sum('montant_ttc'))['t'] or 0
+    conso_qs = ConsommationDirecte.objects.filter(
+        ligne_budgetaire__tache__exercice=exercice, est_annule=False,
+    )
+    if date_debut and date_fin:
+        conso_qs = conso_qs.filter(
+            date_consommation__gte=date_debut, date_consommation__lte=date_fin,
+        )
+    total_conso_directe = conso_qs.aggregate(t=Sum('montant'))['t'] or 0
+    return total_bc + total_conso_directe, total_bc, total_conso_directe
 
 
 def _safe_referer_redirect(request, fallback='dashboard'):
@@ -211,15 +239,9 @@ def dashboard_view(request):
     bcs, periode = _get_periode_filter(request, bcs_base)
 
     budget_total = exercice.montant_global
-    total_bc = bcs.exclude(statut='annule').aggregate(t=Sum('montant_ttc'))['t'] or 0
     # COHE-3 : inclure les consommations directes non annulées dans le total engagé
-    total_conso_directe = (
-        ConsommationDirecte.objects
-        .filter(ligne_budgetaire__tache__exercice=exercice, est_annule=False)
-        .aggregate(t=Sum('montant'))['t']
-        or 0
-    )
-    total_engage = total_bc + total_conso_directe
+    # REFACTOR: calcul unifié via _consommation_globale (déduplication ×3)
+    total_engage, total_bc, total_conso_directe = _consommation_globale(exercice, bcs)
     solde = budget_total - total_engage
     taux_global = round((float(total_engage) / float(budget_total)) * 100, 1) if budget_total > 0 else 0
     taux_disponible = round(100 - taux_global, 1)
@@ -1272,15 +1294,10 @@ def bilans_view(request):
     budget_total = exercice.montant_global
     # Consommation = BC (TTC, hors annulés) + consommations directes (hors annulées),
     # filtrées sur la période — cohérent avec le dashboard (COHE-3) et le suivi officiel.
-    total_bc = bcs.exclude(statut='annule').aggregate(t=Sum('montant_ttc'))['t'] or 0
-    total_conso_directe = (
-        ConsommationDirecte.objects
-        .filter(ligne_budgetaire__tache__exercice=exercice, est_annule=False,
-                date_consommation__gte=date_debut, date_consommation__lte=date_fin)
-        .aggregate(t=Sum('montant'))['t']
-        or 0
+    # REFACTOR: calcul unifié via _consommation_globale (déduplication ×3)
+    consommation, total_bc, total_conso_directe = _consommation_globale(
+        exercice, bcs, date_debut, date_fin,
     )
-    consommation = total_bc + total_conso_directe
     solde = budget_total - consommation
     taux = round((float(consommation) / float(budget_total)) * 100, 1) if budget_total > 0 else 0
 
@@ -1428,11 +1445,17 @@ def bilan_pdf_export(request):
     )
 
     # Pré-charger les lignes annotées pour chaque tâche
-    lignes_par_tache = {}
-    for t in taches:
-        lignes_par_tache[t.pk] = list(
-            LigneBudgetaire.objects.filter(tache=t, actif=True).with_aggregates().order_by('code_nature')
-        )
+    # REFACTOR: N+1 supprimé — une requête par tâche (58 requêtes pour le PDF) remplacée
+    # par UNE requête annotée groupée en mémoire.
+    lignes_par_tache = {t.pk: [] for t in taches}
+    lignes_annotees = (
+        LigneBudgetaire.objects
+        .filter(tache__in=[t.pk for t in taches], actif=True)
+        .with_aggregates()
+        .order_by('tache_id', 'code_nature')
+    )
+    for ligne in lignes_annotees:
+        lignes_par_tache[ligne.tache_id].append(ligne)
 
     bcs = BonCommande.objects.filter(
         exercice=exercice, date_emission__gte=date_debut, date_emission__lte=date_fin,
@@ -1440,15 +1463,10 @@ def bilan_pdf_export(request):
     budget_total = exercice.montant_global
     # Consommation = BC (TTC, hors annulés) + consommations directes (hors annulées),
     # filtrées sur la période — cohérent avec le dashboard (COHE-3) et le suivi officiel.
-    total_bc = bcs.exclude(statut='annule').aggregate(t=Sum('montant_ttc'))['t'] or 0
-    total_conso_directe = (
-        ConsommationDirecte.objects
-        .filter(ligne_budgetaire__tache__exercice=exercice, est_annule=False,
-                date_consommation__gte=date_debut, date_consommation__lte=date_fin)
-        .aggregate(t=Sum('montant'))['t']
-        or 0
+    # REFACTOR: calcul unifié via _consommation_globale (déduplication ×3)
+    consommation, total_bc, total_conso_directe = _consommation_globale(
+        exercice, bcs, date_debut, date_fin,
     )
-    consommation = total_bc + total_conso_directe
     solde = budget_total - consommation
     taux = round((float(consommation) / float(budget_total)) * 100, 1) if budget_total > 0 else 0
 
@@ -2428,15 +2446,16 @@ def consommation_create(request, ligne_pk):
         form = ConsommationDirecteForm(request.POST)
         fichier = request.FILES.get('piece_jointe')
         if form.is_valid():
-            ligne_annotee = LigneBudgetaire.objects.with_aggregates().get(pk=ligne.pk)
+            # REFACTOR: calcul du solde centralisé dans BudgetService (déduplication ×4)
+            dispo = BudgetService.solde_disponible(ligne.pk)
             montant = form.cleaned_data['montant']
             file_ok, file_err = (True, "")
             if fichier:
                 file_ok, file_err = _valider_fichier_pj(fichier)
-            if montant > ligne_annotee.solde:
+            if montant > dispo:
                 messages.error(
                     request,
-                    f"Solde insuffisant. Disponible : {ligne_annotee.solde:,.0f} FCFA",
+                    f"Solde insuffisant. Disponible : {dispo:,.0f} FCFA",
                 )
             elif not file_ok:
                 messages.error(request, file_err)
@@ -2464,13 +2483,13 @@ def consommation_create(request, ligne_pk):
         from django.utils import timezone as _tz
         form = ConsommationDirecteForm(initial={'date_consommation': _tz.now().date()})
 
-    ligne_annotee = LigneBudgetaire.objects.with_aggregates().get(pk=ligne.pk)
+    # REFACTOR: calcul du solde centralisé dans BudgetService (déduplication ×5)
     return render(request, 'core/consommation_form.html', {
         'form': form,
         'ligne': ligne,
         'tache': ligne.tache,
         'exercice': exercice,
-        'solde': ligne_annotee.solde,
+        'solde': BudgetService.solde_disponible(ligne.pk),
     })
 
 
@@ -2556,12 +2575,13 @@ def consommation_create_module(request):
         messages.error(request, f"Erreur de saisie : {premier}")
         return redirect('consommations_list')
 
-    ligne_annotee = LigneBudgetaire.objects.with_aggregates().get(pk=ligne.pk)
+    # REFACTOR: calcul du solde centralisé dans BudgetService (déduplication ×4)
+    dispo = BudgetService.solde_disponible(ligne.pk)
     montant = form.cleaned_data['montant']
-    if montant > ligne_annotee.solde:
+    if montant > dispo:
         messages.error(
             request,
-            f"Solde insuffisant sur {ligne.code_nature}. Disponible : {ligne_annotee.solde:,.0f} FCFA",
+            f"Solde insuffisant sur {ligne.code_nature}. Disponible : {dispo:,.0f} FCFA",
         )
         return redirect('consommations_list')
 
@@ -2617,9 +2637,9 @@ def consommation_edit(request, pk):
         return redirect('consommations_list')
 
     # Re-vérification du solde : disponible = solde courant + ancien montant réintégré
-    ligne_annotee = LigneBudgetaire.objects.with_aggregates().get(pk=conso.ligne_budgetaire_id)
+    # REFACTOR: calcul du solde centralisé dans BudgetService (déduplication ×4)
     nouveau = form.cleaned_data['montant']
-    dispo = ligne_annotee.solde + ancien_montant
+    dispo = BudgetService.solde_disponible(conso.ligne_budgetaire_id, reintegrer_conso_id=conso.pk)
     if nouveau > dispo:
         messages.error(
             request,
@@ -3056,10 +3076,8 @@ def annuler_virement(request, pk):
             messages.error(request, "Le motif d'annulation est obligatoire (5 caractères minimum).")
         else:
             # Vérifier que la ligne destination a assez de solde pour le virement inverse
-            dest_annot = LigneBudgetaire.objects.filter(
-                pk=virement.ligne_destination.pk
-            ).with_aggregates().first()
-            if (dest_annot.solde or Decimal('0')) < virement.montant:
+            # REFACTOR: calcul du solde centralisé dans BudgetService (déduplication ×4)
+            if BudgetService.solde_disponible(virement.ligne_destination.pk) < virement.montant:
                 messages.error(
                     request,
                     f"Solde insuffisant sur {virement.ligne_destination.code_nature} "
