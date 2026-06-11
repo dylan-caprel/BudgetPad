@@ -8,94 +8,117 @@
 
 Ce guide couvre deux situations :
 
-- **[Cas A](#cas-a--mettre-à-jour-une-installation-existante)** — vous avez **déjà installé une
-  ancienne version** de BudgetPAD et vous voulez récupérer les mises à jour récentes
+- **[Cas A](#cas-a--installer-depuis-le-dossier-transféré)** — vous avez reçu le **dossier du
+  projet par transfert de fichiers** (clé USB, archive ZIP, partage réseau…)
   *(cas le plus courant — commencez ici)* ;
-- **[Cas B](#cas-b--installation-complète-depuis-zéro)** — installation **complète depuis zéro**
-  sur une machine vierge.
+- **[Cas B](#cas-b--installer--mettre-à-jour-via-git)** — installation ou mise à jour **via Git**
+  (recommandé pour récupérer les futures mises à jour).
 
 ---
 
-## Cas A — Mettre à jour une installation existante
+## Cas A — Installer depuis le dossier transféré
 
-Votre machine a déjà : le dépôt cloné, un environnement virtuel, MySQL configuré et
-l'application qui démarrait. Il suffit de récupérer le code, mettre à jour les
-dépendances, appliquer les nouvelles migrations et recharger les données officielles.
+Vous avez reçu le dossier complet du projet (ex. `budgetpad/`). Ce dossier contient le code
+à jour **mais aussi des fichiers propres à la machine d'origine** qu'il faut remplacer.
 
-### A.1 — Récupérer le code à jour
+> ℹ️ **Si vous aviez déjà une ancienne version de BudgetPAD** : votre base de données
+> n'est PAS dans le dossier — elle vit dans votre serveur MySQL. Le nouveau dossier
+> s'y reconnectera (étape A.4) et mettra son schéma à niveau (étape A.5).
+> Vous pouvez archiver/supprimer l'ancien dossier du projet, il ne servira plus.
 
-Ouvrez un terminal (PowerShell ou cmd) **dans le dossier du projet** :
+### A.1 — Prérequis
 
-```bash
-git fetch origin
-git checkout main
-git pull origin main
+| Logiciel | Version | Vérification |
+|---|---|---|
+| Python | 3.12 minimum (3.14 recommandé) | `python --version` |
+| MySQL **ou** MariaDB | 8.0+ / 10.6+ (déjà installé si vous aviez l'ancienne version) | `mysql --version` |
+
+### A.2 — Placer le dossier et NETTOYER l'environnement transféré
+
+Copiez le dossier où vous voulez (ex. `C:\Projets\budgetpad`), puis **supprimez
+impérativement le dossier `env/`** s'il est présent dans le transfert :
+
+```powershell
+cd C:\Projets\budgetpad        # adaptez le chemin
+Remove-Item -Recurse -Force env
 ```
 
-> 💡 Si les dernières mises à jour ne sont pas encore fusionnées dans `main`
-> (PR en attente), utilisez la branche de travail :
-> ```bash
-> git checkout refactor/lignes-budgetaires-et-audit-complet
-> git pull origin refactor/lignes-budgetaires-et-audit-complet
-> ```
+> ⚠️ **Pourquoi ?** Un environnement virtuel Python n'est **pas portable** : ses scripts
+> contiennent des chemins absolus de la machine d'origine
+> (`C:\Users\User\Desktop\budgetpad\env\...`). S'il n'est pas recréé, vous aurez des
+> erreurs du type *« Unable to create process »* ou un Python introuvable.
 
-### A.2 — Mettre à jour les dépendances
+### A.3 — Créer un environnement virtuel PROPRE + dépendances
 
-```bash
-# Activer l'environnement virtuel existant
-env\Scripts\activate          # Windows
-# source env/bin/activate     # Linux/macOS
+```powershell
+python -m venv env
+.\env\Scripts\Activate.ps1     # PowerShell  (ou env\Scripts\activate.bat en cmd)
 
 pip install -r requirements.txt
 ```
 
-### A.3 — Vérifier le fichier `.env`
+### A.4 — Adapter le fichier `.env` à VOTRE machine
 
-Votre `.env` existant reste valable. Vérifiez simplement qu'il contient bien :
+Le transfert contient probablement le `.env` de la machine d'origine — **il pointe vers
+le MySQL du développeur, pas le vôtre**. Ouvrez `.env` à la racine du projet et adaptez :
 
 ```ini
-SECRET_KEY=<votre clé>        # OBLIGATOIRE — l'app refuse de démarrer sans
+SECRET_KEY=<laissez la valeur existante, ou regénérez-en une>
 DEBUG=True
 DJANGO_ENV=dev
+ALLOWED_HOSTS=localhost,127.0.0.1
+
+DB_ENGINE=django.db.backends.mysql
 DB_NAME=budgetpad
 DB_USER=root
-DB_PASSWORD=<votre mot de passe MySQL>
+DB_PASSWORD=<VOTRE mot de passe MySQL>     ← à changer
 DB_HOST=localhost
-DB_PORT=3306                  # adaptez si votre MySQL écoute ailleurs (ex. 3307)
+DB_PORT=3306                               ← 3306 en général ; 3307 avec certains XAMPP/WAMP
 ```
 
-### A.4 — Appliquer les nouvelles migrations
+> 💡 Si `.env` est absent du transfert : `copy .env.example .env` puis remplissez les
+> mêmes champs. Pour générer une SECRET_KEY :
+> ```powershell
+> python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+> ```
 
-L'ancienne version s'arrêtait vers la migration 0006. Les versions récentes ajoutent
-les migrations **0007 → 0013** (format réel PAD, CAPRI, pièces jointes, journal de
-programmation, index de performance) :
+**Si vous n'avez pas encore la base** (première installation sur cette machine),
+créez-la dans un client MySQL :
 
-```bash
+```sql
+CREATE DATABASE budgetpad CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+### A.5 — Mettre la base à niveau (migrations)
+
+Que votre base soit ancienne (version précédente de l'outil) ou neuve :
+
+```powershell
 python manage.py migrate
 ```
 
-Vérification :
+Vérification — toutes les lignes doivent être cochées `[X]`, jusqu'à `0013` :
 
-```bash
+```powershell
 python manage.py showmigrations core
-# Toutes les lignes doivent être cochées [X], jusqu'à :
+# ...
+# [X] 0012_prestation_programmee
 # [X] 0013_boncommande_idx_bc_date_emission_and_more
 ```
 
-### A.5 — Charger les données réelles 2026
+### A.6 — Charger les données réelles 2026
 
 Les données officielles de la DRH (PDF « Suivi détaillé des tâches » + Excel
-« JP-BC DRH 2026 ») sont embarquées dans le dépôt. Pour remettre la base dans
-l'état officiel :
+« JP-BC DRH 2026 ») sont embarquées dans le projet :
 
-```bash
+```powershell
 python manage.py seed_real_data --reset
 ```
 
 | Option | Effet |
 |---|---|
-| *(sans option)* | Upsert : met à jour l'exercice 2026 sans toucher au reste (relançable sans doublon) |
-| `--reset` | **Recommandé** : supprime les DA/BC de démonstration et les tâches de test, puis recharge l'état officiel pur |
+| `--reset` | **Recommandé** : supprime les DA/BC de démonstration et les tâches de test de l'ancienne version, puis charge l'état officiel pur |
+| *(sans option)* | Upsert : met à jour l'exercice 2026 sans toucher au reste |
 | `--flush` | ⚠️ Vide **toute** la base avant de recharger |
 
 Résultat attendu :
@@ -110,94 +133,53 @@ Seed reel PAD 2026 termine :
   - 5 comptes (mot de passe : Pad2025@)
 ```
 
-### A.6 — Lancer l'application
+### A.7 — Lancer l'application
 
-```bash
+```powershell
 python manage.py runserver
 ```
 
 → http://127.0.0.1:8000 — connectez-vous (voir [comptes](#comptes-de-démonstration)).
 
-### A.7 — (Optionnel) Vérifier que tout fonctionne
+### A.8 — (Optionnel) Vérifier que tout fonctionne
 
-```bash
+```powershell
 python manage.py check        # doit afficher : 0 issues
 pytest                        # doit afficher : 65 passed
 ```
 
 ---
 
-## Cas B — Installation complète depuis zéro
+## Cas B — Installer / mettre à jour via Git
 
-### B.1 — Prérequis
+Recommandé pour recevoir les **futures mises à jour** sans nouveau transfert de fichiers.
 
-| Logiciel | Version | Téléchargement |
-|---|---|---|
-| Python | 3.12 minimum (3.14 recommandé) — cochez **« Add to PATH »** | https://www.python.org/downloads/ |
-| MySQL **ou** MariaDB | 8.0+ / 10.6+ | https://dev.mysql.com/downloads/ ou https://mariadb.org/download/ |
-| Git | dernière version | https://git-scm.com/downloads |
+### Première installation
 
-### B.2 — Cloner le projet
-
-```bash
+```powershell
 git clone https://github.com/dylan-caprel/BudgetPad.git budgetpad
 cd budgetpad
-```
-
-### B.3 — Environnement virtuel + dépendances
-
-```bash
 python -m venv env
-env\Scripts\activate          # Windows
-# source env/bin/activate     # Linux/macOS
-
+.\env\Scripts\Activate.ps1
 pip install -r requirements.txt
-```
-
-### B.4 — Créer la base de données
-
-Dans un client MySQL (ligne de commande, Workbench ou phpMyAdmin) :
-
-```sql
-CREATE DATABASE budgetpad CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-### B.5 — Configurer l'environnement
-
-```bash
-copy .env.example .env        # Windows   (cp .env.example .env sur Linux/macOS)
-```
-
-Puis éditez `.env` :
-
-```ini
-SECRET_KEY=générez-une-chaîne-aléatoire-de-50-caractères-minimum
-DEBUG=True
-DJANGO_ENV=dev
-ALLOWED_HOSTS=localhost,127.0.0.1
-
-DB_ENGINE=django.db.backends.mysql
-DB_NAME=budgetpad
-DB_USER=root
-DB_PASSWORD=<votre mot de passe MySQL>
-DB_HOST=localhost
-DB_PORT=3306
-```
-
-> 🔑 Pour générer une SECRET_KEY :
-> ```bash
-> python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
-> ```
-
-### B.6 — Migrations + données + lancement
-
-```bash
+copy .env.example .env        # puis éditez .env (cf. étape A.4)
 python manage.py migrate
 python manage.py seed_real_data
 python manage.py runserver
 ```
 
-→ http://127.0.0.1:8000
+### Mises à jour ultérieures
+
+```powershell
+git pull origin main
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
+```
+
+> 💡 Si les dernières évolutions ne sont pas encore fusionnées dans `main`,
+> utilisez la branche de travail :
+> `git checkout refactor/lignes-budgetaires-et-audit-complet && git pull`
 
 ---
 
@@ -235,14 +217,16 @@ Créés automatiquement par `seed_real_data` — mot de passe unique : **`Pad202
 
 | Problème | Cause | Solution |
 |---|---|---|
+| `Unable to create process using ...\env\Scripts\python.exe` ou Python introuvable | Venv transféré depuis l'autre machine (chemins absolus) | Supprimez `env/` et recréez-le (étape A.2 / A.3) |
 | `ValueError: SECRET_KEY must be set in .env file` | `.env` manquant ou incomplet | Créez `.env` depuis `.env.example` et renseignez `SECRET_KEY` |
-| `django.db.utils.OperationalError (2003)` — can't connect | MySQL arrêté ou mauvais port | Démarrez MySQL ; vérifiez `DB_PORT` (3306 par défaut, parfois 3307 avec XAMPP/WAMP) |
-| `OperationalError (1049)` — unknown database | Base non créée | Exécutez le `CREATE DATABASE` de l'étape B.4 |
+| `OperationalError (1045)` — access denied | Mot de passe MySQL du `.env` = celui de l'autre machine | Mettez **votre** mot de passe dans `DB_PASSWORD` (étape A.4) |
+| `OperationalError (2003)` — can't connect | MySQL arrêté ou mauvais port | Démarrez MySQL ; vérifiez `DB_PORT` (3306 par défaut, parfois 3307 avec XAMPP/WAMP) |
+| `OperationalError (1049)` — unknown database | Base non créée sur cette machine | Exécutez le `CREATE DATABASE` de l'étape A.4 |
 | `OperationalError: Unknown column ...` au démarrage | Migrations non appliquées | `python manage.py migrate` |
-| Erreur d'installation de `mysqlclient` (Windows) | Compilateur C absent | `pip install mysqlclient` utilise des roues précompilées sur Python récents ; sinon installez « Microsoft C++ Build Tools » ou utilisez `pip install mysqlclient --only-binary :all:` |
+| Erreur d'installation de `mysqlclient` (Windows) | Compilateur C absent | `pip install mysqlclient --only-binary :all:` ou installez « Microsoft C++ Build Tools » |
 | Accents mal affichés dans la console Windows | Encodage console | Lancez avec `python -X utf8 manage.py ...` |
 | Page de connexion en boucle | Cookies d'une ancienne session | Videz les cookies du site (Ctrl+Maj+Suppr) |
-| Mot de passe refusé après mise à jour | Comptes resynchronisés par le seed | Tous les mots de passe sont réinitialisés à `Pad2025@` |
+| Mot de passe refusé après le seed | Comptes resynchronisés | Tous les mots de passe sont réinitialisés à `Pad2025@` |
 
 ---
 
