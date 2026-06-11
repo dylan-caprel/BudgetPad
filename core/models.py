@@ -526,6 +526,11 @@ class DemandeAchat(models.Model):
         ordering = ['-created_at']
         verbose_name = "Demande d'achat"
         verbose_name_plural = "Demandes d'achat"
+        # REFACTOR: index sur les filtres les plus fréquents (da_list, workflow DA→BC)
+        indexes = [
+            models.Index(fields=['exercice', 'statut'], name='idx_da_exercice_statut'),
+            models.Index(fields=['statut'], name='idx_da_statut'),
+        ]
 
     def __str__(self):
         return f"{self.reference} — {self.objet}"
@@ -742,6 +747,9 @@ class BonCommande(models.Model):
             models.Index(fields=['tache', 'statut']),
             models.Index(fields=['prestataire', '-created_at']),
             models.Index(fields=['statut']),
+            # REFACTOR: filtres de période (bilans) et requêtes d'échéance (dashboard)
+            models.Index(fields=['date_emission'], name='idx_bc_date_emission'),
+            models.Index(fields=['date_echeance'], name='idx_bc_date_echeance'),
         ]
 
     def __str__(self):
@@ -897,6 +905,12 @@ class ConsommationDirecte(models.Model):
         ordering = ['-date_consommation', '-created_at']
         verbose_name = 'Consommation directe'
         verbose_name_plural = 'Consommations directes'
+        # REFACTOR: couvre la sous-requête de with_aggregates (ligne + est_annule)
+        # et les filtres de période des bilans (date_consommation)
+        indexes = [
+            models.Index(fields=['ligne_budgetaire', 'est_annule'], name='idx_conso_ligne_annule'),
+            models.Index(fields=['date_consommation'], name='idx_conso_date'),
+        ]
 
     @property
     def capri_manquant(self):
@@ -1057,6 +1071,12 @@ class JournalActivite(models.Model):
         ordering = ['-created_at']
         verbose_name = "Entrée du journal"
         verbose_name_plural = "Journal d'activité"
+        # REFACTOR: chaque vue détail interroge l'historique par (entite_type, entite_id) ;
+        # le journal filtre par type_action et created_at
+        indexes = [
+            models.Index(fields=['entite_type', 'entite_id'], name='idx_journal_entite'),
+            models.Index(fields=['type_action'], name='idx_journal_action'),
+        ]
 
     def __str__(self):
         return f"[{self.type_action}] {self.description}"
@@ -1393,6 +1413,10 @@ class PrestationProgrammee(models.Model):
         ordering = ['periode', 'priorite', 'code_tache', 'numero_ligne']
         verbose_name = 'Prestation programmée'
         verbose_name_plural = 'Journal de programmation'
+        # REFACTOR: filtres du journal (exercice + statut/periode/priorite)
+        indexes = [
+            models.Index(fields=['exercice', 'statut'], name='idx_presta_exo_statut'),
+        ]
 
     def __str__(self):
         return f"[{self.get_periode_display()}] {self.code_tache} › {self.code_nature} — {self.objet_prestation[:40]}"

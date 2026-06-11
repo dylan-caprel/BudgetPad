@@ -1,17 +1,9 @@
 from django import template
-from core.models import Prestataire, JournalActivite
 
 register = template.Library()
 
-
-@register.simple_tag
-def all_prestataires():
-    return Prestataire.objects.all()
-
-
-@register.simple_tag
-def type_choices():
-    return JournalActivite.TYPE_CHOICES
+# REFACTOR: tags morts supprimés (all_prestataires, type_choices) — jamais appelés
+# dans les templates ; all_prestataires exécutait une requête depuis la couche template.
 
 
 @register.filter(name='has_role')

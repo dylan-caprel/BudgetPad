@@ -35,6 +35,9 @@
         <li><a href="{% url 'journal_bc' %}" class="{% if request.resolver_match.url_name == 'journal_bc' %}active{% endif %}">
             <i class="bi bi-journal-text"></i> Détail des engagements
         </a></li>
+        <li><a href="{% url 'consommations_list' %}" class="{% if 'consommation' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="bi bi-cash-stack"></i> Consommations directes
+        </a></li>
         <li><a href="{% url 'prestataires_list' %}" class="{% if 'prestataire' in request.resolver_match.url_name %}active{% endif %}">
             <i class="bi bi-people"></i> Prestataires
         </a></li>

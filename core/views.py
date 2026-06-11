@@ -9,7 +9,7 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Q, Sum, Max
 from django.http import HttpResponse
 from django.utils import timezone
 from django.utils.http import urlencode, url_has_allowed_host_and_scheme
@@ -32,7 +32,7 @@ from .forms import (
 from django.http import JsonResponse
 from .filters import BonCommandeFilter, DemandeAchatFilter, JournalFilter, PrestataireFilter
 from .services import (
-    BonCommandeService, DemandeAchatService, NotificationService,
+    BonCommandeService, BudgetService, DemandeAchatService, NotificationService,
     SequenceService, TacheService, VirementService,
 )
 import logging
@@ -50,6 +50,34 @@ def _paginate(request, queryset, page_size=PAGE_SIZE):
     qd.pop('page', None)
     querystring = urlencode(qd, doseq=True)
     return page_obj, querystring
+
+
+def _consommation_globale(exercice, bcs, date_debut=None, date_fin=None):
+    """Consommation totale de l'exercice = BC (TTC, hors annulés) + consommations
+    directes (hors annulées), optionnellement bornées sur une période.
+
+    REFACTOR: point de vérité unique — ce calcul était dupliqué dans dashboard_view,
+    bilans_view et bilan_pdf_export (l'oubli des consommations directes dans le bilan
+    avait causé un bug réel, cf. docs/audit_technique.md C3).
+
+    Args:
+        exercice: ExerciceBudgetaire courant.
+        bcs: queryset BonCommande déjà filtré (exercice et/ou période).
+        date_debut / date_fin: bornes optionnelles sur date_consommation.
+
+    Returns:
+        (total, total_bc, total_conso_directe) — Decimals (ou 0).
+    """
+    total_bc = bcs.exclude(statut='annule').aggregate(t=Sum('montant_ttc'))['t'] or 0
+    conso_qs = ConsommationDirecte.objects.filter(
+        ligne_budgetaire__tache__exercice=exercice, est_annule=False,
+    )
+    if date_debut and date_fin:
+        conso_qs = conso_qs.filter(
+            date_consommation__gte=date_debut, date_consommation__lte=date_fin,
+        )
+    total_conso_directe = conso_qs.aggregate(t=Sum('montant'))['t'] or 0
+    return total_bc + total_conso_directe, total_bc, total_conso_directe
 
 
 def _safe_referer_redirect(request, fallback='dashboard'):
@@ -211,15 +239,9 @@ def dashboard_view(request):
     bcs, periode = _get_periode_filter(request, bcs_base)
 
     budget_total = exercice.montant_global
-    total_bc = bcs.exclude(statut='annule').aggregate(t=Sum('montant_ttc'))['t'] or 0
     # COHE-3 : inclure les consommations directes non annulées dans le total engagé
-    total_conso_directe = (
-        ConsommationDirecte.objects
-        .filter(ligne_budgetaire__tache__exercice=exercice, est_annule=False)
-        .aggregate(t=Sum('montant'))['t']
-        or 0
-    )
-    total_engage = total_bc + total_conso_directe
+    # REFACTOR: calcul unifié via _consommation_globale (déduplication ×3)
+    total_engage, total_bc, total_conso_directe = _consommation_globale(exercice, bcs)
     solde = budget_total - total_engage
     taux_global = round((float(total_engage) / float(budget_total)) * 100, 1) if budget_total > 0 else 0
     taux_disponible = round(100 - taux_global, 1)
@@ -1270,7 +1292,12 @@ def bilans_view(request):
     bcs = bcs_base.filter(date_emission__gte=date_debut, date_emission__lte=date_fin)
 
     budget_total = exercice.montant_global
-    consommation = bcs.exclude(statut='annule').aggregate(t=Sum('montant_ttc'))['t'] or 0
+    # Consommation = BC (TTC, hors annulés) + consommations directes (hors annulées),
+    # filtrées sur la période — cohérent avec le dashboard (COHE-3) et le suivi officiel.
+    # REFACTOR: calcul unifié via _consommation_globale (déduplication ×3)
+    consommation, total_bc, total_conso_directe = _consommation_globale(
+        exercice, bcs, date_debut, date_fin,
+    )
     solde = budget_total - consommation
     taux = round((float(consommation) / float(budget_total)) * 100, 1) if budget_total > 0 else 0
 
@@ -1418,17 +1445,28 @@ def bilan_pdf_export(request):
     )
 
     # Pré-charger les lignes annotées pour chaque tâche
-    lignes_par_tache = {}
-    for t in taches:
-        lignes_par_tache[t.pk] = list(
-            LigneBudgetaire.objects.filter(tache=t, actif=True).with_aggregates().order_by('code_nature')
-        )
+    # REFACTOR: N+1 supprimé — une requête par tâche (58 requêtes pour le PDF) remplacée
+    # par UNE requête annotée groupée en mémoire.
+    lignes_par_tache = {t.pk: [] for t in taches}
+    lignes_annotees = (
+        LigneBudgetaire.objects
+        .filter(tache__in=[t.pk for t in taches], actif=True)
+        .with_aggregates()
+        .order_by('tache_id', 'code_nature')
+    )
+    for ligne in lignes_annotees:
+        lignes_par_tache[ligne.tache_id].append(ligne)
 
     bcs = BonCommande.objects.filter(
         exercice=exercice, date_emission__gte=date_debut, date_emission__lte=date_fin,
     )
     budget_total = exercice.montant_global
-    consommation = bcs.exclude(statut='annule').aggregate(t=Sum('montant_ttc'))['t'] or 0
+    # Consommation = BC (TTC, hors annulés) + consommations directes (hors annulées),
+    # filtrées sur la période — cohérent avec le dashboard (COHE-3) et le suivi officiel.
+    # REFACTOR: calcul unifié via _consommation_globale (déduplication ×3)
+    consommation, total_bc, total_conso_directe = _consommation_globale(
+        exercice, bcs, date_debut, date_fin,
+    )
     solde = budget_total - consommation
     taux = round((float(consommation) / float(budget_total)) * 100, 1) if budget_total > 0 else 0
 
@@ -2015,6 +2053,8 @@ def exercice_reconduire(request, pk):
     from decimal import Decimal as _D
     src = get_object_or_404(ExerciceBudgetaire, pk=pk)
     nouvelle_annee = src.annee + 1
+    # Option : copier aussi les budgets (sinon montants à 0, comportement par défaut)
+    garder_montants = bool(request.POST.get('garder_montants'))
 
     if ExerciceBudgetaire.objects.filter(annee=nouvelle_annee).exists():
         messages.error(request, f"L'exercice {nouvelle_annee} existe déjà.")
@@ -2049,20 +2089,49 @@ def exercice_reconduire(request, pk):
                 tache=tache_new,
                 code_nature=ligne_src.code_nature,
                 libelle_nature=ligne_src.libelle_nature,
-                montant_initial=_D('0'),
+                montant_initial=(ligne_src.montant_initial if garder_montants else _D('0')),
                 actif=True,
             )
             nb_lignes += 1
 
+    if garder_montants:
+        nouveau.montant_global = (
+            LigneBudgetaire.objects.filter(tache__exercice=nouveau)
+            .aggregate(t=Sum('montant_initial'))['t'] or _D('0')
+        )
+        nouveau.save(update_fields=['montant_global'])
+
+    detail_montants = 'budgets repris' if garder_montants else 'montants à 0 — à ajuster'
     log_action(
         request.user, 'Exercice.reconduit',
-        f"Reconduction {src.annee} → {nouvelle_annee} ({nb_taches} tâches, {nb_lignes} lignes)",
+        f"Reconduction {src.annee} → {nouvelle_annee} ({nb_taches} tâches, {nb_lignes} lignes, {detail_montants})",
         'exercice', nouveau.pk,
     )
     messages.success(
         request,
         f"Exercice {nouvelle_annee} reconduit : {nb_taches} tâches et {nb_lignes} lignes "
-        f"copiées (montants à 0 — à ajuster)."
+        f"copiées ({detail_montants})."
+    )
+    return redirect('exercices_list')
+
+
+@login_required
+@role_required('admin')
+@require_POST
+def repertoire_sync(request, pk):
+    """Verse les tâches/lignes d'un exercice dans le répertoire réutilisable (wizard)."""
+    from core.services.repertoire_service import sync_repertoire_from_exercice
+    exercice = get_object_or_404(ExerciceBudgetaire, pk=pk)
+    nb_taches, nb_lignes = sync_repertoire_from_exercice(exercice)
+    log_action(
+        request.user, 'Repertoire.sync',
+        f"Répertoire alimenté depuis l'exercice {exercice.annee} ({nb_taches} tâches, {nb_lignes} lignes)",
+        'exercice', exercice.pk,
+    )
+    messages.success(
+        request,
+        f"Répertoire alimenté depuis l'exercice {exercice.annee} : {nb_taches} tâches et "
+        f"{nb_lignes} lignes disponibles pour la création de futurs exercices (wizard)."
     )
     return redirect('exercices_list')
 
@@ -2377,15 +2446,16 @@ def consommation_create(request, ligne_pk):
         form = ConsommationDirecteForm(request.POST)
         fichier = request.FILES.get('piece_jointe')
         if form.is_valid():
-            ligne_annotee = LigneBudgetaire.objects.with_aggregates().get(pk=ligne.pk)
+            # REFACTOR: calcul du solde centralisé dans BudgetService (déduplication ×4)
+            dispo = BudgetService.solde_disponible(ligne.pk)
             montant = form.cleaned_data['montant']
             file_ok, file_err = (True, "")
             if fichier:
                 file_ok, file_err = _valider_fichier_pj(fichier)
-            if montant > ligne_annotee.solde:
+            if montant > dispo:
                 messages.error(
                     request,
-                    f"Solde insuffisant. Disponible : {ligne_annotee.solde:,.0f} FCFA",
+                    f"Solde insuffisant. Disponible : {dispo:,.0f} FCFA",
                 )
             elif not file_ok:
                 messages.error(request, file_err)
@@ -2413,14 +2483,180 @@ def consommation_create(request, ligne_pk):
         from django.utils import timezone as _tz
         form = ConsommationDirecteForm(initial={'date_consommation': _tz.now().date()})
 
-    ligne_annotee = LigneBudgetaire.objects.with_aggregates().get(pk=ligne.pk)
+    # REFACTOR: calcul du solde centralisé dans BudgetService (déduplication ×5)
     return render(request, 'core/consommation_form.html', {
         'form': form,
         'ligne': ligne,
         'tache': ligne.tache,
         'exercice': exercice,
-        'solde': ligne_annotee.solde,
+        'solde': BudgetService.solde_disponible(ligne.pk),
     })
+
+
+@login_required
+def consommations_list(request):
+    """Module dédié : liste de toutes les consommations directes de l'exercice."""
+    exercice = _exercice_courant(request)
+    consos, lignes, taches = [], [], []
+    stats = {'total': 0, 'actives': 0, 'annulees': 0, 'montant_total': 0, 'sans_capri': 0}
+    statut_f = request.GET.get('statut', '')
+    tache_f = request.GET.get('tache', '')
+
+    if exercice:
+        base = (
+            ConsommationDirecte.objects
+            .filter(ligne_budgetaire__tache__exercice=exercice)
+            .select_related('ligne_budgetaire__tache', 'created_by', 'annule_par')
+        )
+        stats = {
+            'total':         base.count(),
+            'actives':       base.filter(est_annule=False).count(),
+            'annulees':      base.filter(est_annule=True).count(),
+            'montant_total': base.filter(est_annule=False).aggregate(t=Sum('montant'))['t'] or 0,
+            'sans_capri':    base.filter(est_annule=False)
+                                 .filter(Q(numero_capri='') | Q(date_capri__isnull=True)).count(),
+        }
+        consos = base
+        if statut_f == 'actif':
+            consos = consos.filter(est_annule=False)
+        elif statut_f == 'annule':
+            consos = consos.filter(est_annule=True)
+        if tache_f:
+            consos = consos.filter(ligne_budgetaire__tache__numero=tache_f)
+        consos = list(consos.order_by('-date_consommation', '-created_at'))
+
+        # Pièces jointes éventuelles (polymorphe type_entite='conso')
+        pjs = {}
+        for pj in PieceJointe.objects.filter(type_entite='conso', entite_id__in=[c.pk for c in consos]):
+            pjs.setdefault(pj.entite_id, pj)
+        for c in consos:
+            c.pj = pjs.get(c.pk)
+
+        lignes = (
+            LigneBudgetaire.objects.filter(tache__exercice=exercice)
+            .select_related('tache').order_by('tache__numero', 'code_nature')
+        )
+        taches = Tache.objects.filter(exercice=exercice).order_by('numero')
+
+    return render(request, 'core/consommations_list.html', {
+        'exercice': exercice,
+        'consommations': consos,
+        'stats': stats,
+        'lignes': lignes,
+        'taches': taches,
+        'statut_filtre': statut_f,
+        'tache_filtre': tache_f,
+        'motif_choices': ConsommationDirecte.MOTIF_CHOICES,
+    })
+
+
+@login_required
+@role_required('admin', 'directeur_drh', 'assistante_drh')
+@require_POST
+def consommation_create_module(request):
+    """Crée une consommation directe depuis le module dédié (sélection de la ligne)."""
+    exercice = _exercice_courant(request)
+    if not exercice or not exercice.is_active:
+        messages.error(request, "Aucun exercice actif — création impossible.")
+        return redirect('consommations_list')
+
+    ligne = (
+        LigneBudgetaire.objects
+        .filter(pk=request.POST.get('ligne_budgetaire'), tache__exercice=exercice)
+        .select_related('tache').first()
+    )
+    if not ligne:
+        messages.error(request, "Sélectionnez une ligne budgétaire valide.")
+        return redirect('consommations_list')
+
+    form = ConsommationDirecteForm(request.POST)
+    if not form.is_valid():
+        premier = next(iter(form.errors.values()))[0]
+        messages.error(request, f"Erreur de saisie : {premier}")
+        return redirect('consommations_list')
+
+    # REFACTOR: calcul du solde centralisé dans BudgetService (déduplication ×4)
+    dispo = BudgetService.solde_disponible(ligne.pk)
+    montant = form.cleaned_data['montant']
+    if montant > dispo:
+        messages.error(
+            request,
+            f"Solde insuffisant sur {ligne.code_nature}. Disponible : {dispo:,.0f} FCFA",
+        )
+        return redirect('consommations_list')
+
+    fichier = request.FILES.get('piece_jointe')
+    if fichier:
+        ok, err = _valider_fichier_pj(fichier)
+        if not ok:
+            messages.error(request, err)
+            return redirect('consommations_list')
+
+    conso = form.save(commit=False)
+    conso.ligne_budgetaire = ligne
+    conso.created_by = request.user
+    conso.save()
+    if fichier:
+        PieceJointe.objects.create(
+            type_entite='conso', entite_id=conso.pk, type_piece='autre',
+            fichier=fichier, nom_original=fichier.name, taille=fichier.size,
+            uploaded_by=request.user,
+        )
+    log_action(
+        request.user, 'Consommation.create',
+        f"Consommation directe de {montant:,.0f} FCFA sur {ligne.code_nature}"
+        + (f" (pièce jointe : {fichier.name})" if fichier else ""),
+        'ConsommationDirecte', conso.pk,
+    )
+    messages.success(request, f"Consommation de {montant:,.0f} FCFA enregistrée sur {ligne.code_nature}.")
+    return redirect('consommations_list')
+
+
+@login_required
+@role_required('admin')
+@require_POST
+def consommation_edit(request, pk):
+    """Édition d'une consommation directe — réservée à l'admin (montant, motif, dates, CAPRI)."""
+    conso = get_object_or_404(
+        ConsommationDirecte.objects.select_related('ligne_budgetaire__tache__exercice'), pk=pk,
+    )
+    exercice = conso.ligne_budgetaire.tache.exercice
+    locked, msg = _check_exercice_non_verrouille(exercice, 'consommations_list')
+    if locked:
+        messages.error(request, msg)
+        return redirect('consommations_list')
+    if conso.est_annule:
+        messages.error(request, "Cette consommation est annulée — édition impossible.")
+        return redirect('consommations_list')
+
+    ancien_montant = conso.montant  # capturé avant binding du formulaire
+    form = ConsommationDirecteForm(request.POST, instance=conso)
+    if not form.is_valid():
+        premier = next(iter(form.errors.values()))[0]
+        messages.error(request, f"Erreur de saisie : {premier}")
+        return redirect('consommations_list')
+
+    # Re-vérification du solde : disponible = solde courant + ancien montant réintégré
+    # REFACTOR: calcul du solde centralisé dans BudgetService (déduplication ×4)
+    nouveau = form.cleaned_data['montant']
+    dispo = BudgetService.solde_disponible(conso.ligne_budgetaire_id, reintegrer_conso_id=conso.pk)
+    if nouveau > dispo:
+        messages.error(
+            request,
+            f"Solde insuffisant sur {conso.ligne_budgetaire.code_nature}. "
+            f"Disponible (ancien montant réintégré) : {dispo:,.0f} FCFA",
+        )
+        return redirect('consommations_list')
+
+    form.save()
+    log_action(
+        request.user, 'Consommation.edit',
+        f"Consommation #{conso.pk} modifiee : {ancien_montant:,.0f} -> {nouveau:,.0f} FCFA "
+        f"sur {conso.ligne_budgetaire.code_nature}",
+        'ConsommationDirecte', conso.pk,
+    )
+    messages.success(request, f"Consommation directe mise à jour ({nouveau:,.0f} FCFA).")
+    return redirect('consommations_list')
 
 
 # ============ JOURNAL DE PROGRAMMATION PAR BC ============
@@ -2761,12 +2997,15 @@ def annuler_consommation_directe(request, pk):
         'ligne_budgetaire__tache__exercice', 'created_by'
     ), pk=pk)
 
+    # Retour au module Consommations directes si demandé (sinon liste des tâches)
+    _next = 'consommations_list' if request.POST.get('next') == 'consommations_list' else 'taches_list'
+
     if conso.est_annule:
         messages.warning(request, "Cette consommation est déjà annulée.")
-        return redirect('taches_list')
+        return redirect(_next)
     if conso.ligne_budgetaire.tache.exercice.is_locked:
         messages.error(request, "Impossible : l'exercice est clôturé.")
-        return redirect('taches_list')
+        return redirect(_next)
 
     if request.method == 'POST':
         motif = request.POST.get('motif', '').strip()
@@ -2809,7 +3048,7 @@ def annuler_consommation_directe(request, pk):
                 f"Consommation de {conso.montant:,.0f} FCFA annulée. "
                 f"Budget restitué sur la ligne {conso.ligne_budgetaire.code_nature}."
             )
-            return redirect('taches_list')
+            return redirect(_next)
 
     return render(request, 'core/annulation/confirm_annulation.html', {
         'objet': conso,
@@ -2837,10 +3076,8 @@ def annuler_virement(request, pk):
             messages.error(request, "Le motif d'annulation est obligatoire (5 caractères minimum).")
         else:
             # Vérifier que la ligne destination a assez de solde pour le virement inverse
-            dest_annot = LigneBudgetaire.objects.filter(
-                pk=virement.ligne_destination.pk
-            ).with_aggregates().first()
-            if (dest_annot.solde or Decimal('0')) < virement.montant:
+            # REFACTOR: calcul du solde centralisé dans BudgetService (déduplication ×4)
+            if BudgetService.solde_disponible(virement.ligne_destination.pk) < virement.montant:
                 messages.error(
                     request,
                     f"Solde insuffisant sur {virement.ligne_destination.code_nature} "
@@ -3202,3 +3439,145 @@ def journal_creer_da(request, pk):
     )
     messages.success(request, f"DA {da.reference} créée depuis le journal de programmation.")
     return redirect('da_list')
+
+
+# ─────────────────────────────────────────────────────────────
+# Journal de programmation — CRUD admin des prestations
+# ─────────────────────────────────────────────────────────────
+
+_PP_NATURES = {'APPRO', 'TRAVAUX', 'PRESTATION_INT'}
+_PP_PERIODES = {'quad', 'penta'}
+_PP_PRIORITES = {'1', '2'}
+_PP_STATUTS = {'programmee', 'en_cours', 'executee', 'annulee'}
+
+
+def _parse_decimal_fr(raw):
+    """Parse un montant tolérant au format FR (espaces, NBSP, virgule). Renvoie Decimal ou None."""
+    if raw is None:
+        return None
+    s = str(raw).strip().replace(' ', '').replace('\xa0', '').replace(',', '.')
+    if s == '':
+        return None
+    try:
+        return Decimal(s)
+    except (ArithmeticError, ValueError):
+        return None
+
+
+def _prestation_payload(request, exercice):
+    """Lit et valide les champs d'une prestation depuis le POST.
+    Renvoie (data: dict | None, erreur: str | None)."""
+    objet = (request.POST.get('objet_prestation') or '').strip()
+    if not objet:
+        return None, "L'objet de la prestation est obligatoire."
+    montant = _parse_decimal_fr(request.POST.get('montant_ht'))
+    if montant is None or montant < 0:
+        return None, "Montant HT invalide."
+    bp_raw = (request.POST.get('budget_previsionnel') or '').strip()
+    budget_prev = _parse_decimal_fr(bp_raw) if bp_raw else None
+    if bp_raw and budget_prev is None:
+        return None, "Budget prévisionnel invalide."
+
+    nature = request.POST.get('nature_prestation', 'APPRO')
+    nature = nature if nature in _PP_NATURES else 'APPRO'
+    periode = request.POST.get('periode', 'quad')
+    periode = periode if periode in _PP_PERIODES else 'quad'
+    priorite = request.POST.get('priorite', '1')
+    priorite = priorite if priorite in _PP_PRIORITES else '1'
+    statut = request.POST.get('statut', 'programmee')
+    statut = statut if statut in _PP_STATUTS else 'programmee'
+
+    code_tache = (request.POST.get('code_tache') or '').strip()
+    code_nature = (request.POST.get('code_nature') or '').strip()
+    # Lien automatique vers la ligne budgétaire correspondante (si elle existe)
+    ligne = None
+    if code_tache and code_nature:
+        ligne = LigneBudgetaire.objects.filter(
+            tache__exercice=exercice, tache__numero=code_tache, code_nature=code_nature,
+        ).first()
+
+    data = {
+        'code_tache': code_tache,
+        'libelle_tache': (request.POST.get('libelle_tache') or '').strip(),
+        'code_nature': code_nature,
+        'libelle_nature': (request.POST.get('libelle_nature') or '').strip(),
+        'objet_prestation': objet,
+        'nature_prestation': nature,
+        'montant_ht': montant,
+        'budget_previsionnel': budget_prev,
+        'periode': periode,
+        'priorite': priorite,
+        'statut': statut,
+        'ligne_budgetaire': ligne,
+    }
+    return data, None
+
+
+@login_required
+@role_required('admin')
+@require_POST
+def prestation_create(request):
+    """Ajoute une prestation au journal de programmation (admin)."""
+    exercice = _exercice_courant(request)
+    if not exercice:
+        messages.error(request, "Aucun exercice actif.")
+        return redirect('journal_list')
+    locked, msg = _check_exercice_non_verrouille(exercice)
+    if locked:
+        messages.error(request, msg)
+        return redirect('journal_list')
+    data, err = _prestation_payload(request, exercice)
+    if err:
+        messages.error(request, err)
+        return redirect('journal_list')
+    next_num = (PrestationProgrammee.objects.filter(exercice=exercice)
+                .aggregate(m=Max('numero_ligne'))['m'] or 0) + 1
+    p = PrestationProgrammee.objects.create(exercice=exercice, numero_ligne=next_num, **data)
+    log_action(request.user, 'Journal.create',
+               f"Prestation #{p.numero_ligne} ajoutée au journal ({p.objet_prestation[:60]})",
+               'prestation', p.pk)
+    messages.success(request, f"Prestation #{p.numero_ligne} ajoutée au journal de programmation.")
+    return redirect('journal_list')
+
+
+@login_required
+@role_required('admin')
+@require_POST
+def prestation_edit(request, pk):
+    """Modifie une prestation du journal (admin)."""
+    prestation = get_object_or_404(PrestationProgrammee, pk=pk)
+    locked, msg = _check_exercice_non_verrouille(prestation.exercice)
+    if locked:
+        messages.error(request, msg)
+        return redirect('journal_list')
+    data, err = _prestation_payload(request, prestation.exercice)
+    if err:
+        messages.error(request, err)
+        return redirect('journal_list')
+    for champ, valeur in data.items():
+        setattr(prestation, champ, valeur)
+    prestation.save()
+    log_action(request.user, 'Journal.update',
+               f"Prestation #{prestation.numero_ligne} modifiée",
+               'prestation', prestation.pk)
+    messages.success(request, f"Prestation #{prestation.numero_ligne} modifiée.")
+    return redirect('journal_list')
+
+
+@login_required
+@role_required('admin')
+@require_POST
+def prestation_delete(request, pk):
+    """Supprime une prestation du journal (admin)."""
+    prestation = get_object_or_404(PrestationProgrammee, pk=pk)
+    locked, msg = _check_exercice_non_verrouille(prestation.exercice)
+    if locked:
+        messages.error(request, msg)
+        return redirect('journal_list')
+    num = prestation.numero_ligne
+    log_action(request.user, 'Journal.delete',
+               f"Prestation #{num} supprimée du journal",
+               'prestation', prestation.pk)
+    prestation.delete()
+    messages.success(request, f"Prestation #{num} supprimée du journal de programmation.")
+    return redirect('journal_list')

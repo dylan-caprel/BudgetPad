@@ -2,6 +2,7 @@
 {% load core_tags budget_filters %}
 {% block title %}Journal de programmation — BudgetPAD{% endblock %}
 {% block content %}
+{% with est_admin=request.user|has_role:"admin" %}
 <div class="d-flex justify-content-between align-items-start mb-4">
     <div>
         <h4 style="font-weight:600;color:#1B3A5C;">
@@ -11,6 +12,11 @@
             Plan annuel des prestations par bon de commande &middot; Exercice {{ exercice.annee|default:"—" }}
         </p>
     </div>
+    {% if exercice and est_admin %}
+    <button type="button" class="btn btn-pad btn-sm" onclick="prestaNouvelle()">
+        <i class="bi bi-plus-circle me-1"></i>Ajouter une prestation
+    </button>
+    {% endif %}
 </div>
 
 {% if not exercice %}
@@ -69,7 +75,27 @@
         </thead>
         <tbody>
         {% for p in prestations %}
-        <tr class="{% if not p.est_disponible %}table-light{% endif %}">
+        <tr style="cursor:pointer;" class="{% if not p.est_disponible %}table-light{% endif %}"
+            onclick="prestaVoir(this)"
+            data-pk="{{ p.pk }}"
+            data-num="{{ p.numero_ligne }}"
+            data-code-tache="{{ p.code_tache }}"
+            data-libelle-tache="{{ p.libelle_tache }}"
+            data-code-nature="{{ p.code_nature }}"
+            data-libelle-nature="{{ p.libelle_nature }}"
+            data-objet="{{ p.objet_prestation }}"
+            data-nature="{{ p.nature_prestation }}"
+            data-montant="{{ p.montant_ht }}"
+            data-budget-prev="{{ p.budget_previsionnel|default_if_none:'' }}"
+            data-periode="{{ p.periode }}"
+            data-priorite="{{ p.priorite }}"
+            data-statut="{{ p.statut }}"
+            data-statut-label="{{ p.get_statut_display }}"
+            data-nature-label="{{ p.get_nature_prestation_display }}"
+            data-ligne="{% if p.ligne_budgetaire %}{{ p.ligne_budgetaire.tache.numero }} / {{ p.ligne_budgetaire.code_nature }}{% endif %}"
+            data-da="{% if p.demande_achat %}{{ p.demande_achat.reference }}{% endif %}"
+            data-edit-url="{% url 'prestation_edit' p.pk %}"
+            data-delete-url="{% url 'prestation_delete' p.pk %}">
             <td>{{ p.numero_ligne }}</td>
             <td><span class="badge" style="background:#1B3A5C;font-size:0.7rem;">{{ p.code_tache }}</span></td>
             <td><code style="font-size:0.78rem;">{{ p.code_nature }}</code></td>
@@ -100,13 +126,165 @@
             <div class="empty-state">
                 <i class="bi bi-journal-x"></i>
                 <p class="empty-title">Aucune prestation programmée</p>
-                <p class="empty-sub">Importez le journal de programmation (JP-BC) pour cet exercice.</p>
+                <p class="empty-sub">Importez le journal de programmation (JP-BC) ou ajoutez une prestation.</p>
             </div>
         </td></tr>
         {% endfor %}
         </tbody>
     </table>
     </div>
+    <p class="text-muted small mt-2 mb-0"><i class="bi bi-info-circle me-1"></i>Cliquez sur une ligne pour voir le détail{% if est_admin %} ou la modifier{% endif %}.</p>
 </div>
+
+<!-- ════════════ OFFCANVAS : détail / édition d'une prestation ════════════ -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="prestaOffcanvas" style="width:460px;max-width:95vw;">
+  <div class="offcanvas-header" style="background:#1B3A5C;color:#fff;">
+    <h5 class="offcanvas-title" id="prestaTitre"><i class="bi bi-journal-text me-2"></i>Prestation</h5>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Fermer"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form id="prestaForm" method="post" action="">
+      {% csrf_token %}
+      <div class="row g-2">
+        <div class="col-6">
+          <label class="form-label small mb-1">Code tâche</label>
+          <input name="code_tache" id="f_code_tache" class="form-control form-control-sm" {% if not est_admin %}disabled{% endif %}>
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-1">Code nature</label>
+          <input name="code_nature" id="f_code_nature" class="form-control form-control-sm" {% if not est_admin %}disabled{% endif %}>
+        </div>
+        <div class="col-12">
+          <label class="form-label small mb-1">Libellé tâche</label>
+          <input name="libelle_tache" id="f_libelle_tache" class="form-control form-control-sm" {% if not est_admin %}disabled{% endif %}>
+        </div>
+        <div class="col-12">
+          <label class="form-label small mb-1">Libellé nature</label>
+          <input name="libelle_nature" id="f_libelle_nature" class="form-control form-control-sm" {% if not est_admin %}disabled{% endif %}>
+        </div>
+        <div class="col-12">
+          <label class="form-label small mb-1">Objet de la prestation <span class="text-danger">*</span></label>
+          <textarea name="objet_prestation" id="f_objet" rows="2" class="form-control form-control-sm" {% if not est_admin %}disabled{% endif %}></textarea>
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-1">Nature</label>
+          <select name="nature_prestation" id="f_nature" class="form-select form-select-sm" {% if not est_admin %}disabled{% endif %}>
+            <option value="APPRO">Approvisionnement (APPRO)</option>
+            <option value="TRAVAUX">Travaux</option>
+            <option value="PRESTATION_INT">Prestations intellectuelles</option>
+          </select>
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-1">Statut</label>
+          <select name="statut" id="f_statut" class="form-select form-select-sm" {% if not est_admin %}disabled{% endif %}>
+            <option value="programmee">Programmée</option>
+            <option value="en_cours">En cours</option>
+            <option value="executee">Exécutée</option>
+            <option value="annulee">Annulée</option>
+          </select>
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-1">Montant HT <span class="text-danger">*</span></label>
+          <input name="montant_ht" id="f_montant" inputmode="decimal" class="form-control form-control-sm" {% if not est_admin %}disabled{% endif %}>
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-1">Budget prévisionnel</label>
+          <input name="budget_previsionnel" id="f_budget" inputmode="decimal" class="form-control form-control-sm" {% if not est_admin %}disabled{% endif %}>
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-1">Période</label>
+          <select name="periode" id="f_periode" class="form-select form-select-sm" {% if not est_admin %}disabled{% endif %}>
+            <option value="quad">Quadrimestre (Mars–Juin)</option>
+            <option value="penta">Pentamestre (Juil.–Nov.)</option>
+          </select>
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-1">Priorité</label>
+          <select name="priorite" id="f_priorite" class="form-select form-select-sm" {% if not est_admin %}disabled{% endif %}>
+            <option value="1">Priorité 1</option>
+            <option value="2">Priorité 2</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="mt-3 p-2 rounded" style="background:#f5f7fa;font-size:13px;" id="prestaLiens">
+        <div><i class="bi bi-link-45deg text-muted me-1"></i>Ligne budgétaire : <strong id="v_ligne">—</strong></div>
+        <div><i class="bi bi-file-earmark-text text-muted me-1"></i>DA liée : <strong id="v_da">—</strong></div>
+      </div>
+
+      {% if est_admin %}
+      <div class="d-flex gap-2 mt-3">
+        <button type="submit" class="btn btn-pad btn-sm flex-grow-1"><i class="bi bi-check-lg me-1"></i>Enregistrer</button>
+        <button type="button" class="btn btn-outline-danger btn-sm" id="prestaBtnDelete" onclick="prestaSupprimer()"><i class="bi bi-trash"></i></button>
+      </div>
+      {% endif %}
+    </form>
+    {% if est_admin %}
+    <form id="prestaDeleteForm" method="post" action="" class="d-none">{% csrf_token %}</form>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+(function () {
+  const CREATE_URL = "{% url 'prestation_create' %}";
+  const offEl = document.getElementById('prestaOffcanvas');
+  if (!offEl) return;
+  // Init paresseuse : Bootstrap est chargé après ce bloc, on n'y accède qu'au clic.
+  const getOff = () => bootstrap.Offcanvas.getOrCreateInstance(offEl);
+  const $ = id => document.getElementById(id);
+
+  function setField(id, val) { const e = $(id); if (e) e.value = val || ''; }
+
+  function fill(d) {
+    setField('f_code_tache', d.codeTache);
+    setField('f_libelle_tache', d.libelleTache);
+    setField('f_code_nature', d.codeNature);
+    setField('f_libelle_nature', d.libelleNature);
+    setField('f_objet', d.objet);
+    setField('f_nature', d.nature || 'APPRO');
+    setField('f_statut', d.statut || 'programmee');
+    setField('f_montant', d.montant);
+    setField('f_budget', d.budgetPrev);
+    setField('f_periode', d.periode || 'quad');
+    setField('f_priorite', d.priorite || '1');
+    if ($('v_ligne')) $('v_ligne').textContent = d.ligne || '—';
+    if ($('v_da')) $('v_da').textContent = d.da || '—';
+  }
+
+  // Vue / édition d'une prestation existante
+  window.prestaVoir = function (tr) {
+    const d = tr.dataset;
+    fill(d);
+    const form = $('prestaForm');
+    if (form) form.action = d.editUrl;
+    const del = $('prestaBtnDelete');
+    if (del) del.style.display = '';
+    const delForm = $('prestaDeleteForm');
+    if (delForm) delForm.action = d.deleteUrl;
+    $('prestaTitre').innerHTML = '<i class="bi bi-journal-text me-2"></i>Prestation #' + (d.num || '');
+    getOff().show();
+  };
+
+  // Création d'une nouvelle prestation (admin)
+  window.prestaNouvelle = function () {
+    fill({ nature: 'APPRO', statut: 'programmee', periode: 'quad', priorite: '1' });
+    const form = $('prestaForm');
+    if (form) form.action = CREATE_URL;
+    const del = $('prestaBtnDelete');
+    if (del) del.style.display = 'none';
+    $('prestaTitre').innerHTML = '<i class="bi bi-plus-circle me-2"></i>Nouvelle prestation';
+    getOff().show();
+  };
+
+  window.prestaSupprimer = function () {
+    if (confirm('Supprimer définitivement cette prestation du journal ?')) {
+      const f = $('prestaDeleteForm');
+      if (f && f.action) f.submit();
+    }
+  };
+})();
+</script>
 {% endif %}
+{% endwith %}
 {% endblock %}

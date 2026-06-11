@@ -88,10 +88,9 @@
     </div>
 
     {% if request.user.role == 'admin' %}
-    <div class="border-top pt-3 d-flex gap-2">
+    <div class="border-top pt-3 d-flex flex-column gap-2">
         {% if exercice.statut == 'actif' %}
         <form method="post" action="{% url 'exercice_cloturer' exercice.pk %}"
-              class="flex-fill"
               onsubmit="return confirm('Clôturer l\'exercice {{ exercice.annee }} ? Les données deviendront en lecture seule.');">
             {% csrf_token %}
             <button type="submit" class="btn btn-sm btn-outline-warning w-100">
@@ -99,15 +98,32 @@
             </button>
         </form>
         {% else %}
-        <form method="post" action="{% url 'exercice_reconduire' exercice.pk %}"
-              class="flex-fill"
-              onsubmit="return confirm('Reconduire vers {{ exercice.annee|add:1 }} ? La structure sera copiée avec montants à 0.');">
+        <div class="d-flex gap-2">
+            <form method="post" action="{% url 'exercice_reconduire' exercice.pk %}" class="flex-fill"
+                  onsubmit="return confirm('Reconduire vers {{ exercice.annee|add:1 }} ? Structure copiée, montants à 0.');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+                    <i class="bi bi-arrow-repeat"></i> Reconduire (à 0)
+                </button>
+            </form>
+            <form method="post" action="{% url 'exercice_reconduire' exercice.pk %}" class="flex-fill"
+                  onsubmit="return confirm('Reconduire vers {{ exercice.annee|add:1 }} en reprenant les budgets ?');">
+                {% csrf_token %}
+                <input type="hidden" name="garder_montants" value="1">
+                <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+                    <i class="bi bi-arrow-repeat"></i> Reconduire (budgets)
+                </button>
+            </form>
+        </div>
+        {% endif %}
+        {# Répertoire : verser la nomenclature de cet exercice dans le catalogue réutilisable du wizard #}
+        <form method="post" action="{% url 'repertoire_sync' exercice.pk %}"
+              onsubmit="return confirm('Verser les tâches et lignes de {{ exercice.annee }} dans le répertoire réutilisable ?');">
             {% csrf_token %}
-            <button type="submit" class="btn btn-sm btn-outline-primary w-100">
-                <i class="bi bi-arrow-repeat"></i> Reconduire
+            <button type="submit" class="btn btn-sm btn-outline-success w-100">
+                <i class="bi bi-journal-plus"></i> Verser au répertoire (réutilisable au wizard)
             </button>
         </form>
-        {% endif %}
     </div>
     {% endif %}
 </div>

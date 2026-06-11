@@ -112,6 +112,7 @@ class Command(BaseCommand):
             n_conso, conso_total = self._creer_consommations(ConsommationDirecte, lignes_map, taches_data, admin)
             self._creer_prestataires(Prestataire)
             n_presta, n_link = self._creer_journal(exercice, PrestationProgrammee, lignes_map, journal_data)
+            n_rep_t, n_rep_l = self._alimenter_repertoire(exercice)
 
         n_taches = len(taches_data)
         n_lignes = sum(len(t['lignes']) for t in taches_data)
@@ -122,6 +123,7 @@ class Command(BaseCommand):
             f"  - {n_vir} virements (transferts reconstitues)\n"
             f"  - {n_conso} consommations directes ({int(conso_total):,} FCFA)\n"
             f"  - {n_presta} prestations au journal ({n_link} liees a une ligne)\n"
+            f"  - Repertoire alimente : {n_rep_t} taches / {n_rep_l} lignes (reutilisable au wizard)\n"
             f"  - {len(COMPTES)} comptes (mot de passe : {MOT_DE_PASSE})\n"
             f"  - {len(PRESTATAIRES_DEMO)} prestataires de demonstration\n"
         ).replace(',', ' '))
@@ -317,6 +319,12 @@ class Command(BaseCommand):
                 code=code,
                 defaults={'nom': nom, 'adresse': adresse, 'telephone': tel, 'email': email},
             )
+
+    def _alimenter_repertoire(self, exercice):
+        """Verse les tâches/lignes de l'exercice dans le répertoire réutilisable (wizard)."""
+        from core.services.repertoire_service import sync_repertoire_from_exercice
+        self.stdout.write("  Alimentation du répertoire (catalogue tâches/lignes)...")
+        return sync_repertoire_from_exercice(exercice)
 
     def _creer_journal(self, exercice, PrestationProgrammee, lignes_map, journal_data):
         self.stdout.write(f"  Journal de programmation ({len(journal_data)} prestations)...")

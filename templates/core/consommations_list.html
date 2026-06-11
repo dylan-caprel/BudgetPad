@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+{% load core_tags budget_filters %}
+{% block title %}Consommations directes — BudgetPAD{% endblock %}
+{% block content %}
+{% with est_admin=request.user|has_role:"admin" peut_creer=request.user|has_role:"admin,directeur_drh,assistante_drh" %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h4 style="font-weight:600;color:#1B3A5C;">
+            <i class="bi bi-cash-stack me-2"></i>Consommations directes
+        </h4>
+        <p class="text-muted mb-0" style="font-size:14px;">
+            Dépenses imputées sans bon de commande &middot; Exercice {{ exercice.annee|default:"—" }}
+        </p>
+    </div>
+    {% if exercice and peut_creer %}
+    <button type="button" class="btn btn-pad btn-sm" onclick="consoNouvelle()">
+        <i class="bi bi-plus-circle me-1"></i>Nouvelle consommation
+    </button>
+    {% endif %}
+</div>
+
+{% if not exercice %}
+<div class="alert alert-warning">Aucun exercice actif.</div>
+{% else %}
+
+<!-- KPI -->
+<div class="row g-3 mb-4">
+    <div class="col"><div class="kpi-card"><div class="kpi-label">Total</div><div class="kpi-value">{{ stats.total }}</div></div></div>
+    <div class="col"><div class="kpi-card"><div class="kpi-label">Actives</div><div class="kpi-value" style="color:#1A5632;">{{ stats.actives }}</div></div></div>
+    <div class="col"><div class="kpi-card"><div class="kpi-label">Annulées</div><div class="kpi-value text-muted">{{ stats.annulees }}</div></div></div>
+    <div class="col"><div class="kpi-card"><div class="kpi-label">Montant (actives)</div><div class="kpi-value" style="font-size:18px;color:#1B3A5C;">{{ stats.montant_total|fmt }}</div></div></div>
+    <div class="col"><div class="kpi-card"><div class="kpi-label">CAPRI à régulariser</div><div class="kpi-value" style="color:#E67E22;">{{ stats.sans_capri }}</div></div></div>
+</div>
+
+<div class="data-card">
+    <h6>Registre des consommations directes</h6>
+
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3">
+            <select name="statut" class="form-select form-select-sm">
+                <option value="">Tous les statuts</option>
+                <option value="actif"  {% if statut_filtre == 'actif' %}selected{% endif %}>Actives</option>
+                <option value="annule" {% if statut_filtre == 'annule' %}selected{% endif %}>Annulées</option>
+            </select>
+        </div>
+        <div class="col-md-4">
+            <select name="tache" class="form-select form-select-sm">
+                <option value="">Toutes les tâches</option>
+                {% for t in taches %}
+                <option value="{{ t.numero }}" {% if tache_filtre == t.numero %}selected{% endif %}>{{ t.numero }} — {{ t.titre|truncatechars:40 }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-1"><button type="submit" class="btn btn-sm btn-pad w-100">Filtrer</button></div>
+        <div class="col-md-1"><a href="{% url 'consommations_list' %}" class="btn btn-sm btn-link text-muted">Reset</a></div>
+    </form>
+
+    <div class="table-responsive">
+    <table class="table table-hover table-sm mb-0" style="font-size:13px;">
+        <thead>
+            <tr>
+                <th>Date</th><th>Tâche</th><th>Nature</th><th class="money">Montant</th>
+                <th>Motif</th><th>CAPRI</th><th>Statut</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for c in consommations %}
+        <tr style="cursor:pointer;" class="{% if c.est_annule %}table-light text-muted{% endif %}"
+            onclick="consoVoir(this)"
+            data-pk="{{ c.pk }}"
+            data-date="{{ c.date_consommation|date:'d/m/Y' }}"
+            data-tache="{{ c.ligne_budgetaire.tache.numero }} — {{ c.ligne_budgetaire.tache.titre }}"
+            data-nature="{{ c.ligne_budgetaire.code_nature }} — {{ c.ligne_budgetaire.libelle_nature }}"
+            data-montant="{{ c.montant|fmt }}"
+            data-montant-val="{{ c.montant|floatformat:0 }}"
+            data-motif="{{ c.get_motif_display }}"
+            data-motif-key="{{ c.motif }}"
+            data-description="{{ c.description }}"
+            data-date-iso="{{ c.date_consommation|date:'Y-m-d' }}"
+            data-capri="{% if not c.capri_manquant %}{{ c.numero_capri }} ({{ c.date_capri|date:'d/m/Y' }}){% endif %}"
+            data-capri-num="{{ c.numero_capri }}"
+            data-capri-iso="{{ c.date_capri|date:'Y-m-d' }}"
+            data-auteur="{% if c.created_by %}{{ c.created_by.nom_complet|default:c.created_by.username }}{% endif %}"
+            data-annule="{{ c.est_annule|yesno:'1,' }}"
+            data-motif-annulation="{{ c.motif_annulation }}"
+            data-pj-url="{% if c.pj and c.pj.fichier %}{{ c.pj.fichier.url }}{% endif %}"
+            data-edit-url="{% url 'consommation_edit' c.pk %}"
+            data-annuler-url="{% url 'annuler_consommation_directe' c.pk %}">
+            <td>{{ c.date_consommation|date:'d/m/Y' }}</td>
+            <td><span class="badge" style="background:#1B3A5C;font-size:0.7rem;">{{ c.ligne_budgetaire.tache.numero }}</span></td>
+            <td><code style="font-size:0.78rem;">{{ c.ligne_budgetaire.code_nature }}</code></td>
+            <td class="money">{{ c.montant|fmt }}</td>
+            <td><small>{{ c.get_motif_display }}</small></td>
+            <td>
+                {% if c.capri_manquant %}
+                <span class="badge bg-warning text-dark" style="font-size:0.65rem;">à régulariser</span>
+                {% else %}
+                <span class="badge bg-success" style="font-size:0.65rem;"><i class="bi bi-check"></i> {{ c.numero_capri }}</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if c.est_annule %}<span class="badge bg-danger">Annulée</span>
+                {% else %}<span class="badge bg-success">Active</span>{% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7">
+            <div class="empty-state">
+                <i class="bi bi-cash-stack"></i>
+                <p class="empty-title">Aucune consommation directe</p>
+                <p class="empty-sub">{% if peut_creer %}Cliquez sur « Nouvelle consommation » pour en enregistrer une.{% else %}Aucune dépense directe enregistrée pour cet exercice.{% endif %}</p>
+            </div>
+        </td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    <p class="text-muted small mt-2 mb-0"><i class="bi bi-info-circle me-1"></i>Cliquez sur une ligne pour voir le détail.</p>
+</div>
+
+<!-- ════════════ OFFCANVAS : détail d'une consommation ════════════ -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="consoOffcanvas" style="width:440px;max-width:95vw;">
+  <div class="offcanvas-header" style="background:#1B3A5C;color:#fff;">
+    <h5 class="offcanvas-title"><i class="bi bi-cash-stack me-2"></i>Consommation directe</h5>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <!-- Contexte (lecture seule) -->
+    <dl class="row mb-3" style="font-size:13px;">
+      <dt class="col-5 text-muted">Tâche</dt><dd class="col-7" id="c_tache">—</dd>
+      <dt class="col-5 text-muted">Ligne (nature)</dt><dd class="col-7" id="c_nature">—</dd>
+      <dt class="col-5 text-muted">Enregistré par</dt><dd class="col-7" id="c_auteur">—</dd>
+      <dt class="col-5 text-muted">Statut</dt><dd class="col-7" id="c_statut">—</dd>
+    </dl>
+
+    <!-- Détail (éditable par l'admin uniquement) -->
+    <form method="post" id="consoEditForm" action="">
+      {% csrf_token %}
+      <div class="row g-2">
+        <div class="col-6">
+          <label class="form-label small mb-1">Montant (FCFA) <span class="text-danger">*</span></label>
+          <input type="number" name="montant" id="c_f_montant" min="1" step="1" class="form-control form-control-sm" {% if not est_admin %}disabled{% endif %}>
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-1">Date <span class="text-danger">*</span></label>
+          <input type="date" name="date_consommation" id="c_f_date" class="form-control form-control-sm" {% if not est_admin %}disabled{% endif %}>
+        </div>
+        <div class="col-12">
+          <label class="form-label small mb-1">Motif <span class="text-danger">*</span></label>
+          <select name="motif" id="c_f_motif" class="form-select form-select-sm" {% if not est_admin %}disabled{% endif %}>
+            {% for val, lbl in motif_choices %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label small mb-1">Description</label>
+          <textarea name="description" id="c_f_description" rows="2" class="form-control form-control-sm" {% if not est_admin %}disabled{% endif %}></textarea>
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-1">N° CAPRI <span class="text-danger">*</span></label>
+          <input type="text" name="numero_capri" id="c_f_capri" class="form-control form-control-sm" placeholder="CAPRI-2026-…" {% if not est_admin %}disabled{% endif %}>
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-1">Date CAPRI <span class="text-danger">*</span></label>
+          <input type="date" name="date_capri" id="c_f_datecapri" class="form-control form-control-sm" {% if not est_admin %}disabled{% endif %}>
+        </div>
+      </div>
+      {% if est_admin %}
+      <button type="submit" class="btn btn-pad btn-sm w-100 mt-3" id="c_edit_save">
+        <i class="bi bi-check-lg me-1"></i>Enregistrer les modifications
+      </button>
+      <p class="text-muted small mt-1 mb-0"><i class="bi bi-shield-check me-1"></i>Avis CAPRI obligatoire (R11) ; le solde de la ligne est revérifié.</p>
+      {% endif %}
+    </form>
+
+    <div id="c_pj_wrap" class="mt-2 d-none">
+      <a id="c_pj" href="#" target="_blank" class="btn btn-sm btn-outline-secondary w-100">
+        <i class="bi bi-paperclip me-1"></i>Voir la pièce jointe
+      </a>
+    </div>
+    <div id="c_annule_wrap" class="alert alert-danger py-2 mt-2 d-none" style="font-size:13px;">
+      <strong>Annulée.</strong> <span id="c_motif_annulation"></span>
+    </div>
+
+    {% if est_admin %}
+    <div id="c_annuler_zone" class="border-top pt-3 mt-3">
+      <form method="post" id="consoAnnulerForm" action="">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="consommations_list">
+        <label class="form-label small mb-1 text-danger">Annuler cette consommation (motif requis)</label>
+        <textarea name="motif" rows="2" class="form-control form-control-sm mb-2" placeholder="Motif d'annulation (min. 5 caractères)"></textarea>
+        <button type="submit" class="btn btn-outline-danger btn-sm w-100"
+                onclick="return confirm('Annuler définitivement cette consommation ? Le budget sera restitué.');">
+          <i class="bi bi-x-circle me-1"></i>Annuler la consommation
+        </button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ════════════ OFFCANVAS : nouvelle consommation ════════════ -->
+{% if peut_creer %}
+<div class="offcanvas offcanvas-end" tabindex="-1" id="consoCreateOffcanvas" style="width:460px;max-width:95vw;">
+  <div class="offcanvas-header" style="background:#1A5632;color:#fff;">
+    <h5 class="offcanvas-title"><i class="bi bi-plus-circle me-2"></i>Nouvelle consommation directe</h5>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form method="post" action="{% url 'consommation_create_module' %}" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="mb-2">
+        <label class="form-label small mb-1">Ligne budgétaire <span class="text-danger">*</span></label>
+        <select name="ligne_budgetaire" class="form-select form-select-sm" required>
+          <option value="">— Choisir une ligne —</option>
+          {% for l in lignes %}
+          <option value="{{ l.pk }}">{{ l.tache.numero }} / {{ l.code_nature }} — {{ l.libelle_nature|truncatechars:40 }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="row g-2">
+        <div class="col-6">
+          <label class="form-label small mb-1">Montant (FCFA) <span class="text-danger">*</span></label>
+          <input type="number" name="montant" min="1" step="1" class="form-control form-control-sm" required>
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-1">Date <span class="text-danger">*</span></label>
+          <input type="date" name="date_consommation" class="form-control form-control-sm" value="{% now 'Y-m-d' %}" required>
+        </div>
+        <div class="col-12">
+          <label class="form-label small mb-1">Motif <span class="text-danger">*</span></label>
+          <select name="motif" class="form-select form-select-sm" required>
+            {% for val, lbl in motif_choices %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label small mb-1">Description</label>
+          <textarea name="description" rows="2" class="form-control form-control-sm"></textarea>
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-1">N° CAPRI <span class="text-danger">*</span></label>
+          <input type="text" name="numero_capri" class="form-control form-control-sm" placeholder="CAPRI-2026-…" required>
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-1">Date CAPRI <span class="text-danger">*</span></label>
+          <input type="date" name="date_capri" class="form-control form-control-sm" required>
+        </div>
+        <div class="col-12">
+          <label class="form-label small mb-1">Pièce jointe (facultatif)</label>
+          <input type="file" name="piece_jointe" class="form-control form-control-sm">
+        </div>
+      </div>
+      <button type="submit" class="btn btn-pad btn-sm w-100 mt-3"><i class="bi bi-check-lg me-1"></i>Enregistrer</button>
+      <p class="text-muted small mt-2 mb-0"><i class="bi bi-shield-check me-1"></i>L'avis CAPRI est obligatoire (Règle R11). Le solde de la ligne est vérifié.</p>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<script>
+(function () {
+  const viewEl = document.getElementById('consoOffcanvas');
+  if (!viewEl) return;
+  const getView = () => bootstrap.Offcanvas.getOrCreateInstance(viewEl);
+  const createEl = document.getElementById('consoCreateOffcanvas');
+  const $ = id => document.getElementById(id);
+  const setTxt = (id, v) => { const e = $(id); if (e) e.textContent = v || '—'; };
+
+  const setVal = (id, v) => { const e = $(id); if (e) e.value = (v == null ? '' : v); };
+
+  window.consoVoir = function (tr) {
+    const d = tr.dataset;
+    // Contexte (lecture seule)
+    setTxt('c_tache', d.tache);
+    setTxt('c_nature', d.nature);
+    setTxt('c_auteur', d.auteur);
+    const annule = d.annule === '1';
+    setTxt('c_statut', annule ? 'Annulée' : 'Active');
+    // Champs éditables (admin)
+    setVal('c_f_montant', d.montantVal);
+    setVal('c_f_date', d.dateIso);
+    setVal('c_f_motif', d.motifKey);
+    setVal('c_f_description', d.description);
+    setVal('c_f_capri', d.capriNum);
+    setVal('c_f_datecapri', d.capriIso);
+    const ef = $('consoEditForm'); if (ef) ef.action = d.editUrl;
+    const es = $('c_edit_save'); if (es) es.style.display = annule ? 'none' : '';  // pas d'édition si annulée
+    // Pièce jointe
+    const pjWrap = $('c_pj_wrap'), pj = $('c_pj');
+    if (pjWrap) {
+      if (d.pjUrl) { pj.href = d.pjUrl; pjWrap.classList.remove('d-none'); }
+      else { pjWrap.classList.add('d-none'); }
+    }
+    // Bloc "annulée"
+    const aw = $('c_annule_wrap');
+    if (aw) {
+      if (annule) { $('c_motif_annulation').textContent = d.motifAnnulation || ''; aw.classList.remove('d-none'); }
+      else { aw.classList.add('d-none'); }
+    }
+    // Zone d'annulation admin : masquée si déjà annulée
+    const az = $('c_annuler_zone');
+    if (az) az.style.display = annule ? 'none' : '';
+    const form = $('consoAnnulerForm');
+    if (form) form.action = d.annulerUrl;
+    getView().show();
+  };
+
+  window.consoNouvelle = function () {
+    if (createEl) bootstrap.Offcanvas.getOrCreateInstance(createEl).show();
+  };
+})();
+</script>
+{% endif %}
+{% endwith %}
+{% endblock %}

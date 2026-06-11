@@ -25,6 +25,10 @@ Application Django de suivi budgétaire et de gestion des achats pour la
 
 ## Installation
 
+> 📘 **Guide détaillé** : voir [`docs/GUIDE_INSTALLATION.md`](docs/GUIDE_INSTALLATION.md)
+> — couvre notamment la **mise à jour d'une installation existante** (migrations 0007→0013,
+> données réelles 2026 via `seed_real_data --reset`) et le dépannage courant.
+
 ```powershell
 # 1. Cloner et créer un environnement virtuel
 python -m venv env
